@@ -1,6 +1,7 @@
 import { NavLink } from "@/components/NavLink";
 import { Phone, Mail, MapPin, ArrowRight } from "lucide-react";
 import { FaWhatsapp } from 'react-icons/fa';
+import logoImg from "@/assets/logo2.png"; // Importação da logo
 
 export const Footer = () => {
     return (
@@ -10,9 +11,13 @@ export const Footer = () => {
 
                     <div className="space-y-4 pr-4">
                         <NavLink to="/" className="flex items-center space-x-3 group w-fit">
-                            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-accent transition-all duration-300 group-hover:bg-accent/90">
-                                <span className="text-2xl font-extrabold text-accent-foreground">IG</span>
-                            </div>
+
+                            <img
+                                src={logoImg}
+                                alt="Ian Granja Advocacia Logo"
+                                className="h-12 w-auto transition-all duration-300 group-hover:scale-105"
+                            />
+
                             <div>
                                 <div className="text-xl font-extrabold">Ian Granja</div>
                                 <div className="text-xs opacity-70">Advocacia & Consultoria</div>

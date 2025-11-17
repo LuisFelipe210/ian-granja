@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import logoImg from "@/assets/logo2.png"; // Importação da logo
 
 export const Navigation = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -35,9 +36,14 @@ export const Navigation = () => {
             >
                 <div className="px-4 sm:px-6 h-full flex items-center justify-between">
                     <NavLink to="/" className="flex items-center space-x-3 group" onClick={closeMobileMenu}>
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent transition-all duration-300 group-hover:bg-primary group-hover:scale-105">
-                            <span className="text-xl font-bold text-accent-foreground group-hover:text-accent">IG</span>
-                        </div>
+
+                        {/* LOGO SUBSTITUÍDA AQUI, DESGRAÇA */}
+                        <img
+                            src={logoImg}
+                            alt="Ian Granja Advocacia Logo"
+                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105"
+                        />
+
                         <div className="hidden sm:block">
                             <div className="text-xl font-extrabold text-foreground transition-colors duration-300 group-hover:text-accent">
                                 Ian Granja
@@ -123,7 +129,7 @@ export const Navigation = () => {
                             asChild
                             onClick={closeMobileMenu}
                         >
-                            <NavLink to="#">
+                            <NavLink to="#" isContactLink>
                                 <Phone className="h-6 w-6"/> Fale com Advogado
                             </NavLink>
                         </Button>
