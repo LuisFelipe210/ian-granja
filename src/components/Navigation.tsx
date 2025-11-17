@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import logoImg from "@/assets/logo2.png"; // Importação da logo
+import logoImg from "@/assets/logo2.png";
 
 export const Navigation = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -22,33 +22,33 @@ export const Navigation = () => {
         { to: "/faq", label: "FAQ" },
     ];
 
-    const linkClasses = "relative text-base font-bold text-foreground/90 transition-all duration-300 hover:text-accent group px-3 py-1 rounded-lg hover:bg-muted/50";
-    const activeLinkClasses = "text-accent after:scale-x-100 bg-muted/50 dark:bg-primary/30";
+    const linkClasses = "relative text-base font-bold text-primary-foreground/90 transition-all duration-300 hover:text-accent group px-3 py-1 rounded-lg hover:bg-primary-foreground/10";
+    const activeLinkClasses = "text-accent after:scale-x-100 bg-primary-foreground/10 dark:bg-primary/30";
 
     return (
         <>
             <nav
                 className={cn(
                     "fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300",
-                    "bg-background/80 dark:bg-primary/50 backdrop-blur-lg shadow-xl border border-border/50",
+                    "bg-primary/80 backdrop-blur-lg shadow-xl border border-primary-foreground/10", // Fundo primary e borda mais escura
                     "h-[70px] w-[95%] rounded-lg"
                 )}
             >
                 <div className="px-4 sm:px-6 h-full flex items-center justify-between">
                     <NavLink to="/" className="flex items-center space-x-3 group" onClick={closeMobileMenu}>
 
-                        {/* LOGO SUBSTITUÍDA AQUI, DESGRAÇA */}
                         <img
                             src={logoImg}
                             alt="Ian Granja Advocacia Logo"
                             className="h-10 w-auto transition-all duration-300 group-hover:scale-105"
                         />
 
-                        <div className="hidden sm:block">
+                        {/* Nome "Ian Granja" removido aqui, desgraça */}
+                        {/* <div className="hidden sm:block">
                             <div className="text-xl font-extrabold text-foreground transition-colors duration-300 group-hover:text-accent">
                                 Ian Granja
                             </div>
-                        </div>
+                        </div> */}
                     </NavLink>
 
                     <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export const Navigation = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="lg:hidden h-10 w-10 text-foreground hover:bg-muted/50 rounded-full transition-colors duration-200 relative z-50"
+                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50" // Texto e hover ajustados
                             aria-expanded={mobileMenuOpen}
                             aria-controls="mobile-menu"
                         >
@@ -95,7 +95,7 @@ export const Navigation = () => {
                 id="mobile-menu"
                 className={cn(
                     "fixed inset-0 z-40 lg:hidden transition-opacity duration-300",
-                    "bg-background/95 dark:bg-primary/95 backdrop-blur-lg",
+                    "bg-primary/95 backdrop-blur-lg", // Fundo primary
                     mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 )}
                 onClick={closeMobileMenu}
@@ -113,7 +113,7 @@ export const Navigation = () => {
                                 key={item.to}
                                 to={item.to}
                                 onClick={closeMobileMenu}
-                                className="text-3xl font-bold text-foreground dark:text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95"
+                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95" // Cor ajustada
                                 activeClassName="text-accent"
                                 style={{ transitionDelay: mobileMenuOpen ? `${index * 50}ms` : '0ms' }}
                             >

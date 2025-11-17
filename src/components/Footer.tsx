@@ -1,7 +1,7 @@
 import { NavLink } from "@/components/NavLink";
 import { Phone, Mail, MapPin, ArrowRight } from "lucide-react";
 import { FaWhatsapp } from 'react-icons/fa';
-import logoImg from "@/assets/logo2.png"; // Importação da logo
+import logoImg from "@/assets/logo2.png";
 
 export const Footer = () => {
     return (
@@ -10,7 +10,7 @@ export const Footer = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
 
                     <div className="space-y-4 pr-4">
-                        <NavLink to="/" className="flex items-center space-x-3 group w-fit">
+                        <NavLink to="/" className="flex items-center group w-fit"> {/* Removido space-x-3 para a logo ficar sozinha */}
 
                             <img
                                 src={logoImg}
@@ -18,10 +18,11 @@ export const Footer = () => {
                                 className="h-12 w-auto transition-all duration-300 group-hover:scale-105"
                             />
 
-                            <div>
+                            {/* Nome "Ian Granja" e "Advocacia & Consultoria" removidos, desgraça */}
+                            {/* <div>
                                 <div className="text-xl font-extrabold">Ian Granja</div>
                                 <div className="text-xs opacity-70">Advocacia & Consultoria</div>
-                            </div>
+                            </div> */}
                         </NavLink>
                         <p className="text-sm opacity-80 pt-2 leading-relaxed">
                             Soluções jurídicas com foco no resultado. Atendimento personalizado e compromisso com a excelência, porra.
