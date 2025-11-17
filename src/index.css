@@ -2,107 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
-All colors MUST be HSL.
+/* Tema atualizado com as cores da paleta:
+  Azul: #061335 (hsl(226, 79%, 12%))
+  Bege: #BEAE94 (hsl(41, 26%, 66%))
 */
 
 @layer base {
     :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
+        --background: 0 0% 100%; /* #FFFFFF */
+        --foreground: 226 79% 12%; /* #061335 */
 
         --card: 0 0% 100%;
-        --card-foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
+        --card-foreground: 226 79% 12%;
 
         --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
+        --popover-foreground: 226 79% 12%;
 
-        --primary: 0 0% 9%; /* Era azul escuro, agora é PRETO, porra */
-        --primary-foreground: 0 0% 100%; /* Branco, tá certo */
+        --primary: 226 79% 12%; /* #061335 */
+        --primary-foreground: 0 0% 100%; /* #FFFFFF */
 
-        --gold: 47 22% 46%; /* Seu dourado/oliva, mantido */
-        --gold-foreground: 0 0% 100%; /* Branco, mantido */
+        --gold: 41 26% 66%; /* #BEAE94 */
+        --gold-foreground: 0 0% 100%; /* Texto branco/claro no bege */
 
-        --secondary: 0 0% 96.1%; /* Era cinza-azulado, agora é cinza neutro */
-        --secondary-foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
+        /* Tons de cinza baseados no azul #061335 */
+        --secondary: 226 30% 96.1%;
+        --secondary-foreground: 226 79% 12%;
 
-        --muted: 0 0% 94%; /* Era cinza-azulado, agora é cinza neutro */
-        --muted-foreground: 0 0% 45.1%; /* Era cinza-azulado, agora é cinza neutro */
+        --muted: 226 30% 94%;
+        --muted-foreground: 226 20% 45.1%;
 
-        --accent: 47 22% 46%; /* Seu dourado/oliva, mantido */
-        --accent-foreground: 0 0% 100%; /* Branco, mantido */
+        --accent: 41 26% 66%; /* #BEAE94 */
+        --accent-foreground: 0 0% 100%; /* Texto branco/claro no bege */
 
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 0 0% 100%;
 
-        --border: 0 0% 89.8%; /* Era borda azulada, agora é cinza neutro */
-        --input: 0 0% 89.8%; /* Era input azulado, agora é cinza neutro */
-        --ring: 47 22% 46%; /* Era azul escuro, agora é seu dourado/oliva (accent) */
+        --border: 226 30% 89.8%;
+        --input: 226 30% 89.8%;
+        --ring: 41 26% 66%; /* Foco com o bege/dourado */
 
         --radius: 0.5rem;
 
-        /* Gradientes atualizados pra preto, desgraça */
-        --hero-gradient: linear-gradient(135deg, hsl(0 0% 9%) 0%, hsl(0 0% 15%) 100%);
-        --gold-gradient: linear-gradient(135deg, hsl(47 22% 46%) 0%, hsl(47 22% 40%) 100%);
-        --subtle-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
+        /* Gradientes */
+        --hero-gradient: linear-gradient(135deg, hsl(226 79% 12%) 0%, hsl(226 79% 15%) 100%);
+        --gold-gradient: linear-gradient(135deg, hsl(41 26% 66%) 0%, hsl(41 26% 60%) 100%);
+        --subtle-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(226 30% 98%) 100%);
 
-        --shadow-elegant: 0 10px 40px -10px hsl(0 0% 10% / 0.15); /* Sombra preta */
-        --shadow-gold: 0 4px 20px hsl(47 22% 46% / 0.25);
+        --shadow-elegant: 0 10px 40px -10px hsl(226 79% 12% / 0.15); /* Sombra azulada */
+        --shadow-gold: 0 4px 20px hsl(41 26% 66% / 0.25);
 
         --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-        /* Sidebar também foi neutralizada, porra */
-        --sidebar-background: 0 0% 98%;
-        --sidebar-foreground: 0 0% 25%;
-        --sidebar-primary: 0 0% 9%;
+        /* Sidebar */
+        --sidebar-background: 226 30% 98%;
+        --sidebar-foreground: 226 50% 25%;
+        --sidebar-primary: 226 79% 12%;
         --sidebar-primary-foreground: 0 0% 98%;
-        --sidebar-accent: 0 0% 96%;
-        --sidebar-accent-foreground: 0 0% 10%;
-        --sidebar-border: 0 0% 90%;
-        --sidebar-ring: 47 22% 46%; /* Ring com cor de destaque */
+        --sidebar-accent: 226 30% 96%;
+        --sidebar-accent-foreground: 226 79% 12%;
+        --sidebar-border: 226 30% 90%;
+        --sidebar-ring: 41 26% 66%;
     }
 
     .dark {
-        --background: 0 0% 8%; /* Era azul, agora é quase preto */
-        --foreground: 0 0% 98%;
+        --background: 226 79% 12%; /* #061335 (Fundo da imagem) */
+        --foreground: 0 0% 98%; /* Texto quase branco */
 
-        --card: 0 0% 10%; /* Era azul, agora é preto mais suave */
+        --card: 226 70% 15%; /* Azul um pouco mais claro que o fundo */
         --card-foreground: 0 0% 98%;
 
-        --popover: 0 0% 10%; /* Era azul, agora é preto mais suave */
+        --popover: 226 70% 15%;
         --popover-foreground: 0 0% 98%;
 
-        --primary: 43 74% 66%; /* Douradão do tema escuro, mantido */
-        --primary-foreground: 0 0% 10%; /* Texto em cima do dourado, quase preto */
+        /* Primary no dark mode é o bege/dourado */
+        --primary: 41 26% 66%; /* #BEAE94 */
+        --primary-foreground: 226 79% 12%; /* Texto azul escuro no botão bege */
 
-        --gold: 43 74% 66%;
-        --gold-foreground: 0 0% 10%;
+        --gold: 41 26% 66%; /* #BEAE94 */
+        --gold-foreground: 226 79% 12%;
 
-        --secondary: 0 0% 14%; /* Era cinza-azulado, agora é cinza escuro */
+        --secondary: 226 60% 18%; /* Azul acinzentado escuro */
         --secondary-foreground: 0 0% 98%;
 
-        --muted: 0 0% 12%; /* Era cinza-azulado, agora é cinza escuro */
-        --muted-foreground: 0 0% 65%; /* Era cinza-azulado, agora é cinza neutro */
+        --muted: 226 60% 16%; /* Azul acinzentado mais escuro */
+        --muted-foreground: 226 15% 65%;
 
-        --accent: 43 74% 66%; /* Douradão, mantido */
-        --accent-foreground: 0 0% 10%; /* Quase preto */
+        --accent: 41 26% 66%; /* #BEAE94 */
+        --accent-foreground: 226 79% 12%; /* Texto azul escuro no bege */
 
         --destructive: 0 62.8% 50%;
         --destructive-foreground: 0 0% 98%;
 
-        --border: 0 0% 18%; /* Era borda azulada, agora é cinza escura */
-        --input: 0 0% 18%; /* Era input azulado, agora é cinza escuro */
-        --ring: 43 74% 66%; /* Douradão, mantido */
+        --border: 226 40% 25%; /* Borda azul sutil */
+        --input: 226 40% 25%;
+        --ring: 41 26% 66%; /* Foco com o bege/dourado */
 
-        /* Dark sidebar neutralizada */
-        --sidebar-background: 0 0% 9%;
+        /* Dark sidebar */
+        --sidebar-background: 226 79% 12%;
         --sidebar-foreground: 0 0% 98%;
-        --sidebar-primary: 43 74% 66%;
-        --sidebar-primary-foreground: 0 0% 10%;
-        --sidebar-accent: 0 0% 14%;
+        --sidebar-primary: 41 26% 66%;
+        --sidebar-primary-foreground: 226 79% 12%;
+        --sidebar-accent: 226 70% 15%;
         --sidebar-accent-foreground: 0 0% 98%;
-        --sidebar-border: 0 0% 14%;
-        --sidebar-ring: 43 74% 66%;
+        --sidebar-border: 226 70% 15%;
+        --sidebar-ring: 41 26% 66%;
     }
 }
 

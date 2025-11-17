@@ -105,7 +105,7 @@ const Index = () => {
         <div className="min-h-screen bg-background">
             <Navigation />
 
-            <section className="relative h-screen flex items-center justify-center overflow-hidden">
+            <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-28 pb-12">
                 <div
                     className="absolute inset-0 z-0"
                     style={{
