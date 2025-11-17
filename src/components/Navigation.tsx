@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import logoImg from "@/assets/logo2.png"; // Logo 2 (Desktop)
-import logo3Img from "@/assets/logo3.png"; // Logo 3 (Mobile)
+import logoImg from "@/assets/logo2.png";
 
 export const Navigation = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,15 +40,8 @@ export const Navigation = () => {
                         <img
                             src={logoImg}
                             alt="Ian Granja Advocacia Logo"
-                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105 hidden lg:block"
+                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105"
                         />
-
-                        <img
-                            src={logo3Img}
-                            alt="Ian Granja Advocacia Logo"
-                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105 block lg:hidden"
-                        />
-
                     </NavLink>
 
                     <div className="flex items-center gap-2">
@@ -82,7 +74,7 @@ export const Navigation = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50"
+                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50" // Texto e hover ajustados
                             aria-expanded={mobileMenuOpen}
                             aria-controls="mobile-menu"
                         >
@@ -114,7 +106,7 @@ export const Navigation = () => {
                                 key={item.to}
                                 to={item.to}
                                 onClick={closeMobileMenu}
-                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95"
+                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95" // Cor ajustada
                                 activeClassName="text-accent"
                                 style={{ transitionDelay: mobileMenuOpen ? `${index * 50}ms` : '0ms' }}
                             >
