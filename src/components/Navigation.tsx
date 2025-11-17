@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import logoImg from "@/assets/logo2.png";
+import logoImg from "@/assets/logo2.png"; // Logo 2 (Desktop)
+import logo3Img from "@/assets/logo3.png"; // Logo 3 (Mobile)
 
 export const Navigation = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,7 +31,7 @@ export const Navigation = () => {
             <nav
                 className={cn(
                     "fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300",
-                    "bg-primary/80 backdrop-blur-lg shadow-xl border border-primary-foreground/10", // Fundo primary e borda mais escura
+                    "bg-primary/80 backdrop-blur-lg shadow-xl border border-primary-foreground/10",
                     "h-[70px] w-[95%] rounded-lg"
                 )}
             >
@@ -40,15 +41,15 @@ export const Navigation = () => {
                         <img
                             src={logoImg}
                             alt="Ian Granja Advocacia Logo"
-                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105"
+                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105 hidden lg:block"
                         />
 
-                        {/* Nome "Ian Granja" removido aqui, desgraça */}
-                        {/* <div className="hidden sm:block">
-                            <div className="text-xl font-extrabold text-foreground transition-colors duration-300 group-hover:text-accent">
-                                Ian Granja
-                            </div>
-                        </div> */}
+                        <img
+                            src={logo3Img}
+                            alt="Ian Granja Advocacia Logo"
+                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105 block lg:hidden"
+                        />
+
                     </NavLink>
 
                     <div className="flex items-center gap-2">
@@ -81,7 +82,7 @@ export const Navigation = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50" // Texto e hover ajustados
+                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50"
                             aria-expanded={mobileMenuOpen}
                             aria-controls="mobile-menu"
                         >
@@ -95,7 +96,7 @@ export const Navigation = () => {
                 id="mobile-menu"
                 className={cn(
                     "fixed inset-0 z-40 lg:hidden transition-opacity duration-300",
-                    "bg-primary/95 backdrop-blur-lg", // Fundo primary
+                    "bg-primary/95 backdrop-blur-lg",
                     mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 )}
                 onClick={closeMobileMenu}
@@ -113,7 +114,7 @@ export const Navigation = () => {
                                 key={item.to}
                                 to={item.to}
                                 onClick={closeMobileMenu}
-                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95" // Cor ajustada
+                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95"
                                 activeClassName="text-accent"
                                 style={{ transitionDelay: mobileMenuOpen ? `${index * 50}ms` : '0ms' }}
                             >
