@@ -7,29 +7,68 @@ import Index from "./pages/Index";
 import Sobre from "./pages/Sobre";
 import Atuacao from "./pages/Atuacao";
 import FAQ from "./pages/FAQ";
-import Contato from "./pages/Contato";
 import NotFound from "./pages/NotFound";
+import { createContext, useContext, useState, useMemo } from "react";
+import { ContactDrawer } from "@/components/ContactDrawer";
+import { ScrollToTop } from "@/components/ScrollToTop";
+
+type ContactContextType = {
+    isDrawerOpen: boolean;
+    openDrawer: () => void;
+    closeDrawer: () => void;
+};
+
+const ContactContext = createContext<ContactContextType | undefined>(undefined);
+
+export const useContactDrawer = () => {
+    const context = useContext(ContactContext);
+    if (context === undefined) {
+        throw new Error("useContactDrawer must be used within a ContactProvider");
+    }
+    return context;
+};
+
+const ContactProvider = ({ children }: { children: React.ReactNode }) => {
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const openDrawer = () => setIsDrawerOpen(true);
+    const closeDrawer = () => setIsDrawerOpen(false);
+
+    const value = useMemo(() => ({
+        isDrawerOpen,
+        openDrawer,
+        closeDrawer,
+    }), [isDrawerOpen]);
+
+    return (
+        <ContactContext.Provider value={value}>
+            {children}
+        </ContactContext.Provider>
+    );
+};
+// -------------------------------------------
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/sobre" element={<Sobre />} />
-          <Route path="/atuacao" element={<Atuacao />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/contato" element={<Contato />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <ContactProvider>
+                <BrowserRouter>
+                    <ScrollToTop />
+                    <Routes>
+                        <Route path="/" element={<Index />} />
+                        <Route path="/sobre" element={<Sobre />} />
+                        <Route path="/atuacao" element={<Atuacao />} />
+                        <Route path="/faq" element={<FAQ />} />
+                        <Route path="*" element={<NotFound />} />
+                    </Routes>
+                </BrowserRouter>
+                <ContactDrawer />
+            </ContactProvider>
+        </TooltipProvider>
+    </QueryClientProvider>
 );
 
 export default App;

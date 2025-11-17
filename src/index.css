@@ -2,119 +2,116 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
 All colors MUST be HSL.
 */
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 215 25% 15%;
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
 
-    --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+        --card: 0 0% 100%;
+        --card-foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
 
-    --primary: 215 28% 17%;
-    --primary-foreground: 0 0% 100%;
-    
-    --gold: 43 74% 66%;
-    --gold-foreground: 215 28% 17%;
+        --primary: 0 0% 9%; /* Era azul escuro, agora é PRETO, porra */
+        --primary-foreground: 0 0% 100%; /* Branco, tá certo */
 
-    --secondary: 215 20% 95%;
-    --secondary-foreground: 215 28% 17%;
+        --gold: 47 22% 46%; /* Seu dourado/oliva, mantido */
+        --gold-foreground: 0 0% 100%; /* Branco, mantido */
 
-    --muted: 215 15% 92%;
-    --muted-foreground: 215 15% 45%;
+        --secondary: 0 0% 96.1%; /* Era cinza-azulado, agora é cinza neutro */
+        --secondary-foreground: 0 0% 10%; /* Era azul escuro, agora é quase preto */
 
-    --accent: 43 74% 66%;
-    --accent-foreground: 215 28% 17%;
+        --muted: 0 0% 94%; /* Era cinza-azulado, agora é cinza neutro */
+        --muted-foreground: 0 0% 45.1%; /* Era cinza-azulado, agora é cinza neutro */
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
+        --accent: 47 22% 46%; /* Seu dourado/oliva, mantido */
+        --accent-foreground: 0 0% 100%; /* Branco, mantido */
 
-    --border: 215 15% 88%;
-    --input: 215 15% 88%;
-    --ring: 215 28% 17%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
-    
-    --hero-gradient: linear-gradient(135deg, hsl(215 28% 17%) 0%, hsl(215 25% 25%) 100%);
-    --gold-gradient: linear-gradient(135deg, hsl(43 74% 66%) 0%, hsl(38 80% 60%) 100%);
-    --subtle-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(215 20% 98%) 100%);
-    
-    --shadow-elegant: 0 10px 40px -10px hsl(215 28% 17% / 0.15);
-    --shadow-gold: 0 4px 20px hsl(43 74% 66% / 0.25);
-    
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --border: 0 0% 89.8%; /* Era borda azulada, agora é cinza neutro */
+        --input: 0 0% 89.8%; /* Era input azulado, agora é cinza neutro */
+        --ring: 47 22% 46%; /* Era azul escuro, agora é seu dourado/oliva (accent) */
 
-    --sidebar-background: 0 0% 98%;
+        --radius: 0.5rem;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+        /* Gradientes atualizados pra preto, desgraça */
+        --hero-gradient: linear-gradient(135deg, hsl(0 0% 9%) 0%, hsl(0 0% 15%) 100%);
+        --gold-gradient: linear-gradient(135deg, hsl(47 22% 46%) 0%, hsl(47 22% 40%) 100%);
+        --subtle-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
 
-    --sidebar-primary: 240 5.9% 10%;
+        --shadow-elegant: 0 10px 40px -10px hsl(0 0% 10% / 0.15); /* Sombra preta */
+        --shadow-gold: 0 4px 20px hsl(47 22% 46% / 0.25);
 
-    --sidebar-primary-foreground: 0 0% 98%;
+        --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    --sidebar-accent: 240 4.8% 95.9%;
+        /* Sidebar também foi neutralizada, porra */
+        --sidebar-background: 0 0% 98%;
+        --sidebar-foreground: 0 0% 25%;
+        --sidebar-primary: 0 0% 9%;
+        --sidebar-primary-foreground: 0 0% 98%;
+        --sidebar-accent: 0 0% 96%;
+        --sidebar-accent-foreground: 0 0% 10%;
+        --sidebar-border: 0 0% 90%;
+        --sidebar-ring: 47 22% 46%; /* Ring com cor de destaque */
+    }
 
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    .dark {
+        --background: 0 0% 8%; /* Era azul, agora é quase preto */
+        --foreground: 0 0% 98%;
 
-    --sidebar-border: 220 13% 91%;
+        --card: 0 0% 10%; /* Era azul, agora é preto mais suave */
+        --card-foreground: 0 0% 98%;
 
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
+        --popover: 0 0% 10%; /* Era azul, agora é preto mais suave */
+        --popover-foreground: 0 0% 98%;
 
-  .dark {
-    --background: 215 28% 12%;
-    --foreground: 0 0% 98%;
+        --primary: 43 74% 66%; /* Douradão do tema escuro, mantido */
+        --primary-foreground: 0 0% 10%; /* Texto em cima do dourado, quase preto */
 
-    --card: 215 25% 15%;
-    --card-foreground: 0 0% 98%;
+        --gold: 43 74% 66%;
+        --gold-foreground: 0 0% 10%;
 
-    --popover: 215 25% 15%;
-    --popover-foreground: 0 0% 98%;
+        --secondary: 0 0% 14%; /* Era cinza-azulado, agora é cinza escuro */
+        --secondary-foreground: 0 0% 98%;
 
-    --primary: 43 74% 66%;
-    --primary-foreground: 215 28% 12%;
-    
-    --gold: 43 74% 66%;
-    --gold-foreground: 215 28% 12%;
+        --muted: 0 0% 12%; /* Era cinza-azulado, agora é cinza escuro */
+        --muted-foreground: 0 0% 65%; /* Era cinza-azulado, agora é cinza neutro */
 
-    --secondary: 215 25% 20%;
-    --secondary-foreground: 0 0% 98%;
+        --accent: 43 74% 66%; /* Douradão, mantido */
+        --accent-foreground: 0 0% 10%; /* Quase preto */
 
-    --muted: 215 25% 18%;
-    --muted-foreground: 215 15% 65%;
+        --destructive: 0 62.8% 50%;
+        --destructive-foreground: 0 0% 98%;
 
-    --accent: 43 74% 66%;
-    --accent-foreground: 215 28% 12%;
+        --border: 0 0% 18%; /* Era borda azulada, agora é cinza escura */
+        --input: 0 0% 18%; /* Era input azulado, agora é cinza escuro */
+        --ring: 43 74% 66%; /* Douradão, mantido */
 
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 215 25% 22%;
-    --input: 215 25% 22%;
-    --ring: 43 74% 66%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
+        /* Dark sidebar neutralizada */
+        --sidebar-background: 0 0% 9%;
+        --sidebar-foreground: 0 0% 98%;
+        --sidebar-primary: 43 74% 66%;
+        --sidebar-primary-foreground: 0 0% 10%;
+        --sidebar-accent: 0 0% 14%;
+        --sidebar-accent-foreground: 0 0% 98%;
+        --sidebar-border: 0 0% 14%;
+        --sidebar-ring: 43 74% 66%;
+    }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+    * {
+        @apply border-border;
+    }
 
-  body {
-    @apply bg-background text-foreground;
-  }
+    body {
+        @apply bg-background text-foreground;
+    }
 }
