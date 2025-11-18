@@ -22,16 +22,16 @@ export const Navigation = () => {
         { to: "/faq", label: "FAQ" },
     ];
 
-    const linkClasses = "relative text-base font-bold text-primary-foreground/90 transition-all duration-300 hover:text-accent group px-3 py-1 rounded-lg hover:bg-primary-foreground/10";
-    const activeLinkClasses = "text-accent after:scale-x-100 bg-primary-foreground/10 dark:bg-primary/30";
+    const linkClasses = "relative text-base font-bold text-primary-foreground/90 transition-all duration-300 hover:text-accent group px-3 py-1 rounded-lg ";
+    const activeLinkClasses = "text-accent after:scale-x-100 bg-primary-foreground/5 dark:bg-primary/30";
 
     return (
         <>
             <nav
                 className={cn(
                     "fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300",
-                    "bg-primary/80 backdrop-blur-lg shadow-xl border border-primary-foreground/10",
-                    "h-[70px] w-[95%] rounded-lg"
+                    "bg-primary/95 backdrop-blur-lg shadow-xl border border-primary-foreground/10",
+                    "h-[80px] w-[93%] rounded-lg"
                 )}
             >
                 <div className="px-4 sm:px-6 h-full flex items-center justify-between">
