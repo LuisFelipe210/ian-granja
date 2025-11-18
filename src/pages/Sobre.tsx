@@ -41,9 +41,7 @@ const Sobre = () => {
         <div className="min-h-screen bg-background">
             <Navigation />
 
-            {/* Hero Section - Elegante com animação sutil */}
             <section className="relative pt-32 pb-28 overflow-hidden bg-primary">
-                {/* Animated Background */}
                 <div className="absolute inset-0">
                     <div className="absolute inset-0 opacity-10">
                         <div className="absolute top-0 -left-4 w-72 h-72 bg-accent rounded-full mix-blend-screen filter blur-3xl animate-pulse"></div>
@@ -52,7 +50,6 @@ const Sobre = () => {
                     </div>
                 </div>
 
-                {/* Decorative Elements */}
                 <div className="absolute top-20 left-10 w-20 h-20 border-2 border-accent/20 rounded-full"></div>
                 <div className="absolute bottom-20 right-10 w-32 h-32 border-2 border-accent/20 rounded-full"></div>
                 <div className="absolute top-1/2 left-1/4 w-16 h-16 border border-accent/10 rotate-45"></div>
@@ -76,7 +73,6 @@ const Sobre = () => {
                     </div>
                 </div>
 
-                {/* Wave separator */}
                 <div className="absolute bottom-0 left-0 right-0">
                     <svg className="w-full h-16" viewBox="0 0 1200 120" preserveAspectRatio="none">
                         <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" className="fill-background"></path>
@@ -84,33 +80,26 @@ const Sobre = () => {
                 </div>
             </section>
 
-            {/* Section 1: Bio e Introdução - Layout Premium */}
             <section className="py-24 relative bg-background">
-                {/* Decorative gradient orbs */}
                 <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full filter blur-3xl"></div>
                 <div className="absolute bottom-0 left-0 w-96 h-96 bg-muted/50 rounded-full filter blur-3xl"></div>
 
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
-                        {/* Coluna da Esquerda: Imagem com efeitos (Melhorado para Mobile) */}
                         <div className="relative group">
                             <div className="absolute -inset-1 bg-gradient-to-br from-accent/30 to-accent/10 rounded-2xl blur-lg opacity-50 group-hover:opacity-75 transition duration-700"></div>
-                            <div className="relative max-w-sm mx-auto"> {/* Adicionado max-w-sm mx-auto para centralizar no mobile */}
+                            <div className="relative max-w-sm mx-auto">
                                 <img
                                     src={lawyerPortrait}
                                     alt="Ian Granja"
-                                    // A imagem agora é totalmente responsiva e usa largura total do contêiner
                                     className="rounded-2xl shadow-2xl w-full h-auto relative z-10 transform group-hover:scale-[1.02] transition duration-500"
                                 />
-                                {/* Decorative frame */}
                                 <div className="absolute -bottom-6 -right-6 w-full h-full border-2 border-accent/30 rounded-2xl hidden md:block"></div>
                             </div>
-                            {/* Accent corner decoration */}
                             <div className="absolute -top-4 -left-4 w-24 h-24 border-t-4 border-l-4 border-accent/40 rounded-tl-3xl hidden md:block"></div>
                         </div>
 
-                        {/* Coluna da Direita: Texto Premium */}
                         <div className="space-y-8">
                             <div>
                                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent rounded-full text-sm font-semibold mb-4 border border-accent/20">
@@ -141,7 +130,6 @@ const Sobre = () => {
 
                             <div className="flex flex-col sm:flex-row gap-4 pt-4">
                                 <Button size="lg" className="bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300 group" asChild>
-                                    {/* CORRIGIDO: Link de Contato */}
                                     <NavLink to="#" isContactLink>
                                         Fale com um Advogado
                                         <Sparkles className="ml-2 w-4 h-4 group-hover:rotate-12 transition-transform" />
@@ -156,9 +144,7 @@ const Sobre = () => {
                 </div>
             </section>
 
-            {/* Section 2: Valores - Cards Elegantes */}
             <section className="py-24 bg-muted/30 relative overflow-hidden">
-                {/* Background pattern */}
                 <div className="absolute inset-0 opacity-5">
                     <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, hsl(47 22% 46%) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
                 </div>
@@ -177,12 +163,10 @@ const Sobre = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {values.map((value, index) => (
                             <div key={index} className="group relative">
-                                {/* Glow effect on hover */}
                                 <div className="absolute -inset-0.5 bg-accent rounded-2xl blur opacity-0 group-hover:opacity-30 transition duration-500"></div>
 
                                 <Card className="relative bg-card border-border hover:border-accent/50 rounded-2xl p-6 h-full transition-all duration-500 group-hover:transform group-hover:-translate-y-2 group-hover:shadow-xl">
                                     <CardContent className="p-0">
-                                        {/* Icon with accent background */}
                                         <div className="inline-flex p-3 rounded-xl bg-accent/10 border-2 border-accent/20 mb-4 group-hover:bg-accent/20 group-hover:border-accent/40 transition-all duration-300">
                                             <value.icon className="h-6 w-6 text-accent" />
                                         </div>
@@ -190,7 +174,6 @@ const Sobre = () => {
                                         <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-accent transition-colors duration-300">{value.title}</h3>
                                         <p className="text-muted-foreground leading-relaxed">{value.description}</p>
 
-                                        {/* Bottom accent line */}
                                         <div className="absolute bottom-0 left-0 w-full h-1 bg-accent rounded-b-2xl transform scale-x-0 group-hover:scale-x-100 transition duration-500"></div>
                                     </CardContent>
                                 </Card>
@@ -200,15 +183,12 @@ const Sobre = () => {
                 </div>
             </section>
 
-            {/* Section 3: Formação - Design Moderno */}
             <section className="py-24 bg-primary relative overflow-hidden">
-                {/* Animated background elements */}
                 <div className="absolute inset-0 opacity-10">
                     <div className="absolute top-20 left-10 w-64 h-64 bg-accent rounded-full filter blur-3xl animate-pulse"></div>
                     <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: '3s' }}></div>
                 </div>
 
-                {/* Decorative grid */}
                 <div className="absolute inset-0 opacity-5">
                     <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(hsl(47 22% 46% / 0.2) 1px, transparent 1px), linear-gradient(90deg, hsl(47 22% 46% / 0.2) 1px, transparent 1px)', backgroundSize: '50px 50px' }}></div>
                 </div>
@@ -245,7 +225,6 @@ const Sobre = () => {
                 </div>
             </section>
 
-            {/* CTA Final - Design Elegante */}
             <section className="py-24 bg-background relative overflow-hidden">
                 <div className="absolute inset-0 opacity-30">
                     <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/20 rounded-full filter blur-3xl"></div>
@@ -282,7 +261,6 @@ const Sobre = () => {
                             </Button>
                         </div>
 
-                        {/* Trust badges */}
                         <div className="grid grid-cols-3 gap-8 mt-16 max-w-2xl mx-auto">
                             <div className="text-center group">
                                 <div className="text-3xl font-bold text-foreground mb-1 group-hover:text-accent transition-colors duration-300">5+</div>

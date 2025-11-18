@@ -1,11 +1,10 @@
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { NavLink } from "@/components/NavLink";
 import heroImage from "@/assets/hero-law-office.jpg";
 import lawyerPortrait from "@/assets/lawyer-portrait.jpg";
-// REMOVIDO: importações problemáticas do Carrossel 3D
 import {
     Scale,
     Briefcase,
@@ -15,13 +14,12 @@ import {
     CheckCircle,
     Phone,
     ArrowRight,
-    Quote, // MANTIDO para o Testemunhal Estático
+    Quote,
     Heart,
     Goal,
 } from "lucide-react";
 
 const Index = () => {
-    // Lista de serviços para a Home (só os 4 principais, porra)
     const homePracticeAreas = [
         {
             icon: Briefcase,
@@ -168,7 +166,6 @@ const Index = () => {
                                 Meu compromisso é oferecer segurança e resultado prático a cada cliente que confia em meu escritório.
                             </p>
 
-                            {/* Credenciais */}
                             <div className="grid grid-cols-1 gap-6 w-full max-w-sm">
                                 <div className="flex items-start space-x-4 p-4 bg-muted/50 rounded-lg">
                                     <div className="flex-shrink-0 mt-1">
@@ -233,11 +230,9 @@ const Index = () => {
                                         to="/atuacao"
                                         className="group bg-card rounded-2xl shadow-lg border-2 border-transparent hover:border-accent transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 flex items-center space-x-6 p-6"
                                     >
-                                        {/* Ícone */}
                                         <div className="flex-shrink-0 flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 group-hover:bg-accent transition-all duration-300">
                                             <area.icon className="h-8 w-8 text-accent group-hover:text-accent-foreground transition-colors duration-300" />
                                         </div>
-                                        {/* Textos */}
                                         <div className="flex-grow">
                                             <h3 className="text-xl font-bold text-foreground mb-1">
                                                 {area.title}
@@ -246,7 +241,6 @@ const Index = () => {
                                                 {area.description}
                                             </p>
                                         </div>
-                                        {/* Seta */}
                                         <div className="flex-shrink-0 ml-auto self-center">
                                             <ArrowRight className="h-6 w-6 text-muted-foreground opacity-0 -translate-x-3 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-accent transition-all duration-300" />
                                         </div>

@@ -2,10 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Azul: #061335 (hsl(226, 79%, 12%))
-  Bege: (hsl(41, 26%, 50%)) - MAIS ESCURO, PORRA!
-*/
-
 @layer base {
     :root {
         --background: 0 0% 100%;
@@ -20,7 +16,6 @@
         --primary: 226 79% 12%;
         --primary-foreground: 0 0% 100%;
 
-        /* 🚨 CORRIGIDO AQUI, DESGRAÇA! (De 66% para 50% de claridade) */
         --gold: 41 26% 50%;
         --gold-foreground: 0 0% 100%;
 
@@ -30,9 +25,8 @@
         --muted: 226 30% 94%;
         --muted-foreground: 226 20% 45.1%;
 
-        /* 🚨 CORRIGIDO AQUI, DESGRAÇA! (De 66% para 50% de claridade) */
         --accent: 41 26% 50%;
-        --accent-foreground: 0 0% 100%; /* Agora o branco 100% tem contraste! */
+        --accent-foreground: 0 0% 100%;
 
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 0 0% 100%;
@@ -40,24 +34,20 @@
         --border: 226 30% 89.8%;
         --input: 226 30% 89.8%;
 
-        /* 🚨 CORRIGIDO AQUI, DESGRAÇA! (De 66% para 50% de claridade) */
         --ring: 41 26% 50%;
 
         --radius: 0.5rem;
 
-        /* 🚨 GRADIENTES CORRIGIDOS */
         --hero-gradient: linear-gradient(135deg, hsl(226 79% 12%) 0%, hsl(226 79% 15%) 100%);
         --gold-gradient: linear-gradient(135deg, hsl(41 26% 50%) 0%, hsl(41 26% 45%) 100%);
         --subtle-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(226 30% 98%) 100%);
 
         --shadow-elegant: 0 10px 40px -10px hsl(226 79% 12% / 0.15);
 
-        /* 🚨 SOMBRA CORRIGIDA */
         --shadow-gold: 0 4px 20px hsl(41 26% 50% / 0.25);
 
         --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-        /* Sidebar */
         --sidebar-background: 226 30% 98%;
         --sidebar-foreground: 226 50% 25%;
         --sidebar-primary: 226 79% 12%;
@@ -65,11 +55,10 @@
         --sidebar-accent: 226 30% 96%;
         --sidebar-accent-foreground: 226 79% 12%;
         --sidebar-border: 226 30% 90%;
-        --sidebar-ring: 41 26% 50%; /* 🚨 CORRIGIDO */
+        --sidebar-ring: 41 26% 50%;
     }
 
     .dark {
-        /* O Dark Mode continua com o bege claro (66%), porra, porque é o destaque! */
         --background: 226 79% 12%;
         --foreground: 0 0% 98%;
 
@@ -79,10 +68,10 @@
         --popover: 226 70% 15%;
         --popover-foreground: 0 0% 98%;
 
-        --primary: 41 26% 66%; /* #BEAE94 (Mantido claro) */
+        --primary: 41 26% 66%;
         --primary-foreground: 226 79% 12%;
 
-        --gold: 41 26% 66%; /* #BEAE94 (Mantido claro) */
+        --gold: 41 26% 66%;
         --gold-foreground: 226 79% 12%;
 
         --secondary: 226 60% 18%;
@@ -91,7 +80,7 @@
         --muted: 226 60% 16%;
         --muted-foreground: 226 15% 65%;
 
-        --accent: 41 26% 66%; /* #BEAE94 (Mantido claro) */
+        --accent: 41 26% 66%;
         --accent-foreground: 226 79% 12%;
 
         --destructive: 0 62.8% 50%;
@@ -99,7 +88,7 @@
 
         --border: 226 40% 25%;
         --input: 226 40% 25%;
-        --ring: 41 26% 66%; /* #BEAE94 (Mantido claro) */
+        --ring: 41 26% 66%;
 
         /* Dark sidebar */
         --sidebar-background: 226 79% 12%;
