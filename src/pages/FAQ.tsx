@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
-import { HelpCircle, Phone, MessageCircle, Clock, Shield, CheckCircle2, Sparkles, ArrowRight } from "lucide-react";
+import { Phone, MessageCircle, Clock, Shield, Sparkles, ArrowRight, Plus, Minus } from "lucide-react";
 
 const FAQ = () => {
     const faqs = [
@@ -64,12 +64,29 @@ const FAQ = () => {
         },
     ];
 
+    const features = [
+        {
+            icon: Clock,
+            title: "Atendimento Ágil",
+            description: "Resposta em até 24 horas. Não deixamos você esperando quando o assunto é urgente.",
+        },
+        {
+            icon: MessageCircle,
+            title: "Primeira Análise",
+            description: "Entendemos seu cenário sem compromisso para direcionar a melhor estratégia.",
+        },
+        {
+            icon: Shield,
+            title: "Transparência Total",
+            description: "Sem juridiquês. Explicamos custos, riscos e prazos de forma clara e honesta.",
+        },
+    ];
+
     return (
         <div className="min-h-screen bg-background overflow-x-hidden">
             <Navigation />
 
             <section className="relative pt-24 pb-16 overflow-hidden bg-primary sm:pt-32 sm:pb-24">
-                {/* Animated Background */}
                 <div className="absolute inset-0">
                     <div className="absolute inset-0 opacity-10">
                         <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent rounded-full filter blur-3xl animate-pulse"></div>
@@ -120,21 +137,35 @@ const FAQ = () => {
                         </p>
                     </div>
 
-                    <Accordion type="single" collapsible className="space-y-3">
+                    {/* AQUI COMEÇA O SHOW, PORRA.
+                        Mudei o gap e o estilo de cada item.
+                    */}
+                    <Accordion type="single" collapsible className="space-y-4">
                         {faqs.map((faq, index) => (
                             <AccordionItem
                                 key={index}
                                 value={`item-${index}`}
-                                className="relative rounded-xl px-4 sm:px-6 border-2 border-accent/30 bg-white/10 dark:bg-zinc-900/20 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group hover:border-accent/60"
+                                className="group border border-accent/20 bg-card/50 backdrop-blur-sm rounded-2xl px-2 transition-all duration-300 data-[state=open]:bg-accent/5 data-[state=open]:border-accent/50 hover:border-accent/40"
                             >
-                                <AccordionTrigger className="text-left text-base sm:text-lg font-semibold py-4 sm:py-6 text-foreground transition-all group-hover:text-accent [&[data-state=open]]:text-accent">
-                                    {faq.question}
+                                <AccordionTrigger className="px-4 py-5 hover:no-underline [&[data-state=open]>div>div>svg.plus]:hidden [&[data-state=open]>div>div>svg.minus]:block">
+                                    <div className="flex items-center justify-between w-full text-left">
+                                        <span className="text-base sm:text-lg font-semibold text-foreground group-hover:text-accent transition-colors duration-300 pr-4">
+                                            {faq.question}
+                                        </span>
+                                        <div className="flex-shrink-0">
+                                            {/* Ícone customizado de Mais/Menos */}
+                                            <div className="w-8 h-8 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-data-[state=open]:bg-accent group-data-[state=open]:text-accent-foreground transition-all duration-300">
+                                                <Plus className="w-4 h-4 text-accent plus transition-transform duration-300 group-hover:rotate-90" />
+                                                <Minus className="w-4 h-4 text-accent-foreground minus hidden" />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </AccordionTrigger>
-                                <AccordionContent className="text-sm sm:text-base text-muted-foreground pb-4 sm:pb-6 leading-relaxed border-t border-accent/20 pt-3 sm:pt-4">
-                                    {faq.answer}
+                                <AccordionContent className="px-4 pb-6 text-muted-foreground text-sm sm:text-base leading-relaxed">
+                                    <div className="pt-2 border-t border-accent/10">
+                                        {faq.answer}
+                                    </div>
                                 </AccordionContent>
-
-                                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-accent/50 via-accent to-accent/50 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
                             </AccordionItem>
                         ))}
                     </Accordion>
@@ -196,65 +227,50 @@ const FAQ = () => {
                 </div>
             </section>
 
-            <section className="py-16 sm:py-24 bg-muted/20 dark:bg-background/40 relative">
+            <section className="py-20 sm:py-28 bg-muted/40 relative">
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="text-center mb-10 sm:mb-16">
+                    <div className="text-center mb-16 sm:mb-20">
                         <div className="inline-block px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full text-accent text-sm mb-4 font-semibold border border-accent/20">
                             Nossos Diferenciais
                         </div>
                         <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
                             Como Podemos Te Ajudar
                         </h2>
+                        <p className="text-muted-foreground max-w-2xl mx-auto">
+                            Compromisso, ética e agilidade para resolver o seu problema.
+                        </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 max-w-5xl mx-auto">
-                        <div className="group relative">
-                            <div className="absolute -inset-1 bg-gradient-to-br from-accent/30 to-accent/10 rounded-2xl blur-lg opacity-100 md:opacity-0 group-hover:md:opacity-100 transition duration-500"></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                        {features.map((feature, index) => (
+                            <div
+                                key={index}
+                                className="group relative p-8 rounded-[2rem] bg-card border border-border/50 hover:border-accent/50 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 overflow-hidden"
+                            >
+                                {/* Efeito de Gradient no Hover */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-                            <div className="relative text-center p-8 sm:p-10 rounded-2xl sm:rounded-3xl bg-card/40 dark:bg-zinc-900/30 border border-accent/30 hover:border-accent shadow-xl hover:shadow-2xl backdrop-blur-2xl transition-all duration-300 min-h-[320px] sm:min-h-[360px]">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-accent/15 border border-accent/40 shadow-md flex items-center justify-center mx-auto mb-4 sm:mb-6 group-hover:bg-accent group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
-                                    <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-accent group-hover:text-accent-foreground transition-colors duration-300" />
+                                {/* Círculo decorativo no fundo */}
+                                <div className="absolute -right-8 -top-8 w-32 h-32 bg-accent/5 rounded-full blur-2xl group-hover:bg-accent/10 transition-all duration-500" />
+
+                                <div className="relative z-10 flex flex-col items-start h-full">
+                                    <div className="mb-6 relative">
+                                        <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center border border-accent/20 group-hover:bg-accent group-hover:scale-110 transition-all duration-500">
+                                            <feature.icon className="w-7 h-7 text-accent group-hover:text-accent-foreground transition-colors duration-500" />
+                                        </div>
+                                        <div className="absolute top-14 left-7 w-px h-8 bg-accent/20 group-hover:h-12 group-hover:bg-accent/40 transition-all duration-500 delay-100" />
+                                    </div>
+
+                                    <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-3 group-hover:text-accent transition-colors duration-300">
+                                        {feature.title}
+                                    </h3>
+
+                                    <p className="text-base text-muted-foreground leading-relaxed flex-grow group-hover:text-foreground/80 transition-colors duration-300">
+                                        {feature.description}
+                                    </p>
                                 </div>
-                                <h3 className="text-xl sm:text-2xl font-semibold text-foreground mb-3 group-hover:text-accent transition-colors duration-300">
-                                    Atendimento Rápido
-                                </h3>
-                                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                                    Resposta em até 24 horas para todos os contatos
-                                </p>
                             </div>
-                        </div>
-
-                        <div className="group relative">
-                            <div className="absolute -inset-1 bg-gradient-to-br from-accent/30 to-accent/10 rounded-2xl blur-lg opacity-100 md:opacity-0 group-hover:md:opacity-100 transition duration-500"></div>
-
-                            <div className="relative text-center p-8 sm:p-10 rounded-2xl sm:rounded-3xl bg-card/40 dark:bg-zinc-900/30 border border-accent/30 hover:border-accent shadow-xl hover:shadow-2xl backdrop-blur-2xl transition-all duration-300 min-h-[320px] sm:min-h-[360px]">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-accent/15 border border-accent/40 shadow-md flex items-center justify-center mx-auto mb-4 sm:mb-6 group-hover:bg-accent group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
-                                    <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-accent group-hover:text-accent-foreground transition-colors duration-300" />
-                                </div>
-                                <h3 className="text-xl sm:text-2xl font-semibold text-foreground mb-3 group-hover:text-accent transition-colors duration-300">
-                                    Consulta Sem Compromisso
-                                </h3>
-                                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                                    Avalie seu caso sem qualquer obrigação
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="group relative">
-                            <div className="absolute -inset-1 bg-gradient-to-br from-accent/30 to-accent/10 rounded-2xl blur-lg opacity-100 md:opacity-0 group-hover:md:opacity-100 transition duration-500"></div>
-
-                            <div className="relative text-center p-8 sm:p-10 rounded-2xl sm:rounded-3xl bg-card/40 dark:bg-zinc-900/30 border border-accent/30 hover:border-accent shadow-xl hover:shadow-2xl backdrop-blur-2xl transition-all duration-300 min-h-[320px] sm:min-h-[360px]">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-accent/15 border border-accent/40 shadow-md flex items-center justify-center mx-auto mb-4 sm:mb-6 group-hover:bg-accent group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
-                                    <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-accent group-hover:text-accent-foreground transition-colors duration-300" />
-                                </div>
-                                <h3 className="text-xl sm:text-2xl font-semibold text-foreground mb-3 group-hover:text-accent transition-colors duration-300">
-                                    Transparência Total
-                                </h3>
-                                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                                    Informações claras sobre custos e prazos
-                                </p>
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
             </section>
