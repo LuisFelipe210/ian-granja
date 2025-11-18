@@ -2,15 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tema atualizado com as cores da paleta:
-  Azul: #061335 (hsl(226, 79%, 12%))
-  Bege: #BEAE94 (hsl(41, 26%, 66%))
+/* Azul: #061335 (hsl(226, 79%, 12%))
+  Bege: (hsl(41, 26%, 50%)) - MAIS ESCURO, PORRA!
 */
 
 @layer base {
     :root {
-        --background: 0 0% 100%; /* #FFFFFF */
-        --foreground: 226 79% 12%; /* #061335 */
+        --background: 0 0% 100%;
+        --foreground: 226 79% 12%;
 
         --card: 0 0% 100%;
         --card-foreground: 226 79% 12%;
@@ -18,38 +17,43 @@
         --popover: 0 0% 100%;
         --popover-foreground: 226 79% 12%;
 
-        --primary: 226 79% 12%; /* #061335 */
-        --primary-foreground: 0 0% 100%; /* #FFFFFF */
+        --primary: 226 79% 12%;
+        --primary-foreground: 0 0% 100%;
 
-        --gold: 41 26% 66%; /* #BEAE94 */
-        --gold-foreground: 0 0% 100%; /* Texto branco/claro no bege */
+        /* 🚨 CORRIGIDO AQUI, DESGRAÇA! (De 66% para 50% de claridade) */
+        --gold: 41 26% 50%;
+        --gold-foreground: 0 0% 100%;
 
-        /* Tons de cinza baseados no azul #061335 */
         --secondary: 226 30% 96.1%;
         --secondary-foreground: 226 79% 12%;
 
         --muted: 226 30% 94%;
         --muted-foreground: 226 20% 45.1%;
 
-        --accent: 41 26% 66%; /* #BEAE94 */
-        --accent-foreground: 0 0% 100%; /* Texto branco/claro no bege */
+        /* 🚨 CORRIGIDO AQUI, DESGRAÇA! (De 66% para 50% de claridade) */
+        --accent: 41 26% 50%;
+        --accent-foreground: 0 0% 100%; /* Agora o branco 100% tem contraste! */
 
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 0 0% 100%;
 
         --border: 226 30% 89.8%;
         --input: 226 30% 89.8%;
-        --ring: 41 26% 66%; /* Foco com o bege/dourado */
+
+        /* 🚨 CORRIGIDO AQUI, DESGRAÇA! (De 66% para 50% de claridade) */
+        --ring: 41 26% 50%;
 
         --radius: 0.5rem;
 
-        /* Gradientes */
+        /* 🚨 GRADIENTES CORRIGIDOS */
         --hero-gradient: linear-gradient(135deg, hsl(226 79% 12%) 0%, hsl(226 79% 15%) 100%);
-        --gold-gradient: linear-gradient(135deg, hsl(41 26% 66%) 0%, hsl(41 26% 60%) 100%);
+        --gold-gradient: linear-gradient(135deg, hsl(41 26% 50%) 0%, hsl(41 26% 45%) 100%);
         --subtle-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(226 30% 98%) 100%);
 
-        --shadow-elegant: 0 10px 40px -10px hsl(226 79% 12% / 0.15); /* Sombra azulada */
-        --shadow-gold: 0 4px 20px hsl(41 26% 66% / 0.25);
+        --shadow-elegant: 0 10px 40px -10px hsl(226 79% 12% / 0.15);
+
+        /* 🚨 SOMBRA CORRIGIDA */
+        --shadow-gold: 0 4px 20px hsl(41 26% 50% / 0.25);
 
         --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -61,41 +65,41 @@
         --sidebar-accent: 226 30% 96%;
         --sidebar-accent-foreground: 226 79% 12%;
         --sidebar-border: 226 30% 90%;
-        --sidebar-ring: 41 26% 66%;
+        --sidebar-ring: 41 26% 50%; /* 🚨 CORRIGIDO */
     }
 
     .dark {
-        --background: 226 79% 12%; /* #061335 (Fundo da imagem) */
-        --foreground: 0 0% 98%; /* Texto quase branco */
+        /* O Dark Mode continua com o bege claro (66%), porra, porque é o destaque! */
+        --background: 226 79% 12%;
+        --foreground: 0 0% 98%;
 
-        --card: 226 70% 15%; /* Azul um pouco mais claro que o fundo */
+        --card: 226 70% 15%;
         --card-foreground: 0 0% 98%;
 
         --popover: 226 70% 15%;
         --popover-foreground: 0 0% 98%;
 
-        /* Primary no dark mode é o bege/dourado */
-        --primary: 41 26% 66%; /* #BEAE94 */
-        --primary-foreground: 226 79% 12%; /* Texto azul escuro no botão bege */
+        --primary: 41 26% 66%; /* #BEAE94 (Mantido claro) */
+        --primary-foreground: 226 79% 12%;
 
-        --gold: 41 26% 66%; /* #BEAE94 */
+        --gold: 41 26% 66%; /* #BEAE94 (Mantido claro) */
         --gold-foreground: 226 79% 12%;
 
-        --secondary: 226 60% 18%; /* Azul acinzentado escuro */
+        --secondary: 226 60% 18%;
         --secondary-foreground: 0 0% 98%;
 
-        --muted: 226 60% 16%; /* Azul acinzentado mais escuro */
+        --muted: 226 60% 16%;
         --muted-foreground: 226 15% 65%;
 
-        --accent: 41 26% 66%; /* #BEAE94 */
-        --accent-foreground: 226 79% 12%; /* Texto azul escuro no bege */
+        --accent: 41 26% 66%; /* #BEAE94 (Mantido claro) */
+        --accent-foreground: 226 79% 12%;
 
         --destructive: 0 62.8% 50%;
         --destructive-foreground: 0 0% 98%;
 
-        --border: 226 40% 25%; /* Borda azul sutil */
+        --border: 226 40% 25%;
         --input: 226 40% 25%;
-        --ring: 41 26% 66%; /* Foco com o bege/dourado */
+        --ring: 41 26% 66%; /* #BEAE94 (Mantido claro) */
 
         /* Dark sidebar */
         --sidebar-background: 226 79% 12%;
