@@ -38,10 +38,9 @@ const Sobre = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background overflow-x-hidden">
             <Navigation />
-
-            <section className="relative pt-32 pb-28 overflow-hidden bg-primary">
+            <section className="relative pt-24 pb-20 overflow-hidden bg-primary sm:pt-32 sm:pb-28">
                 <div className="absolute inset-0">
                     <div className="absolute inset-0 opacity-10">
                         <div className="absolute top-0 -left-4 w-72 h-72 bg-accent rounded-full mix-blend-screen filter blur-3xl animate-pulse"></div>
