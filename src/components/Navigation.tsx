@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import logoImg from "@/assets/logo2.png";
+import logoDesktop from "@/assets/logo2.png";
+import logoMobile from "@/assets/logo3.jpg";
 
 export const Navigation = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -38,10 +39,17 @@ export const Navigation = () => {
                     <NavLink to="/" className="flex items-center space-x-3 group" onClick={closeMobileMenu}>
 
                         <img
-                            src={logoImg}
+                            src={logoMobile}
                             alt="Ian Granja Advocacia Logo"
-                            className="h-10 w-auto transition-all duration-300 group-hover:scale-105"
+                            className="h-24 w-auto lg:hidden transition-all duration-300 group-hover:scale-105 rounded-md object-contain"
                         />
+
+                        <img
+                            src={logoDesktop}
+                            alt="Ian Granja Advocacia Logo"
+                            className="hidden lg:block h-10 w-auto transition-all duration-300 group-hover:scale-105"
+                        />
+
                     </NavLink>
 
                     <div className="flex items-center gap-2">
@@ -74,7 +82,7 @@ export const Navigation = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50" // Texto e hover ajustados
+                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50"
                             aria-expanded={mobileMenuOpen}
                             aria-controls="mobile-menu"
                         >
@@ -106,7 +114,7 @@ export const Navigation = () => {
                                 key={item.to}
                                 to={item.to}
                                 onClick={closeMobileMenu}
-                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95" // Cor ajustada
+                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95"
                                 activeClassName="text-accent"
                                 style={{ transitionDelay: mobileMenuOpen ? `${index * 50}ms` : '0ms' }}
                             >
