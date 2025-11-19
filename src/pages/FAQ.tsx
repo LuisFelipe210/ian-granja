@@ -35,7 +35,7 @@ const FAQ = () => {
         {
             question: "Como acompanho o andamento do meu processo?",
             answer:
-                "Você receberá atualizações regulares sobre seu caso por e-mail, telefone ou WhatsApp. Além disso, disponibilizamos consultas periódicas para esclarecer qualquer dúvida. Nosso compromisso é manter você informado em todas as etapas do processo.",
+                "Você receberá atualizações regulares sobre seu caso por e-mail, telefone ou WhatsApp. Além disso, oferecemos acesso exclusivo ao sistema do escritório, onde você poderá acompanhar todas as movimentações processuais em tempo real utilizando seu login e senha. Nosso compromisso é manter você informado em todas as etapas do processo.",
         },
         {
             question: "Vocês atuam em todo o Brasil?",
@@ -137,7 +137,6 @@ const FAQ = () => {
                         </p>
                     </div>
 
-
                     <Accordion type="single" collapsible className="space-y-4">
                         {faqs.map((faq, index) => (
                             <AccordionItem
@@ -151,7 +150,6 @@ const FAQ = () => {
                                             {faq.question}
                                         </span>
                                         <div className="flex-shrink-0">
-                                            {/* Ícone customizado de Mais/Menos */}
                                             <div className="w-8 h-8 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-data-[state=open]:bg-accent group-data-[state=open]:text-accent-foreground transition-all duration-300">
                                                 <Plus className="w-4 h-4 text-accent plus transition-transform duration-300 group-hover:rotate-90" />
                                                 <Minus className="w-4 h-4 text-accent-foreground minus hidden" />
@@ -245,10 +243,8 @@ const FAQ = () => {
                                 key={index}
                                 className="group relative p-8 rounded-[2rem] bg-card border border-border/50 hover:border-accent/50 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 overflow-hidden"
                             >
-                                {/* Efeito de Gradient no Hover */}
                                 <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-                                {/* Círculo decorativo no fundo */}
                                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-accent/5 rounded-full blur-2xl group-hover:bg-accent/10 transition-all duration-500" />
 
                                 <div className="relative z-10 flex flex-col items-start h-full">

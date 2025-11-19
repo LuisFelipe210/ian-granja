@@ -26,9 +26,9 @@ export default async function handler(
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: process.env.EMAIL_USER,
+            to: process.env.EMAIL_TO,
             replyTo: email,
-            subject: `Ian Granja Advocacia: ${subject || 'Sem assunto'}`,
+            subject: `Novo contato pelo site: ${subject || 'Sem assunto'}`,
             text: `
         Nome: ${name}
         Email: ${email}

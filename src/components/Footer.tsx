@@ -1,5 +1,5 @@
 import { NavLink } from "@/components/NavLink";
-import { Phone, Mail, MapPin, ArrowRight } from "lucide-react";
+import { Phone, Mail, MapPin, ArrowRight, Instagram } from "lucide-react";
 import { FaWhatsapp } from 'react-icons/fa';
 import logoImg from "@/assets/logo2.png";
 
@@ -113,6 +113,17 @@ export const Footer = () => {
                                 </div>
                             </li>
                             <li className="flex items-start space-x-3">
+                                <Instagram className="h-4 w-4 mt-0.5 flex-shrink-0 text-accent" />
+                                <a
+                                    href="https://www.instagram.com/iangranja.adv"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm opacity-90 hover:opacity-100 hover:text-accent transition-colors"
+                                >
+                                    @iangranja.adv
+                                </a>
+                            </li>
+                            <li className="flex items-start space-x-3">
                                 <Mail className="h-4 w-4 mt-0.5 flex-shrink-0 text-accent" />
                                 <a href="mailto:contato@iangranja.adv.br" className="text-sm opacity-90 hover:opacity-100 hover:text-accent transition-colors">
                                     contato@iangranja.adv.br
@@ -120,7 +131,7 @@ export const Footer = () => {
                             </li>
                             <li className="flex items-start space-x-3">
                                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0 text-accent" />
-                                <span className="text-sm opacity-90">Atuação 100% Digital</span>
+                                <span className="text-sm opacity-90">Atuação online e presencial </span>
                             </li>
                         </ul>
                     </div>
