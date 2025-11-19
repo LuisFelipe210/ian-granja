@@ -153,6 +153,9 @@ const Sobre = () => {
                                 <img
                                     src={lawyerPortrait}
                                     alt="Ian Granja"
+                                    loading="lazy"
+                                    width={384}
+                                    height={400}
                                     className="rounded-2xl shadow-2xl w-full h-auto relative z-10 transform group-hover:scale-[1.02] transition duration-500"
                                 />
                                 <div className="absolute -bottom-6 -right-6 w-full h-full border-2 border-accent/30 rounded-2xl hidden md:block"></div>

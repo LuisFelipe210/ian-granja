@@ -169,9 +169,13 @@ const Index = () => {
 
                     <div className="lg:col-span-1 lg:sticky lg:top-28 self-start">
                         <div className="flex flex-col items-center lg:items-start">
+                            {/* ALTERAÇÃO AQUI: Adicionei loading="lazy", width e height */}
                             <img
                                 src={lawyerPortrait}
                                 alt="Ian Granja"
+                                loading="lazy"
+                                width={240}
+                                height={240}
                                 className="w-60 h-60 rounded-full shadow-2xl border-8 border-muted/50 mb-6 object-cover"
                             />
                             <p className="text-accent font-semibold mb-2 uppercase tracking-wider">Sócio Fundador, Ian Granja</p>
@@ -305,9 +309,13 @@ const Index = () => {
                                                             "{testimonial.quote}"
                                                         </blockquote>
                                                         <footer className="flex items-center gap-4 relative z-10 pt-4 border-t border-border/50 mt-4">
+                                                            {/* ALTERAÇÃO AQUI: Adicionei loading="lazy", width e height */}
                                                             <img
                                                                 src={testimonial.avatar}
                                                                 alt={testimonial.name}
+                                                                loading="lazy"
+                                                                width={48}
+                                                                height={48}
                                                                 className="w-12 h-12 rounded-full object-cover border-2 border-accent"
                                                             />
                                                             <div>
@@ -334,7 +342,7 @@ const Index = () => {
                                 <p className="text-accent font-semibold mb-2 uppercase tracking-wider">Nosso Compromisso</p>
                                 <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
                                     Por Que Nos Contratar?
-                                </h2>
+                                </h2 >
                                 <p className="text-lg text-muted-foreground">
                                     Nosso compromisso vai além do processo. Entregamos soluções reais com atendimento humanizado e foco total no seu resultado.
                                 </p>
