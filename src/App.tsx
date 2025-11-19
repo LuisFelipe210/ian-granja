@@ -8,9 +8,10 @@ import Sobre from "./pages/Sobre";
 import Atuacao from "./pages/Atuacao";
 import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
-import { createContext, useContext, useState, useMemo } from "react";
+import { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { ContactDrawer } from "@/components/ContactDrawer";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { LoadingScreen } from "@/components/LoadingScreen"; // <--- Importa a tela nova
 
 type ContactContextType = {
     isDrawerOpen: boolean;
@@ -49,26 +50,47 @@ const ContactProvider = ({ children }: { children: React.ReactNode }) => {
 
 const queryClient = new QueryClient();
 
-const App = () => (
-    <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <ContactProvider>
-                <BrowserRouter>
-                    <ScrollToTop />
-                    <Routes>
-                        <Route path="/" element={<Index />} />
-                        <Route path="/sobre" element={<Sobre />} />
-                        <Route path="/atuacao" element={<Atuacao />} />
-                        <Route path="/faq" element={<FAQ />} />
-                        <Route path="*" element={<NotFound />} />
-                    </Routes>
-                </BrowserRouter>
-                <ContactDrawer />
-            </ContactProvider>
-        </TooltipProvider>
-    </QueryClientProvider>
-);
+const App = () => {
+    // Estado para controlar o carregamento
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        // Simula o tempo de carregamento (2.5 segundos para a animação completar)
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 2500);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    return (
+        <QueryClientProvider client={queryClient}>
+            <TooltipProvider>
+                {/* Se estiver carregando, mostra a tela de Loading. Se não, mostra o App normal. */}
+                {isLoading ? (
+                    <LoadingScreen />
+                ) : (
+                    <>
+                        <Toaster />
+                        <Sonner />
+                        <ContactProvider>
+                            <BrowserRouter>
+                                <ScrollToTop />
+                                <Routes>
+                                    <Route path="/" element={<Index />} />
+                                    <Route path="/sobre" element={<Sobre />} />
+                                    <Route path="/atuacao" element={<Atuacao />} />
+                                    <Route path="/faq" element={<FAQ />} />
+                                    <Route path="*" element={<NotFound />} />
+                                </Routes>
+                            </BrowserRouter>
+                            <ContactDrawer />
+                        </ContactProvider>
+                    </>
+                )}
+            </TooltipProvider>
+        </QueryClientProvider>
+    );
+};
 
 export default App;

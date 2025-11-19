@@ -1,3 +1,4 @@
+import React from "react";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,9 @@ import { Card } from "@/components/ui/card";
 import { NavLink } from "@/components/NavLink";
 import heroImage from "@/assets/hero-law-office.jpg";
 import lawyerPortrait from "@/assets/lawyer-portrait.jpg";
+import cliente1 from "@/assets/cliente1.jpg";
+import cliente2 from "@/assets/cliente2.jpg";
+import cliente3 from "@/assets/cliente3.jpg";
 import {
     Scale,
     Briefcase,
@@ -18,8 +22,21 @@ import {
     Heart,
     Goal,
 } from "lucide-react";
+import {
+    Carousel,
+    CarouselContent,
+    CarouselItem,
+    CarouselNext,
+    CarouselPrevious,
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 
 const Index = () => {
+    // Configuração do Autoplay
+    const plugin = React.useRef(
+        Autoplay({ delay: 4000, stopOnInteraction: true })
+    );
+
     const homePracticeAreas = [
         {
             icon: Briefcase,
@@ -47,7 +64,6 @@ const Index = () => {
         },
     ];
 
-    // Os diferenciais (porque contratar)
     const whyChooseUs = [
         {
             icon: Award,
@@ -69,7 +85,6 @@ const Index = () => {
         },
     ];
 
-    // As estatísticas
     const stats = [
         { number: "2000+", label: "Consultas Realizadas" },
         { number: "90%", label: "Índice de Satisfação" },
@@ -77,25 +92,27 @@ const Index = () => {
         { number: "100%", label: "Dedicação aos Clientes" },
     ];
 
-    // Os testemunhais (versão estável, 2 colunas)
     const testimonials = [
+        {
+            quote: "Ótimo atendimento pelo Doutor Ian, desde o início sempre foi atencioso e acompanhou-me de maneira extraordinária os trâmites processuais, só gratidão a ele por resolver minha situação da melhor maneira possível.",
+            name: "Jefferson Adriano",
+            profession: "Empresário",
+            role: "Juazeiro/BA",
+            avatar: cliente1
+        },
+        {
+            quote: "Ter o apoio do Dr. Ian fez toda a diferença. Ele resolve, orienta e realmente veste a camisa do cliente. Hoje eu indico de olhos fechados, porque sei que qualquer pessoa estará em boas mãos.",
+            name: "Victor Flávio de O. e Oliveira",
+            profession: "Dentista",
+            role: "Petrolina/PE",
+            avatar: cliente2
+        },
         {
             quote: "O Dr. Ian não mediu esforços para resolver meu problema com o banco. Pensei que perderia meu carro, mas ele agiu rápido e com uma competência que eu nunca tinha visto. Transparência total e um resultado que mudou minha vida.",
             name: "Maria S. Almeida",
-            role: "Cliente de Direito Bancário",
-            avatar: "https://randomuser.me/api/portraits/women/68.jpg"
-        },
-        {
-            quote: "Meu carro havia sido apreendido e eu achava que não tinha saída. O Dr. Ian foi extremamente atencioso e conseguiu resolver tudo com rapidez. Sou muito grato!",
-            name: "Nelson Tavares",
-            role: "Recife/PE",
-            avatar: "https://randomuser.me/api/portraits/men/32.jpg"
-        },
-        {
-            quote: "Tentei resolver sozinho um problema com o banco e só me estressei. Quando procurei o escritório, recebi um atendimento claro e resolutivo. Recomendo demais.",
-            name: "Vanessa Silva",
+            profession: "Autônoma",
             role: "Salvador/BA",
-            avatar: "https://randomuser.me/api/portraits/women/44.jpg"
+            avatar: cliente3
         },
     ];
 
@@ -128,7 +145,9 @@ const Index = () => {
                                 Falar com Advogado
                             </NavLink>
                         </Button>
-                        <Button size="lg" variant="outline" asChild className="w-full sm:w-auto bg-transparent text-primary-foreground border-primary-foreground hover:bg-primary-foreground hover:text-primary">
+                        <Button size="lg" variant="outline" asChild
+                                className="w-full sm:w-auto bg-transparent text-primary-foreground border-primary-foreground hover:bg-accent hover:text-accent-foreground"
+                        >
                             <NavLink to="/atuacao">Conheça Nossa Atuação</NavLink>
                         </Button>
                     </div>
@@ -198,7 +217,7 @@ const Index = () => {
                             <div className="mt-8 w-full max-w-sm">
                                 <Button
                                     variant="outline"
-                                    className="w-full text-base border-2 border-foreground/20 hover:border-accent hover:bg-accent transition-all duration-300"
+                                    className="w-full text-base border-2 border-foreground/20 hover:border-accent hover:bg-accent hover:text-accent-foreground transition-all duration-300"
                                     asChild
                                 >
                                     <NavLink to="/sobre">
@@ -265,26 +284,48 @@ const Index = () => {
                                 </h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {testimonials.slice(0, 2).map((testimonial, index) => (
-                                    <Card key={index} className="bg-muted/50 rounded-2xl shadow-xl p-6 relative border border-border/50">
-                                        <Quote className="absolute top-6 left-6 h-12 w-12 text-accent opacity-10" />
-                                        <blockquote className="text-lg font-medium text-foreground/90 my-4 relative z-10">
-                                            "{testimonial.quote}"
-                                        </blockquote>
-                                        <footer className="flex items-center gap-4 relative z-10 pt-4 border-t border-border/50 mt-4">
-                                            <img
-                                                src={testimonial.avatar}
-                                                alt={testimonial.name}
-                                                className="w-12 h-12 rounded-full object-cover border-2 border-accent"
-                                            />
-                                            <div>
-                                                <p className="text-base font-semibold text-accent">{testimonial.name}</p>
-                                                <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                                            </div>
-                                        </footer>
-                                    </Card>
-                                ))}
+                            <div className="px-4 sm:px-6">
+                                <Carousel
+                                    plugins={[plugin.current]}
+                                    className="w-full"
+                                    onMouseEnter={plugin.current.stop}
+                                    onMouseLeave={plugin.current.reset}
+                                    opts={{
+                                        align: "start",
+                                        loop: true,
+                                    }}
+                                >
+                                    <CarouselContent>
+                                        {testimonials.map((testimonial, index) => (
+                                            <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/2 h-full pb-2">
+                                                <div className="h-full p-1">
+                                                    <Card className="bg-muted/50 rounded-2xl shadow-xl p-6 relative border border-border/50 h-full flex flex-col">
+                                                        <Quote className="absolute top-6 left-6 h-12 w-12 text-accent opacity-10" />
+                                                        <blockquote className="text-lg font-medium text-foreground/90 my-4 relative z-10 flex-grow">
+                                                            "{testimonial.quote}"
+                                                        </blockquote>
+                                                        <footer className="flex items-center gap-4 relative z-10 pt-4 border-t border-border/50 mt-4">
+                                                            <img
+                                                                src={testimonial.avatar}
+                                                                alt={testimonial.name}
+                                                                className="w-12 h-12 rounded-full object-cover border-2 border-accent"
+                                                            />
+                                                            <div>
+                                                                <p className="text-base font-semibold text-accent">{testimonial.name}</p>
+                                                                <p className="text-xs font-medium text-foreground/80">{testimonial.profession}</p>
+                                                                <p className="text-xs text-muted-foreground">{testimonial.role}</p>
+                                                            </div>
+                                                        </footer>
+                                                    </Card>
+                                                </div>
+                                            </CarouselItem>
+                                        ))}
+                                    </CarouselContent>
+                                    <div className="hidden md:block">
+                                        <CarouselPrevious />
+                                        <CarouselNext />
+                                    </div>
+                                </Carousel>
                             </div>
                         </section>
 
@@ -330,7 +371,7 @@ const Index = () => {
                         {stats.map((stat, index) => (
                             <div key={index} className="text-center">
                                 <p className="text-4xl sm:text-5xl font-bold text-accent mb-2">{stat.number}</p>
-                                <p className="text-sm sm:text-base opacity-90 text-muted-foreground">{stat.label}</p> {/* CORRIGIDO A COR DO TEXTO */}
+                                <p className="text-sm sm:text-base opacity-90 text-muted-foreground">{stat.label}</p>
                             </div>
                         ))}
                     </div>

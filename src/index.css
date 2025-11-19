@@ -111,3 +111,28 @@
         @apply bg-background text-foreground;
     }
 }
+
+@layer utilities {
+    @keyframes balance {
+        0% { transform: rotate(0deg); }
+        20% { transform: rotate(-25deg); }
+        40% { transform: rotate(20deg); }
+        60% { transform: rotate(-10deg); }
+        80% { transform: rotate(5deg); }
+        100% { transform: rotate(0deg); }
+    }
+
+    .animate-balance {
+        animation: balance 2s ease-in-out forwards;
+        transform-origin: center center;
+    }
+
+    .fade-out {
+        animation: fadeOut 0.5s ease-out forwards;
+    }
+
+    @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; visibility: hidden; }
+    }
+}
