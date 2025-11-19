@@ -137,9 +137,7 @@ const FAQ = () => {
                         </p>
                     </div>
 
-                    {/* AQUI COMEÇA O SHOW, PORRA.
-                        Mudei o gap e o estilo de cada item.
-                    */}
+
                     <Accordion type="single" collapsible className="space-y-4">
                         {faqs.map((faq, index) => (
                             <AccordionItem

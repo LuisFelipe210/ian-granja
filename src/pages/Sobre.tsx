@@ -4,7 +4,63 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
 import lawyerPortrait from "@/assets/lawyer-portrait.jpg";
-import { Target, Eye, Award, Users, Lightbulb, Scale, Stethoscope, Briefcase, Sparkles, TrendingUp, ArrowRight } from "lucide-react";
+import { Target, Users, Scale, Briefcase, Sparkles, TrendingUp, ArrowRight, MapPin, Stethoscope, Award } from "lucide-react";
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+interface MapEmbedProps {
+    address: string;
+    iframeSrc: string;
+}
+
+const MapEmbed: React.FC<MapEmbedProps> = ({ address, iframeSrc }) => {
+    return (
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div className="max-w-4xl mx-auto text-center mb-10">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent rounded-full text-sm mb-4 font-semibold border border-accent/20">
+                    <MapPin className="w-4 h-4" />
+                    <span>Localização do Escritório</span>
+                </div>
+                <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+                    Estamos em Petrolina-PE
+                </h2>
+                <p className="text-lg text-muted-foreground">
+                    {address}
+                </p>
+            </div>
+
+            <div className="relative w-full max-w-4xl mx-auto rounded-xl overflow-hidden shadow-2xl border-4 border-accent/30 aspect-[16/9] md:aspect-[21/9]">
+                <iframe
+                    src={iframeSrc}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen={false}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title="Localização Ian Granja Advocacia"
+                    className="absolute inset-0"
+                />
+                <div className={cn(
+                    "absolute inset-0 pointer-events-none transition-all duration-500",
+                    "bg-transparent dark:bg-background/20"
+                )} />
+            </div>
+
+            <div className="mt-8 text-center">
+                <a
+                    href="https://wa.me/5587988448690"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:text-accent/80 font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                    Atendimento disponível também 100% online
+                    <MapPin className="w-4 h-4" />
+                </a>
+            </div>
+        </div>
+    );
+};
 
 const Sobre = () => {
     const values = [
@@ -36,6 +92,11 @@ const Sobre = () => {
         "Foco nas áreas de Direito Bancário, Trabalhista e Empresarial.",
         "Atuação destacada em projetos sociais durante a graduação, com foco na defesa de direitos fundamentais.",
     ];
+
+    const addressDetails = {
+        address: "Avenida Cardoso de Sá, n. 860, sala 5, Cidade Universitária, Centro Empresarial Sergio Cabral, CEP 56302-110",
+        iframeSrc: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3947.5342426867015!2d-40.50570702581029!3d-9.379201590736173!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x7a2d04a60015099%3A0x6a2e4f04c64b611e!2sAv.%20Cardoso%20de%20S%C3%A1%2C%20860%20-%20Cidade%20Universit%C3%A1ria%2C%20Petrolina%20-%20PE%2C%2056302-110%2C%20Brasil!5e0!3m2!1spt-BR!2sus!4v1703632420459!5m2!1spt-BR!2sus",
+    };
 
     return (
         <div className="min-h-screen bg-background overflow-x-hidden">
@@ -145,7 +206,7 @@ const Sobre = () => {
 
             <section className="py-24 bg-muted/30 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-5">
-                    <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, hsl(47 22% 46%) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
+                    <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, hsl(var(--accent)) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
                 </div>
 
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
@@ -189,7 +250,7 @@ const Sobre = () => {
                 </div>
 
                 <div className="absolute inset-0 opacity-5">
-                    <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(hsl(47 22% 46% / 0.2) 1px, transparent 1px), linear-gradient(90deg, hsl(47 22% 46% / 0.2) 1px, transparent 1px)', backgroundSize: '50px 50px' }}></div>
+                    <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(hsl(var(--accent) / 0.2) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--accent) / 0.2) 1px, transparent 1px)', backgroundSize: '50px 50px' }}></div>
                 </div>
 
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
@@ -224,10 +285,17 @@ const Sobre = () => {
                 </div>
             </section>
 
+            <section className="bg-muted/30 relative">
+                <MapEmbed
+                    address={addressDetails.address}
+                    iframeSrc={addressDetails.iframeSrc}
+                />
+            </section>
+
             <section className="py-24 bg-background relative overflow-hidden">
                 <div className="absolute inset-0 opacity-30">
-                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/20 rounded-full filter blur-3xl"></div>
-                    <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-muted rounded-full filter blur-3xl"></div>
+                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/20 rounded-full filter blur-3xl animate-pulse"></div>
+                    <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-muted rounded-full filter blur-3xl animate-pulse"></div>
                 </div>
 
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -255,7 +323,7 @@ const Sobre = () => {
                                     <Award className="ml-2 w-5 h-5 group-hover:rotate-12 transition-transform" />
                                 </NavLink>
                             </Button>
-                            <Button size="lg" variant="outline" className="border-2 border-foreground/20 hover:border-accent hover:bg-accent text-lg px-8 py-6" asChild>
+                            <Button size="lg" variant="outline" className="border-2 border-foreground/20 hover:border-accent hover:bg-accent hover:text-accent-foreground text-lg px-8 py-6" asChild>
                                 <NavLink to="/atuacao">Ver Áreas de Atuação</NavLink>
                             </Button>
                         </div>

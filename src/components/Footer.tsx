@@ -20,7 +20,7 @@ export const Footer = () => {
 
                         </NavLink>
                         <p className="text-sm opacity-80 pt-2 leading-relaxed">
-                            Soluções jurídicas com foco no resultado. Atendimento personalizado e compromisso com a excelência, porra.
+                            Soluções jurídicas com foco no resultado. Atendimento personalizado e compromisso com a excelência.
                         </p>
                     </div>
 

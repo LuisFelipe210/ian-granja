@@ -45,7 +45,7 @@ const sendEmail = async (data: FormData): Promise<boolean> => {
         return true;
 
     } catch (error) {
-        console.error("Falha ao enviar e-mail, porra:", error);
+        console.error("Falha ao enviar e-mail:", error);
         return false;
     }
 };
@@ -79,7 +79,7 @@ const ContactForm = ({ onClose }: { onClose: () => void }) => {
             setFormData({ name: "", email: "", phone: "", subject: "", message: "" });
             onClose();
         } else {
-            toast.error("Porra! Houve um erro ao enviar sua mensagem. Tente novamente mais tarde.");
+            toast.error("Houve um erro ao enviar sua mensagem. Tente novamente mais tarde.");
         }
     };
 
