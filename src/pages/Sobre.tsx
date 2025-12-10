@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
 import lawyerPortrait from "@/assets/lawyer-portrait.jpg";
+// Note que Stethoscope foi mantido na importação original, mas vamos usar o Award no lugar.
 import { Target, Users, Scale, Briefcase, Sparkles, TrendingUp, ArrowRight, MapPin, Stethoscope, Award } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -258,7 +259,8 @@ const Sobre = () => {
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
                     <div className="text-center mb-16">
                         <div className="inline-flex p-4 bg-accent/10 backdrop-blur-sm rounded-2xl mb-6 border border-accent/20">
-                            <Stethoscope className="h-12 w-12 text-accent" />
+                            {/* Ícone CORRIGIDO para Award (Prêmio/Certificado) */}
+                            <Award className="h-12 w-12 text-accent" />
                         </div>
                         <h2 className="text-4xl sm:text-5xl font-bold text-primary-foreground mb-6">
                             Formação e Foco de Atuação

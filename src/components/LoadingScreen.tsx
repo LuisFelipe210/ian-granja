@@ -2,7 +2,7 @@ import logoMobile from "@/assets/logo3.jpg";
 
 export const LoadingScreen = () => {
     return (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary transition-opacity duration-500">
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary transition-opacity duration-600">
             <div className="relative flex flex-col items-center justify-center">
                 <img
                     src={logoMobile}
@@ -26,7 +26,7 @@ export const LoadingScreen = () => {
                     100% { transform: scaleX(1); }
                 }
                 .animate-progress {
-                    animation: progress 1.2s ease-out forwards;
+                    animation: progress 0.5s ease-out forwards;
                 }
             `}</style>
         </div>
