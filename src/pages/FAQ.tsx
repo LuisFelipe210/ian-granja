@@ -100,7 +100,6 @@ const FAQ = () => {
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center max-w-4xl mx-auto">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full text-accent text-sm mb-6 border border-accent/30">
-                            <Sparkles className="w-4 h-4" />
                             <span>FAQ</span>
                         </div>
                         <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold mb-6 text-primary-foreground">
@@ -185,7 +184,6 @@ const FAQ = () => {
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="max-w-3xl mx-auto text-center">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full text-primary-foreground text-sm mb-6 border border-accent/30">
-                            <Sparkles className="w-4 h-4" />
                             <span className="font-semibold">Estamos Aqui Para Ajudar</span>
                         </div>
 

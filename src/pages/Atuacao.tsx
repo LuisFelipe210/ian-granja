@@ -187,7 +187,6 @@ const Atuacao = () => {
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center max-w-4xl mx-auto">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full text-accent text-sm mb-6 border border-accent/30">
-                            <Sparkles className="w-4 h-4" />
                             <span>Advocacia Full Service</span>
                         </div>
                         <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold mb-6 text-primary-foreground">
@@ -270,7 +269,6 @@ const Atuacao = () => {
                                             {area.services.length > 3 && (
                                                 <div className="mt-3 pt-3 border-t border-accent/10">
                                                     <p className="text-xs text-accent font-semibold flex items-center gap-2">
-                                                        <Sparkles className="w-3 h-3" />
                                                         +{area.services.length - 3} outros serviços
                                                     </p>
                                                 </div>
@@ -501,7 +499,6 @@ const Atuacao = () => {
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <div className="max-w-3xl mx-auto">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 backdrop-blur-sm rounded-full text-primary text-sm mb-6 border border-primary/30">
-                            <Sparkles className="w-4 h-4" />
                             <span className="font-semibold">Estamos Aqui Para Ajudar</span>
                         </div>
 

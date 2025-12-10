@@ -117,7 +117,6 @@ const Sobre = () => {
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center max-w-5xl mx-auto">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full text-accent text-sm mb-6 border border-accent/30">
-                            <Sparkles className="w-4 h-4" />
                             <span>Advocacia Estratégica e Personalizada</span>
                         </div>
                         <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold mb-6 text-primary-foreground">
@@ -198,7 +197,7 @@ const Sobre = () => {
                                         <Sparkles className="ml-2 w-4 h-4 group-hover:rotate-12 transition-transform" />
                                     </NavLink>
                                 </Button>
-                                <Button size="lg" variant="outline" className="border-2 border-foreground/20 hover:border-accent hover:bg-accent/5" asChild>
+                                <Button size="lg" variant="outline" className="border-2 border-foreground/20 hover:border-accent hover:bg-accent" asChild>
                                     <NavLink to="/atuacao">Ver Áreas de Atuação</NavLink>
                                 </Button>
                             </div>
@@ -304,7 +303,6 @@ const Sobre = () => {
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <div className="max-w-4xl mx-auto">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent rounded-full text-sm font-semibold mb-6 border border-accent/20">
-                            <Sparkles className="w-4 h-4" />
                             Dê o Primeiro Passo
                         </div>
 
