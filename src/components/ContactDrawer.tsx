@@ -25,6 +25,7 @@ interface FormData {
 }
 
 const sendEmail = async (data: FormData): Promise<boolean> => {
+    // ... (mesma lógica de antes)
     const API_ENDPOINT = '/api/send-contact';
 
     try {
@@ -55,6 +56,7 @@ const WhatsAppIcon = ({ className, fill = "currentColor" }: { className?: string
 );
 
 const ContactForm = ({ onClose }: { onClose: () => void }) => {
+    // ... (mesma lógica de form)
     const [formData, setFormData] = React.useState<FormData>({
         name: "",
         email: "",
@@ -67,11 +69,8 @@ const ContactForm = ({ onClose }: { onClose: () => void }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
         setIsLoading(true);
-
         const success = await sendEmail(formData);
-
         setIsLoading(false);
 
         if (success) {
@@ -209,13 +208,14 @@ export const ContactDrawer = () => {
                         max-w-sm
                         sm:max-w-lg
                         p-0
-                        max-h-[92vh]
+                        max-h-[90vh] /* Reduzi um pouco a altura maxima */
                         overflow-hidden
                         rounded-lg
                         sm:rounded-lg
+                        flex flex-col /* Adicionado para organizar header e content */
                     "
                 >
-                    <DialogHeader className="p-3 border-b border-border text-center">
+                    <DialogHeader className="p-3 border-b border-border text-center flex-shrink-0">
                         <DialogTitle className="text-lg font-bold">
                             Fale Conosco
                         </DialogTitle>
@@ -224,7 +224,7 @@ export const ContactDrawer = () => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="flex justify-center p-2 border-b border-border">
+                    <div className="flex justify-center p-2 border-b border-border flex-shrink-0">
                         <div className="flex bg-muted rounded-lg p-1">
                             <Button
                                 variant="ghost"
@@ -253,7 +253,8 @@ export const ContactDrawer = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 pb-4">
+                    {/* Adicionado overflow-y-auto aqui pra essa porra scrollar */}
+                    <div className="flex-1 overflow-y-auto pb-4">
                         {activeTab === "email" && (
                             <>
                                 <div className="px-3 pt-3 pb-1 text-center">
