@@ -6,8 +6,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Sobre from "./pages/Sobre";
 import Atuacao from "./pages/Atuacao";
-import AtuacaoDetalhes from "./pages/AtuacaoDetalhes"; // <--- IMPORTA A PÁGINA NOVA AQUI, DESGRAÇA
+import AtuacaoDetalhes from "./pages/AtuacaoDetalhes";
 import FAQ from "./pages/FAQ";
+import Contato from "./pages/Contato";
 import NotFound from "./pages/NotFound";
 import { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { ContactDrawer } from "@/components/ContactDrawer";
@@ -72,6 +73,8 @@ const App = () => {
                     <LoadingScreen />
                 ) : (
                     <>
+                        <div className="bg-noise mix-blend-overlay"></div>
+
                         <Toaster />
                         <Sonner />
                         <ContactProvider>
@@ -87,6 +90,7 @@ const App = () => {
                                     <Route path="/atuacao/:slug" element={<AtuacaoDetalhes />} />
 
                                     <Route path="/faq" element={<FAQ />} />
+                                    <Route path="contato" element={<Contato />} />
                                     <Route path="*" element={<NotFound />} />
                                 </Routes>
                             </BrowserRouter>

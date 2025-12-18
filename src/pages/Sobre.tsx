@@ -1,205 +1,154 @@
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
 import lawyerPortrait from "@/assets/lawyer-portrait.jpg";
-// Note que Stethoscope foi mantido na importação original, mas vamos usar o Award no lugar.
-import { Target, Users, Scale, Briefcase, Sparkles, TrendingUp, ArrowRight, MapPin, Stethoscope, Award } from "lucide-react";
+import {
+    Target,
+    Users,
+    Scale,
+    Briefcase,
+    Sparkles,
+    TrendingUp,
+    MapPin,
+    Award,
+    CheckCircle2,
+    ArrowRight
+} from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
-
-interface MapEmbedProps {
-    address: string;
-    iframeSrc: string;
-}
-
-const MapEmbed: React.FC<MapEmbedProps> = ({ address, iframeSrc }) => {
-    return (
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
-            <div className="max-w-4xl mx-auto text-center mb-10">
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent rounded-full text-sm mb-4 font-semibold border border-accent/20">
-                    <MapPin className="w-4 h-4" />
-                    <span>Localização do Escritório</span>
-                </div>
-                <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-                    Estamos em Petrolina-PE
-                </h2>
-                <p className="text-lg text-muted-foreground">
-                    {address}
-                </p>
-            </div>
-
-            <div className="relative w-full max-w-4xl mx-auto rounded-xl overflow-hidden shadow-2xl border-4 border-accent/30 aspect-[16/9] md:aspect-[21/9]">
-                <iframe
-                    src={iframeSrc}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    allowFullScreen={false}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    title="Localização Ian Granja Advocacia"
-                    className="absolute inset-0"
-                />
-                <div className={cn(
-                    "absolute inset-0 pointer-events-none transition-all duration-500",
-                    "bg-transparent dark:bg-background/20"
-                )} />
-            </div>
-
-            <div className="mt-8 text-center">
-                <a
-                    href="https://wa.me/5587988448690"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:text-accent/80 font-semibold transition-colors flex items-center justify-center gap-2"
-                >
-                    Atendimento disponível também 100% online
-                    <MapPin className="w-4 h-4" />
-                </a>
-            </div>
-        </div>
-    );
-};
 
 const Sobre = () => {
     const values = [
         {
             icon: Scale,
-            title: "Compromisso Ético",
-            description: "Nossa reputação é construída pela transparência, confiança e comprometimento com resultados.",
+            title: "Ética Inegociável",
+            description: "Transparência absoluta em cada etapa do processo. A confiança é a base da nossa atuação.",
         },
         {
             icon: Target,
-            title: "Vitórias Relevantes",
-            description: "O escritório tem por objetivo alcançar vitórias relevantes e desenvolver estratégias personalizadas em cada caso.",
+            title: "Foco no Resultado",
+            description: "Estratégias jurídicas desenhadas sob medida para alcançar a melhor resolução possível.",
         },
         {
             icon: Users,
-            title: "Atuação Especializada",
-            description: "Contamos com atuação especializada e sólida formação jurídica para oferecer soluções seguras e eficazes.",
+            title: "Atendimento Humanizado",
+            description: "Entendemos que por trás de cada processo existem pessoas, histórias e expectativas.",
         },
         {
             icon: Briefcase,
-            title: "Advogados Qualificados",
-            description: "Advogados Qualificados com sólida formação jurídica e atuação estratégica.",
+            title: "Excelência Técnica",
+            description: "Atualização constante e profundidade teórica para enfrentar os casos mais complexos.",
         },
     ];
 
     const specialization = [
-        "Bacharelado em Direito: Formado com sólida base jurídica e destaque acadêmico.",
-        "OAB/PE nº 61.107: Registro profissional ativo em Pernambuco.",
-        "Foco nas áreas de Direito Bancário, Trabalhista e Empresarial.",
-        "Atuação destacada em projetos sociais durante a graduação, com foco na defesa de direitos fundamentais.",
+        "Bacharelado em Direito com Láurea Acadêmica",
+        "OAB/PE nº 61.107 — Registro Ativo e Regular",
+        "Especialista em Direito Bancário e do Consumidor",
+        "Consultoria Jurídica Empresarial Estratégica",
     ];
 
     const addressDetails = {
-        address: "Avenida Cardoso de Sá, n. 860, sala 5, Cidade Universitária, Centro Empresarial Sergio Cabral, CEP 56302-110",
-        iframeSrc: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3947.5342426867015!2d-40.50570702581029!3d-9.379201590736173!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x7a2d04a60015099%3A0x6a2e4f04c64b611e!2sAv.%20Cardoso%20de%20S%C3%A1%2C%20860%20-%20Cidade%20Universit%C3%A1ria%2C%20Petrolina%20-%20PE%2C%2056302-110%2C%20Brasil!5e0!3m2!1spt-BR!2sus!4v1703632420459!5m2!1spt-BR!2sus",
+        address: "Avenida Cardoso de Sá, n. 860, sala 5, Cidade Universitária, Centro Empresarial Sergio Cabral, CEP 56302-110, Petrolina-PE",
+        iframeSrc: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3936.588698774776!2d-40.5042!3d-9.3956!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zOcKwMjMnNDQuMiJTIDQwwrAzMCcxNS4xIlc!5e0!3m2!1spt-BR!2sbr!4v1600000000000!5m2!1spt-BR!2sbr", // Lembre-se de por o link HTTPS real aqui
     };
 
     return (
-        <div className="min-h-screen bg-background overflow-x-hidden">
+        <div className="min-h-screen bg-background font-sans selection:bg-accent selection:text-accent-foreground">
             <Navigation />
-            <section className="relative pt-24 pb-20 overflow-hidden bg-primary sm:pt-32 sm:pb-28">
-                <div className="absolute inset-0">
-                    <div className="absolute inset-0 opacity-10">
-                        <div className="absolute top-0 -left-4 w-72 h-72 bg-accent rounded-full mix-blend-screen filter blur-3xl animate-pulse"></div>
-                        <div className="absolute top-0 -right-4 w-72 h-72 bg-accent rounded-full mix-blend-screen filter blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-                        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-accent rounded-full mix-blend-screen filter blur-3xl animate-pulse" style={{ animationDelay: '4s' }}></div>
-                    </div>
-                </div>
 
-                <div className="absolute top-20 left-10 w-20 h-20 border-2 border-accent/20 rounded-full"></div>
-                <div className="absolute bottom-20 right-10 w-32 h-32 border-2 border-accent/20 rounded-full"></div>
-                <div className="absolute top-1/2 left-1/4 w-16 h-16 border border-accent/10 rotate-45"></div>
+            {/* --- HERO SECTION: Premium Dark --- */}
+            <section className="relative pt-32 pb-24 bg-primary text-white overflow-hidden border-b border-white/5">
+                <div className="absolute inset-0 opacity-[0.05]"
+                     style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
+                </div>
 
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="text-center max-w-5xl mx-auto">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full text-accent text-sm mb-6 border border-accent/30">
-                            <span>Advocacia Estratégica e Personalizada</span>
+                    <div className="max-w-4xl">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="h-px w-12 bg-accent"></div>
+                            <span className="text-accent font-medium tracking-[0.2em] uppercase text-xs">Sobre o Escritório</span>
                         </div>
-                        <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold mb-6 text-primary-foreground">
-                            Conheça Nossa
-                            <span className="block text-accent mt-2">
-                                História
+                        <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight tracking-tight drop-shadow-xl">
+                            Defesa Técnica & <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-white">
+                                Estratégia Jurídica
                             </span>
                         </h1>
-                        <p className="text-xl sm:text-2xl text-primary-foreground/80 max-w-3xl mx-auto leading-relaxed">
-                            Nosso compromisso é simplificar o Direito e entregar segurança jurídica com clareza e confiança.
+                        <p className="text-xl text-gray-300 leading-relaxed max-w-2xl border-l-4 border-accent/20 pl-6 rounded-sm">
+                            Muito mais que um escritório de advocacia. Somos parceiros estratégicos na proteção do seu patrimônio e dos seus direitos.
                         </p>
-
                     </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0">
-                    <svg className="w-full h-16" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                        <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" className="fill-background"></path>
-                    </svg>
                 </div>
             </section>
 
-            <section className="py-24 relative bg-background">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full filter blur-3xl"></div>
-                <div className="absolute bottom-0 left-0 w-96 h-96 bg-muted/50 rounded-full filter blur-3xl"></div>
+            {/* --- BIO & FOTO: Design Fluido --- */}
+            <section className="py-24 bg-white">
+                <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24 items-center">
 
-                <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                        {/* Foto Arredondada e Colorida */}
+                        <div className="lg:col-span-5 relative group order-2 lg:order-1">
+                            {/* Elemento decorativo de fundo */}
+                            <div className="absolute top-4 -left-4 w-full h-full border-2 border-accent/20 rounded-[2.5rem] z-0 group-hover:top-2 group-hover:-left-2 transition-all duration-500"></div>
 
-                        <div className="relative group">
-                            <div className="absolute -inset-1 bg-gradient-to-br from-accent/30 to-accent/10 rounded-2xl blur-lg opacity-50 group-hover:opacity-75 transition duration-700"></div>
-                            <div className="relative max-w-sm mx-auto">
+                            <div className="relative z-10 bg-muted aspect-[3/4] overflow-hidden rounded-[2.5rem] shadow-2xl">
                                 <img
                                     src={lawyerPortrait}
-                                    alt="Ian Granja"
-                                    loading="lazy"
-                                    width={384}
-                                    height={400}
-                                    className="rounded-2xl shadow-2xl w-full h-auto relative z-10 transform group-hover:scale-[1.02] transition duration-500"
+                                    alt="Ian Granja Advogado"
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                 />
-                                <div className="absolute -bottom-6 -right-6 w-full h-full border-2 border-accent/30 rounded-2xl hidden md:block"></div>
+                                {/* Overlay sutil no bottom para contraste se precisar */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-60"></div>
                             </div>
-                            <div className="absolute -top-4 -left-4 w-24 h-24 border-t-4 border-l-4 border-accent/40 rounded-tl-3xl hidden md:block"></div>
                         </div>
 
-                        <div className="space-y-8">
+                        {/* Texto Institucional */}
+                        <div className="lg:col-span-7 space-y-8 order-1 lg:order-2">
                             <div>
-                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent rounded-full text-sm font-semibold mb-4 border border-accent/20">
-                                    <TrendingUp className="w-4 h-4" />
-                                    Ian Granja ADVs
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 text-accent rounded-full text-xs font-bold uppercase tracking-wider mb-4 border border-accent/20">
+                                    <TrendingUp className="w-3 h-3" />
+                                    Fundador & Advogado Sênior
                                 </div>
-                                <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6 leading-tight">
-                                    Advocacia com Foco
-                                    <span className="block text-accent">
-                                        Estratégico
-                                    </span>
+                                <h2 className="text-4xl font-bold text-foreground mb-4">
+                                    Ian Granja
                                 </h2>
+                                <p className="text-lg text-muted-foreground leading-relaxed">
+                                    Com 5 anos de atuação sólida no mercado jurídico, fundei o escritório com uma premissa clara:
+                                    <span className="text-foreground font-semibold"> o Direito não precisa ser complicado, ele precisa ser efetivo.</span>
+                                </p>
                             </div>
 
-                            <p className="text-lg text-muted-foreground leading-relaxed">
-                                O escritório foi fundado com o objetivo de alcançar vitórias relevantes e desenvolver estratégias personalizadas em cada caso, com <span className="font-semibold text-foreground">5 anos de atuação sólida</span>.
-                            </p>
-
-                            <div className="relative pl-8 py-6 border-l-4 border-accent bg-accent/5 rounded-r-lg">
-                                <blockquote className="text-xl text-foreground italic font-medium leading-relaxed">
-                                    "Direito não é sobre vencer a qualquer custo. É sobre proteger o que importa com estratégia, ética e verdade."
-                                </blockquote>
+                            <div className="space-y-4">
+                                <p className="text-muted-foreground leading-relaxed">
+                                    Minha trajetória é marcada pela defesa intransigente dos interesses dos meus clientes, combinando rigor técnico acadêmico com uma visão prática e resolutiva dos tribunais.
+                                </p>
+                                <div className="p-6 bg-muted/30 border-l-4 border-accent rounded-r-2xl">
+                                    <p className="text-foreground italic font-medium leading-relaxed">
+                                        "Não vendemos processos. Entregamos segurança jurídica e tranquilidade para que você possa focar no que realmente importa na sua vida."
+                                    </p>
+                                </div>
                             </div>
 
-                            <p className="text-lg text-muted-foreground leading-relaxed">
-                                Cada cliente é tratado com seriedade e atenção, buscando simplificar o Direito e entregar segurança jurídica com clareza e confiança.
-                            </p>
+                            {/* Lista de Credenciais */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                                {specialization.map((item, index) => (
+                                    <div key={index} className="flex items-start gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors">
+                                        <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-accent" />
+                                        </div>
+                                        <span className="text-sm text-foreground/80 leading-snug">{item}</span>
+                                    </div>
+                                ))}
+                            </div>
 
-                            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                                <Button size="lg" className="bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300 group" asChild>
+                            <div className="pt-6">
+                                <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-full px-8 h-12 shadow-lg hover:shadow-xl transition-all" asChild>
                                     <NavLink to="#" isContactLink>
-                                        Fale com um Advogado
-                                        <Sparkles className="ml-2 w-4 h-4 group-hover:rotate-12 transition-transform" />
+                                        Agendar Reunião
+                                        <Sparkles className="ml-2 w-4 h-4" />
                                     </NavLink>
-                                </Button>
-                                <Button size="lg" variant="outline" className="border-2 border-foreground/20 hover:border-accent hover:bg-accent" asChild>
-                                    <NavLink to="/atuacao">Ver Áreas de Atuação</NavLink>
                                 </Button>
                             </div>
                         </div>
@@ -207,143 +156,84 @@ const Sobre = () => {
                 </div>
             </section>
 
-            <section className="py-24 bg-muted/30 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-5">
-                    <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, hsl(var(--accent)) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
-                </div>
+            {/* --- PILARES: Cards Flutuantes (Estilo Atuação) --- */}
+            <section className="py-24 bg-muted/20 relative">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-accent/5 via-background to-background pointer-events-none" />
 
-                <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-                    <div className="text-center mb-16">
-                        <div className="inline-block px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full text-accent text-sm mb-4 font-semibold border border-accent/20">
-                            Nossos Diferenciais
-                        </div>
-                        <h2 className="text-4xl sm:text-5xl font-bold text-foreground mb-6">Nossos Pilares</h2>
-                        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                            Os princípios que guiam cada decisão e ação em nosso escritório.
-                        </p>
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="mb-12 text-center md:text-left">
+                        <h2 className="text-3xl font-bold text-foreground mb-4">Nossos Pilares</h2>
+                        <p className="text-muted-foreground max-w-2xl">Princípios fundamentais que norteiam nossa conduta profissional.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {values.map((value, index) => (
-                            <div key={index} className="group relative">
-                                <div className="absolute -inset-0.5 bg-accent rounded-2xl blur opacity-0 group-hover:opacity-30 transition duration-500"></div>
-
-                                <Card className="relative bg-card border-border hover:border-accent/50 rounded-2xl p-6 h-full transition-all duration-500 group-hover:transform group-hover:-translate-y-2 group-hover:shadow-xl">
-                                    <CardContent className="p-0">
-                                        <div className="inline-flex p-3 rounded-xl bg-accent/10 border-2 border-accent/20 mb-4 group-hover:bg-accent/20 group-hover:border-accent/40 transition-all duration-300">
-                                            <value.icon className="h-6 w-6 text-accent" />
-                                        </div>
-
-                                        <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-accent transition-colors duration-300">{value.title}</h3>
-                                        <p className="text-muted-foreground leading-relaxed">{value.description}</p>
-
-                                        <div className="absolute bottom-0 left-0 w-full h-1 bg-accent rounded-b-2xl transform scale-x-0 group-hover:scale-x-100 transition duration-500"></div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            <section className="py-24 bg-primary relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10">
-                    <div className="absolute top-20 left-10 w-64 h-64 bg-accent rounded-full filter blur-3xl animate-pulse"></div>
-                    <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: '3s' }}></div>
-                </div>
-
-                <div className="absolute inset-0 opacity-5">
-                    <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(hsl(var(--accent) / 0.2) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--accent) / 0.2) 1px, transparent 1px)', backgroundSize: '50px 50px' }}></div>
-                </div>
-
-                <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
-                    <div className="text-center mb-16">
-                        <div className="inline-flex p-4 bg-accent/10 backdrop-blur-sm rounded-2xl mb-6 border border-accent/20">
-                            {/* Ícone CORRIGIDO para Award (Prêmio/Certificado) */}
-                            <Award className="h-12 w-12 text-accent" />
-                        </div>
-                        <h2 className="text-4xl sm:text-5xl font-bold text-primary-foreground mb-6">
-                            Formação e Foco de Atuação
-                        </h2>
-                        <p className="text-xl text-primary-foreground/80 max-w-2xl mx-auto">
-                            Sólida base jurídica e atuação focada nas áreas mais relevantes para o cliente.
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        {specialization.map((item, index) => (
-                            <div key={index} className="group flex items-start space-x-4 bg-primary-foreground/5 backdrop-blur-md rounded-2xl p-6 border border-accent/20 hover:bg-primary-foreground/10 hover:border-accent/40 transition-all duration-300">
-                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent border-2 border-accent/50 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                                    <span className="text-primary text-lg font-bold">✓</span>
+                            <div key={index} className="group bg-white p-8 rounded-3xl border border-border/60 hover:border-accent/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                                <div className="mb-6 inline-block p-3 bg-accent/5 rounded-2xl border border-accent/10 group-hover:bg-accent group-hover:text-accent-foreground transition-all duration-300 group-hover:scale-110">
+                                    <value.icon className="h-6 w-6 text-accent group-hover:text-accent-foreground transition-colors" />
                                 </div>
-                                <p className="text-primary-foreground/90 leading-relaxed">{item}</p>
+                                <h3 className="text-lg font-bold text-foreground mb-3">{value.title}</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    {value.description}
+                                </p>
                             </div>
                         ))}
                     </div>
-
-                    <div className="bg-accent/10 backdrop-blur-md rounded-2xl p-8 border-2 border-accent/30">
-                        <p className="text-primary-foreground/90 text-center leading-relaxed">
-                            <span className="font-semibold text-accent">OAB/PE nº 61.107.</span> Atuação como advogado nas áreas de Direito Bancário, Trabalhista e Empresarial, com foco em proteção veicular, defesa do consumidor e estratégias de recuperação de ativos.
-                        </p>
-                    </div>
                 </div>
             </section>
 
-            <section className="bg-muted/30 relative">
-                <MapEmbed
-                    address={addressDetails.address}
-                    iframeSrc={addressDetails.iframeSrc}
-                />
-            </section>
+            {/* --- MAPA: Layout Arredondado --- */}
+            <section className="py-12 bg-background">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="rounded-[2.5rem] overflow-hidden shadow-2xl border border-border bg-[#0f172a] grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
 
-            <section className="py-24 bg-background relative overflow-hidden">
-                <div className="absolute inset-0 opacity-30">
-                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/20 rounded-full filter blur-3xl animate-pulse"></div>
-                    <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-muted rounded-full filter blur-3xl animate-pulse"></div>
-                </div>
+                        {/* Info Column */}
+                        <div className="lg:col-span-4 text-white p-10 flex flex-col justify-center relative overflow-hidden">
+                            {/* Pattern de fundo sutil no card */}
+                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-accent to-transparent"></div>
 
-                <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <div className="max-w-4xl mx-auto">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent rounded-full text-sm font-semibold mb-6 border border-accent/20">
-                            Dê o Primeiro Passo
+                            <div className="relative z-10">
+                                <div className="mb-8">
+                                    <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm">
+                                        <MapPin className="w-6 h-6 text-accent" />
+                                    </div>
+                                    <h3 className="text-3xl font-bold mb-2">Visite-nos</h3>
+                                    <p className="text-gray-400">Petrolina, Pernambuco</p>
+                                </div>
+
+                                <div className="space-y-6 text-gray-300">
+                                    <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                                        <p className="font-bold text-white mb-1 text-sm uppercase tracking-wide text-accent">Endereço</p>
+                                        <p className="leading-relaxed text-sm">Av. Cardoso de Sá, n. 860, sala 5<br/>Cidade Universitária<br/>Centro Empresarial Sergio Cabral</p>
+                                    </div>
+                                    <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                                        <p className="font-bold text-white mb-1 text-sm uppercase tracking-wide text-accent">Horário</p>
+                                        <p className="text-sm">Segunda a Sexta: 08h às 18h</p>
+                                    </div>
+                                    <div className="pt-4">
+                                        <Button variant="outline" className="w-full border-white/20 text-white bg-transparent hover:bg-white hover:text-[#0f172a] rounded-full h-12" asChild>
+                                            <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">
+                                                Abrir no Google Maps <ArrowRight className="ml-2 w-4 h-4" />
+                                            </a>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-6">
-                            Agende Sua
-                            <span className="block text-accent mt-2">
-                                Consulta
-                            </span>
-                        </h2>
-
-                        <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-                            Descubra como a estratégia correta pode proteger o que é importante para você.
-                        </p>
-
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                            <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-8 py-6 shadow-xl hover:shadow-2xl transition-all duration-300 group" asChild>
-                                <NavLink to="#" isContactLink>
-                                    Fale com um Especialista
-                                    <Award className="ml-2 w-5 h-5 group-hover:rotate-12 transition-transform" />
-                                </NavLink>
-                            </Button>
-                            <Button size="lg" variant="outline" className="border-2 border-foreground/20 hover:border-accent hover:bg-accent hover:text-accent-foreground text-lg px-8 py-6" asChild>
-                                <NavLink to="/atuacao">Ver Áreas de Atuação</NavLink>
-                            </Button>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-8 mt-16 max-w-2xl mx-auto">
-                            <div className="text-center group">
-                                <div className="text-3xl font-bold text-foreground mb-1 group-hover:text-accent transition-colors duration-300">5+</div>
-                                <div className="text-sm text-muted-foreground">Anos de Experiência</div>
-                            </div>
-                            <div className="text-center group">
-                                <div className="text-3xl font-bold text-foreground mb-1 group-hover:text-accent transition-colors duration-300">OAB/PE</div>
-                                <div className="text-sm text-muted-foreground">Registro Ativo</div>
-                            </div>
-                            <div className="text-center group">
-                                <div className="text-3xl font-bold text-foreground mb-1 group-hover:text-accent transition-colors duration-300">100%</div>
-                                <div className="text-sm text-muted-foreground">Compromisso Ético</div>
-                            </div>
+                        {/* Map Column */}
+                        <div className="lg:col-span-8 h-[400px] lg:h-auto bg-muted relative">
+                            <iframe
+                                src={addressDetails.iframeSrc}
+                                width="100%"
+                                height="100%"
+                                style={{ border: 0, filter: "grayscale(100%) invert(0%)" }}
+                                allowFullScreen={false}
+                                loading="lazy"
+                                referrerPolicy="no-referrer-when-downgrade"
+                                title="Mapa Localização"
+                                className="absolute inset-0"
+                            />
                         </div>
                     </div>
                 </div>

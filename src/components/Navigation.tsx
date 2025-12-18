@@ -34,29 +34,25 @@ export const Navigation = () => {
             <header
                 className={cn(
                     "fixed top-0 left-0 w-full z-50 transition-all duration-500 ease-in-out",
-                    // AQUI É A MÁGICA: Azul (primary) quando rola, transparente no topo
                     scrolled
-                        ? "py-2 bg-primary/95 backdrop-blur-md shadow-md border-b border-white/10"
+                        ? "py-2 bg-primary/95 backdrop-blur-md shadow-md border-b border-white/10" // Ajustei pro azul escuro executivo
                         : "py-6 bg-transparent"
                 )}
             >
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center">
 
-                        {/* --- LOGO SÓ A IMAGEM (CONDICIONAL) --- */}
+                        {/* --- LOGO --- */}
                         <NavLink
                             to="/"
                             className="flex items-center gap-3 group relative z-50 shrink-0"
                             onClick={() => setIsMenuOpen(false)}
                         >
-                            {/* Logo Mobile (Aparece só em telas pequenas lg:hidden) */}
                             <img
                                 src={logoMobile}
                                 alt="Logo"
                                 className="lg:hidden h-16 w-auto object-contain transition-transform duration-300 group-hover:scale-105 rounded-md"
                             />
-
-                            {/* Logo Desktop (Aparece só em telas grandes hidden lg:block) */}
                             <img
                                 src={logoDesktop}
                                 alt="Logo"
@@ -66,7 +62,6 @@ export const Navigation = () => {
 
                         {/* --- MENU DESKTOP --- */}
                         <div className="hidden lg:flex items-center">
-                            {/* Tirei a cápsula de fundo pra ficar limpo no azul */}
                             <nav className="flex items-center gap-1">
                                 <ul className="flex items-center px-2">
                                     {navItems.map((item) => (
@@ -75,7 +70,6 @@ export const Navigation = () => {
                                                 to={item.to}
                                                 className={({ isActive }) => cn(
                                                     "text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 block",
-                                                    // Texto branco (primary-foreground) pra contrastar com o azul ou fundo escuro
                                                     isActive
                                                         ? "text-white bg-white/20"
                                                         : "text-white/90 hover:text-white hover:bg-white/10"
@@ -93,9 +87,10 @@ export const Navigation = () => {
                                     <Button
                                         asChild
                                         size="sm"
-                                        className="rounded-full font-bold shadow-lg bg-white text-primary hover:bg-white/90 hover:-translate-y-0.5 transition-all"
+                                        className="rounded-full font-bold shadow-lg bg-white text-[#0f172a] hover:bg-white/90 hover:-translate-y-0.5 transition-all"
                                     >
-                                        <NavLink to="#">
+                                        {/* AQUI MUDOU, CARALHO: Agora vai pra /contato */}
+                                        <NavLink to="/contato">
                                             Agendar
                                             <ArrowRight className="ml-1 h-3 w-3" />
                                         </NavLink>
@@ -119,14 +114,13 @@ export const Navigation = () => {
                 </div>
             </header>
 
-            {/* --- MOBILE OVERLAY (Fundo Azulão Também) --- */}
+            {/* --- MOBILE OVERLAY --- */}
             <div
                 className={cn(
                     "fixed inset-0 z-40 bg-primary/95 backdrop-blur-xl lg:hidden transition-all duration-300",
                     isMenuOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
                 )}
             >
-                {/* Detalhes de fundo pra não ficar chapado */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-40 h-40 bg-black/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -156,9 +150,10 @@ export const Navigation = () => {
                         <Button
                             asChild
                             size="lg"
-                            className="w-full text-lg font-bold h-14 rounded-2xl shadow-xl bg-white text-primary hover:bg-white/90"
+                            className="w-full text-lg font-bold h-14 rounded-2xl shadow-xl bg-white text-[#0f172a] hover:bg-white/90"
                         >
-                            <NavLink to="#" onClick={() => setIsMenuOpen(false)}>
+                            {/* AQUI TAMBÉM MUDOU: Link corrigido */}
+                            <NavLink to="/contato" onClick={() => setIsMenuOpen(false)}>
                                 <Phone className="mr-2 h-5 w-5" />
                                 Consulta Gratuita
                             </NavLink>

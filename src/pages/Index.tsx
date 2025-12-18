@@ -21,6 +21,7 @@ import {
     Quote,
     Heart,
     Goal,
+    Star
 } from "lucide-react";
 import {
     Carousel,
@@ -32,339 +33,323 @@ import {
 import Autoplay from "embla-carousel-autoplay";
 
 const Index = () => {
-    // Configuração do Autoplay
     const plugin = React.useRef(
-        Autoplay({ delay: 4000, stopOnInteraction: true })
+        Autoplay({ delay: 5000, stopOnInteraction: true })
     );
 
     const homePracticeAreas = [
         {
             icon: Briefcase,
             title: "Direito Bancário",
-            description:
-                "Foco na recuperação de veículos e revisão de contratos abusivos.",
+            description: "Recuperação de veículos e revisão de contratos.",
         },
         {
             icon: Users,
             title: "Direito Trabalhista",
-            description:
-                "Representamos trabalhadores e empresas em disputas judiciais.",
+            description: "Defesa de trabalhadores e empresas em disputas.",
         },
         {
             icon: Shield,
             title: "Direito do Consumidor",
-            description:
-                "Atuamos na defesa contra cobranças indevidas e negativação irregular.",
+            description: "Defesa contra cobranças e negativação indevida.",
         },
         {
             icon: Heart,
             title: "Planos de Saúde",
-            description:
-                "Defesa contra negativas de cobertura e reajustes abusivos.",
+            description: "Ações contra negativas e reajustes abusivos.",
         },
     ];
 
     const whyChooseUs = [
         {
             icon: Award,
-            title: "Histórico de Resultados Reais",
-            description:
-                "Atuamos com foco em soluções práticas e eficazes, buscando decisões favoráveis que tragam alívio real.",
+            title: "Histórico de Resultados",
+            description: "Foco em soluções eficazes e decisões favoráveis.",
         },
         {
             icon: CheckCircle,
-            title: "Transparência nos Honorários",
-            description:
-                "Nossos clientes sabem exatamente o que esperar do início ao fim, sem surpresas ou letras miúdas.",
+            title: "Honorários Transparentes",
+            description: "Sem surpresas. Clareza total do início ao fim.",
         },
         {
             icon: Users,
             title: "Atendimento Humanizado",
-            description:
-                "Mais do que processos, entregamos orientação jurídica com empatia, clareza e comprometimento total.",
+            description: "Empatia e clareza na orientação jurídica.",
         },
     ];
 
     const stats = [
-        { number: "2000+", label: "Consultas Realizadas" },
-        { number: "90%", label: "Índice de Satisfação" },
-        { number: "5+", label: "Anos de Experiência" },
-        { number: "100%", label: "Dedicação aos Clientes" },
+        { number: "2k+", label: "Consultas" },
+        { number: "98%", label: "Satisfação" },
+        { number: "5+", label: "Anos de Mercado" },
+        { number: "100%", label: "Dedicação" },
     ];
 
     const testimonials = [
         {
-            quote: "Ótimo atendimento pelo Doutor Ian, desde o início sempre foi atencioso e acompanhou-me de maneira extraordinária os trâmites processuais, só gratidão a ele por resolver minha situação da melhor maneira possível.",
+            quote: "Ótimo atendimento pelo Dr. Ian, sempre atencioso. Acompanhou-me de maneira extraordinária.",
             name: "Jefferson Adriano",
             profession: "Empresário",
-            role: "Juazeiro/BA",
             avatar: cliente1
         },
         {
-            quote: "Ter o apoio do Dr. Ian fez toda a diferença. Ele resolve, orienta e realmente veste a camisa do cliente. Hoje eu indico de olhos fechados, porque sei que qualquer pessoa estará em boas mãos.",
-            name: "Victor Flávio de O. e Oliveira",
+            quote: "O Dr. Ian resolve, orienta e veste a camisa. Indico de olhos fechados pela competência.",
+            name: "Victor Flávio",
             profession: "Dentista",
-            role: "Petrolina/PE",
             avatar: cliente2
         },
         {
-            quote: "O Dr. Ian não mediu esforços para resolver meu problema com o banco. Pensei que perderia meu carro, mas ele agiu rápido e com uma competência que eu nunca tinha visto. Transparência total e um resultado que mudou minha vida.",
-            name: "Maria S. Almeida",
+            quote: "Agiu rápido e com uma competência que nunca vi. O resultado mudou minha vida.",
+            name: "Maria Almeida",
             profession: "Autônoma",
-            role: "Salvador/BA",
             avatar: cliente3
         },
     ];
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background font-sans selection:bg-accent selection:text-accent-foreground">
             <Navigation />
 
+            {/* --- HERO SECTION: ORIGINAL (Mas com botões arredondados) --- */}
             <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-28 pb-12">
                 <div
                     className="absolute inset-0 z-0"
                     style={{
-                        backgroundImage: `linear-gradient(to top, hsl(var(--primary) / 0.95) 10%, hsl(var(--primary) / 0.6) 100%), url(${heroImage})`,
+                        backgroundImage: `linear-gradient(to top, hsl(var(--primary) / 0.95) 10%, hsl(var(--primary) / 0.4) 100%), url(${heroImage})`,
                         backgroundSize: "cover",
                         backgroundPosition: "center",
                     }}
                 />
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-                    <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-primary-foreground mb-6 animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-300">
+                    <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-primary-foreground mb-6 animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-300 drop-shadow-lg">
                         Oferecemos Soluções Jurídicas
                         <br />
                         <span className="text-accent">com Foco no Resultado</span>
                     </h1>
-                    <p className="text-lg sm:text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-500">
+                    <p className="text-lg sm:text-xl text-primary-foreground/90 mb-10 max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-500 font-medium">
                         Advocacia experiente e especializada. Atendimento personalizado com compromisso em entregar resultados práticos.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-700">
-                        <Button size="lg" asChild className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground">
+                        {/* Botões Arredondados (Rounded-full) */}
+                        <Button size="xl" asChild className="w-full sm:w-auto h-14 px-8 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground shadow-xl transition-transform hover:scale-105">
                             <NavLink to="#" isContactLink>
                                 <Phone className="mr-2 h-5 w-5" />
                                 Falar com Advogado
                             </NavLink>
                         </Button>
-                        <Button size="lg" variant="outline" asChild
-                                className="w-full sm:w-auto bg-transparent text-primary-foreground border-primary-foreground hover:bg-accent hover:text-accent-foreground"
+                        <Button size="xl" variant="outline" asChild
+                                className="w-full sm:w-auto h-14 px-8 rounded-full bg-white/10 backdrop-blur-sm text-white border-white/30 hover:bg-white hover:text-primary transition-transform hover:scale-105"
                         >
                             <NavLink to="/atuacao">Conheça Nossa Atuação</NavLink>
                         </Button>
                     </div>
-                    <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-900">
-                        <div className="bg-primary-foreground/10 backdrop-blur-sm rounded-lg p-4 border-l-4 border-accent border-y-primary-foreground/20 border-r-primary-foreground/20">
-                            <p className="text-primary-foreground font-semibold">Atuação Nacional</p>
-                            <p className="text-primary-foreground/80 text-sm">Advogados presentes em todo o país</p>
+
+                    {/* Cards de Informação - Arredondados */}
+                    <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-900">
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 shadow-lg hover:bg-white/15 transition-colors">
+                            <p className="text-white font-bold text-lg mb-1">Atuação Nacional</p>
+                            <p className="text-white/70 text-sm">Processos digitais em todo o Brasil</p>
                         </div>
-                        <div className="bg-primary-foreground/10 backdrop-blur-sm rounded-lg p-4 border-l-4 border-accent border-y-primary-foreground/20 border-r-primary-foreground/20">
-                            <p className="text-primary-foreground font-semibold">Telefone para Contato</p>
-                            <p className="text-primary-foreground/80 text-sm">(87) 9 8844-8690</p>
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 shadow-lg hover:bg-white/15 transition-colors">
+                            <p className="text-white font-bold text-lg mb-1">Plantão WhatsApp</p>
+                            <p className="text-white/70 text-sm">(87) 9 8844-8690</p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-24">
+            {/* --- LAYOUT PRINCIPAL: STICKY + CONTEÚDO FLUIDO --- */}
+            <section className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-24 bg-background">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-16 lg:gap-12">
 
+                    {/* --- COLUNA ESQUERDA (STICKY - Agora com Bordas Suaves) --- */}
                     <div className="lg:col-span-1 lg:sticky lg:top-28 self-start">
-                        <div className="flex flex-col items-center lg:items-start">
-                            {/* ALTERAÇÃO AQUI: Adicionei loading="lazy", width e height */}
-                            <img
-                                src={lawyerPortrait}
-                                alt="Ian Granja"
-                                loading="lazy"
-                                width={240}
-                                height={240}
-                                className="w-60 h-60 rounded-full shadow-2xl border-8 border-muted/50 mb-6 object-cover"
-                            />
-                            <p className="text-accent font-semibold mb-2 uppercase tracking-wider">Sócio Fundador, Ian Granja</p>
-                            <h2 className="text-3xl font-bold text-foreground mb-4 text-center lg:text-left">
-                                É Um Prazer Te Conhecer
+                        <div className="flex flex-col items-center lg:items-start p-8 border border-border/60 bg-card rounded-3xl shadow-xl">
+                            {/* Foto Arredondada */}
+                            <div className="relative group w-full max-w-[260px] mb-8 mx-auto lg:mx-0">
+                                <img
+                                    src={lawyerPortrait}
+                                    alt="Ian Granja"
+                                    loading="lazy"
+                                    className="w-full aspect-[3/4] object-cover rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]"
+                                />
+                                {/* Badge Flutuante */}
+                                <div className="absolute -bottom-4 -right-4 bg-accent text-accent-foreground px-4 py-2 rounded-xl text-sm font-bold shadow-lg">
+                                    OAB/PE 61.107
+                                </div>
+                            </div>
+
+                            <p className="text-accent font-bold mb-2 uppercase tracking-widest text-xs text-center lg:text-left w-full">Sócio Fundador</p>
+                            <h2 className="text-3xl font-bold text-foreground mb-4 text-center lg:text-left w-full">
+                                Ian Granja
                             </h2>
-                            <blockquote className="border-l-4 border-accent pl-6 italic text-foreground my-4 text-lg text-center lg:text-left">
+
+                            <blockquote className="italic text-muted-foreground my-4 text-lg text-center lg:text-left font-serif leading-relaxed">
                                 "Não existe direito se o cidadão não vê o resultado prático dele."
                             </blockquote>
-                            <p className="text-muted-foreground text-sm mb-8 text-center lg:text-left">
-                                Meu compromisso é oferecer segurança e resultado prático a cada cliente que confia em meu escritório.
+
+                            <p className="text-foreground/80 text-sm mb-8 text-center lg:text-left leading-relaxed">
+                                Advogado com 5 anos de experiência e atuação nacional. Especialista em resolver problemas complexos com estratégias diretas.
                             </p>
 
-                            <div className="grid grid-cols-1 gap-6 w-full max-w-sm">
-                                <div className="flex items-start space-x-4 p-4 bg-muted/50 rounded-lg">
-                                    <div className="flex-shrink-0 mt-1">
-                                        <Scale className="h-8 w-8 text-accent opacity-90" />
-                                    </div>
+                            <div className="space-y-3 w-full">
+                                <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl border border-border/50">
+                                    <div className="p-2 bg-background rounded-full shadow-sm"><Scale className="h-5 w-5 text-accent" /></div>
                                     <div>
-                                        <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-1">
-                                            5 Anos de Experiência
-                                        </h3>
-                                        <p className="text-muted-foreground text-sm">
-                                            Atuação focada em resultados reais.
-                                        </p>
+                                        <h3 className="text-xs font-bold uppercase text-foreground">Experiência</h3>
+                                        <p className="text-muted-foreground text-xs">Foco em resultados.</p>
                                     </div>
                                 </div>
-                                <div className="flex items-start space-x-4 p-4 bg-muted/50 rounded-lg">
-                                    <div className="flex-shrink-0 mt-1">
-                                        <Goal className="h-8 w-8 text-accent opacity-90" />
-                                    </div>
+                                <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl border border-border/50">
+                                    <div className="p-2 bg-background rounded-full shadow-sm"><Goal className="h-5 w-5 text-accent" /></div>
                                     <div>
-                                        <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-1">
-                                            Foco no Resultado
-                                        </h3>
-                                        <p className="text-muted-foreground text-sm">
-                                            Não há direito sem resultado prático.
-                                        </p>
+                                        <h3 className="text-xs font-bold uppercase text-foreground">Estratégia</h3>
+                                        <p className="text-muted-foreground text-xs">Soluções ágeis.</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="mt-8 w-full max-w-sm">
+                            <div className="mt-8 w-full">
                                 <Button
                                     variant="outline"
-                                    className="w-full text-base border-2 border-foreground/20 hover:border-accent hover:bg-accent hover:text-accent-foreground transition-all duration-300"
+                                    className="w-full h-12 text-base border-foreground/10 hover:border-accent hover:bg-accent hover:text-accent-foreground rounded-xl transition-all"
                                     asChild
                                 >
                                     <NavLink to="/sobre">
-                                        Conheça Nossa História
-                                        <ArrowRight className="ml-2 w-4 h-4" />
+                                        Conheça a História <ArrowRight className="ml-2 w-4 h-4" />
                                     </NavLink>
                                 </Button>
                             </div>
-
                         </div>
                     </div>
 
+                    {/* --- COLUNA DIREITA (CONTEÚDO) --- */}
                     <div className="lg:col-span-2 space-y-24">
 
+                        {/* Áreas de Atuação - Cards Flutuantes (Não mais grade colada) */}
                         <section id="practice-areas">
-                            <div className="mb-12">
-                                <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+                            <div className="mb-10 text-center lg:text-left">
+                                <h2 className="text-3xl font-bold text-foreground mb-4">
                                     Nossas Especialidades
                                 </h2 >
                                 <p className="text-lg text-muted-foreground">
-                                    Atuação focada em resultados práticos. Veja nossas principais áreas de expertise.
+                                    Atuação focada em resultados práticos.
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {homePracticeAreas.map((area) => (
                                     <NavLink
                                         key={area.title}
                                         to="/atuacao"
-                                        className="group bg-card rounded-2xl shadow-lg border-2 border-transparent hover:border-accent transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 flex items-center space-x-6 p-6"
+                                        className="group bg-card p-8 rounded-3xl border border-border/60 hover:border-accent/50 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
                                     >
-                                        <div className="flex-shrink-0 flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 group-hover:bg-accent transition-all duration-300">
-                                            <area.icon className="h-8 w-8 text-accent group-hover:text-accent-foreground transition-colors duration-300" />
+                                        <div className="mb-6">
+                                            <div className="w-14 h-14 bg-accent/10 flex items-center justify-center rounded-2xl group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
+                                                <area.icon className="h-7 w-7 text-accent group-hover:text-accent-foreground transition-colors" />
+                                            </div>
                                         </div>
-                                        <div className="flex-grow">
-                                            <h3 className="text-xl font-bold text-foreground mb-1">
-                                                {area.title}
-                                            </h3>
-                                            <p className="text-muted-foreground text-sm">
-                                                {area.description}
-                                            </p>
-                                        </div>
-                                        <div className="flex-shrink-0 ml-auto self-center">
-                                            <ArrowRight className="h-6 w-6 text-muted-foreground opacity-0 -translate-x-3 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-accent transition-all duration-300" />
+                                        <h3 className="text-xl font-bold text-foreground mb-3">
+                                            {area.title}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground leading-relaxed flex-grow">
+                                            {area.description}
+                                        </p>
+                                        <div className="mt-6 flex items-center text-accent font-semibold text-sm opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                            Saiba mais <ArrowRight className="ml-2 w-4 h-4" />
                                         </div>
                                     </NavLink>
                                 ))}
                             </div>
 
                             <div className="text-center mt-12">
-                                <Button size="lg" variant="outline" asChild>
-                                    <NavLink to="/atuacao">Ver Todas as Áreas de Atuação</NavLink>
+                                <Button size="lg" variant="ghost" className="rounded-full hover:bg-muted px-8 h-12 text-muted-foreground hover:text-foreground" asChild>
+                                    <NavLink to="/atuacao">Ver Todas as Áreas →</NavLink>
                                 </Button>
                             </div>
                         </section>
 
+                        {/* Depoimentos - Cards Suaves */}
                         <section id="testimonial-stable">
-                            <div className="text-center mb-12">
-                                <p className="text-sm font-semibold text-accent uppercase tracking-wider mb-2">
-                                    Experiência Confirmada
-                                </p>
-                                <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-                                    O QUE OS NOSSOS CLIENTES DIZEM
+                            <div className="mb-10 text-center lg:text-left">
+                                <span className="text-accent font-bold uppercase tracking-widest text-xs mb-2 block">Feedback</span>
+                                <h2 className="text-3xl font-bold text-foreground">
+                                    O que dizem nossos clientes
                                 </h2>
                             </div>
 
-                            <div className="px-4 sm:px-6">
+                            <div className="relative">
+                                <div className="absolute -inset-4 bg-muted/30 rounded-[3rem] -z-10 transform -rotate-1"></div>
                                 <Carousel
                                     plugins={[plugin.current]}
                                     className="w-full"
                                     onMouseEnter={plugin.current.stop}
                                     onMouseLeave={plugin.current.reset}
-                                    opts={{
-                                        align: "start",
-                                        loop: true,
-                                    }}
+                                    opts={{ align: "start", loop: true }}
                                 >
-                                    <CarouselContent>
+                                    <CarouselContent className="-ml-4">
                                         {testimonials.map((testimonial, index) => (
-                                            <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/2 h-full pb-2">
-                                                <div className="h-full p-1">
-                                                    <Card className="bg-muted/50 rounded-2xl shadow-xl p-6 relative border border-border/50 h-full flex flex-col">
-                                                        <Quote className="absolute top-6 left-6 h-12 w-12 text-accent opacity-10" />
-                                                        <blockquote className="text-lg font-medium text-foreground/90 my-4 relative z-10 flex-grow">
-                                                            "{testimonial.quote}"
-                                                        </blockquote>
-                                                        <footer className="flex items-center gap-4 relative z-10 pt-4 border-t border-border/50 mt-4">
-                                                            {/* ALTERAÇÃO AQUI: Adicionei loading="lazy", width e height */}
-                                                            <img
-                                                                src={testimonial.avatar}
-                                                                alt={testimonial.name}
-                                                                loading="lazy"
-                                                                width={48}
-                                                                height={48}
-                                                                className="w-12 h-12 rounded-full object-cover border-2 border-accent"
-                                                            />
-                                                            <div>
-                                                                <p className="text-base font-semibold text-accent">{testimonial.name}</p>
-                                                                <p className="text-xs font-medium text-foreground/80">{testimonial.profession}</p>
-                                                                <p className="text-xs text-muted-foreground">{testimonial.role}</p>
-                                                            </div>
-                                                        </footer>
-                                                    </Card>
+                                            <CarouselItem key={index} className="md:basis-1/2 pl-4">
+                                                <div className="bg-white rounded-3xl p-8 border border-border/60 shadow-sm h-full flex flex-col relative overflow-hidden group hover:border-accent/30 transition-colors">
+                                                    <Quote className="absolute top-6 right-6 h-12 w-12 text-accent/10 rotate-180" />
+
+                                                    <div className="flex items-center gap-1 mb-6 text-yellow-500">
+                                                        {[...Array(5)].map((_, i) => <Star key={i} size={16} fill="currentColor" />)}
+                                                    </div>
+
+                                                    <blockquote className="text-lg text-foreground/80 leading-relaxed mb-8 flex-grow">
+                                                        "{testimonial.quote}"
+                                                    </blockquote>
+
+                                                    <div className="flex items-center gap-4 pt-6 border-t border-border/50">
+                                                        <img
+                                                            src={testimonial.avatar}
+                                                            alt={testimonial.name}
+                                                            loading="lazy"
+                                                            className="w-12 h-12 rounded-full object-cover shadow-md"
+                                                        />
+                                                        <div>
+                                                            <p className="text-sm font-bold text-foreground">{testimonial.name}</p>
+                                                            <p className="text-xs text-muted-foreground">{testimonial.profession}</p>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </CarouselItem>
                                         ))}
                                     </CarouselContent>
-                                    <div className="hidden md:block">
-                                        <CarouselPrevious />
-                                        <CarouselNext />
+                                    <div className="hidden md:flex justify-end gap-2 mt-6 pr-4">
+                                        <CarouselPrevious className="static translate-y-0 rounded-full border-border hover:bg-accent hover:text-accent-foreground" />
+                                        <CarouselNext className="static translate-y-0 rounded-full border-border hover:bg-accent hover:text-accent-foreground" />
                                     </div>
                                 </Carousel>
                             </div>
                         </section>
 
-                        <section id="why-choose-us">
-                            <div className="text-center mb-16 max-w-3xl mx-auto">
-                                <p className="text-accent font-semibold mb-2 uppercase tracking-wider">Nosso Compromisso</p>
-                                <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+                        {/* Por que nós - Cards com Gradiente Suave */}
+                        <section id="why-choose-us" className="bg-[#0f172a] text-white p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+                            {/* Background Pattern */}
+                            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
+
+                            <div className="relative z-10 mb-10 text-center lg:text-left">
+                                <p className="text-accent font-semibold mb-2 uppercase tracking-wider text-xs">Diferenciais</p>
+                                <h2 className="text-3xl font-bold text-white mb-4">
                                     Por Que Nos Contratar?
-                                </h2 >
-                                <p className="text-lg text-muted-foreground">
-                                    Nosso compromisso vai além do processo. Entregamos soluções reais com atendimento humanizado e foco total no seu resultado.
-                                </p>
+                                </h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
                                 {whyChooseUs.map((item) => (
-                                    <Card
-                                        key={item.title}
-                                        className="group bg-card rounded-2xl shadow-xl p-8 text-center flex flex-col items-center
-                                                   border border-border/50 transition-all duration-300
-                                                   hover:border-accent/80 hover:bg-muted/30 hover:shadow-2xl hover:-translate-y-1"
-                                    >
-                                        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-accent mb-6 transition-all duration-300 group-hover:scale-105 group-hover:rotate-3 group-hover:bg-accent/90">
-                                            <item.icon className="h-8 w-8 text-accent-foreground transition-all duration-300 group-hover:scale-110" />
+                                    <div key={item.title} className="group bg-white/5 p-6 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
+                                        <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mb-4 text-accent-foreground shadow-lg group-hover:scale-110 transition-transform">
+                                            <item.icon className="h-6 w-6" />
                                         </div>
-
-                                        <h3 className="text-xl font-semibold text-foreground mb-3 transition-colors duration-300 group-hover:text-accent">
+                                        <h3 className="text-lg font-bold text-white mb-2">
                                             {item.title}
                                         </h3>
-                                        <p className="text-muted-foreground text-sm">{item.description}</p>
-                                    </Card>
+                                        <p className="text-white/60 text-sm leading-relaxed">
+                                            {item.description}
+                                        </p>
+                                    </div>
                                 ))}
                             </div>
                         </section>
@@ -373,13 +358,15 @@ const Index = () => {
                 </div>
             </section>
 
-            <section className="py-16 bg-muted/50">
+            {/* --- STATS STRIP (Com bordas arredondadas) --- */}
+            <section className="py-12">
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                    <div className="bg-accent text-accent-foreground rounded-[2rem] p-12 grid grid-cols-2 md:grid-cols-4 gap-8 shadow-xl">
                         {stats.map((stat, index) => (
-                            <div key={index} className="text-center">
-                                <p className="text-4xl sm:text-5xl font-bold text-accent mb-2">{stat.number}</p>
-                                <p className="text-sm sm:text-base opacity-90 text-muted-foreground">{stat.label}</p>
+                            <div key={index} className="text-center relative">
+                                {index !== stats.length - 1 && <div className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 w-px h-12 bg-black/10"></div>}
+                                <p className="text-4xl md:text-5xl font-black mb-1">{stat.number}</p>
+                                <p className="text-xs sm:text-sm font-bold uppercase tracking-wider opacity-80">{stat.label}</p>
                             </div>
                         ))}
                     </div>
