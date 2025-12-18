@@ -6,12 +6,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Sobre from "./pages/Sobre";
 import Atuacao from "./pages/Atuacao";
+import AtuacaoDetalhes from "./pages/AtuacaoDetalhes"; // <--- IMPORTA A PÁGINA NOVA AQUI, DESGRAÇA
 import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
 import { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { ContactDrawer } from "@/components/ContactDrawer";
 import { ScrollToTop } from "@/components/ScrollToTop";
-import { LoadingScreen } from "@/components/LoadingScreen"; // <--- Importa a tela nova
+import { LoadingScreen } from "@/components/LoadingScreen";
 
 type ContactContextType = {
     isDrawerOpen: boolean;
@@ -79,7 +80,12 @@ const App = () => {
                                 <Routes>
                                     <Route path="/" element={<Index />} />
                                     <Route path="/sobre" element={<Sobre />} />
+
+                                    {/* ROTAS DE ATUAÇÃO */}
                                     <Route path="/atuacao" element={<Atuacao />} />
+                                    {/* Essa porra aqui embaixo que faz a mágica da página dinâmica: */}
+                                    <Route path="/atuacao/:slug" element={<AtuacaoDetalhes />} />
+
                                     <Route path="/faq" element={<FAQ />} />
                                     <Route path="*" element={<NotFound />} />
                                 </Routes>

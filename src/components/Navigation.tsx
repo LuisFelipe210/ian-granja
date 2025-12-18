@@ -1,139 +1,171 @@
-import { NavLink } from "@/components/NavLink";
-import { Button } from "@/components/ui/button";
-import { Menu, X, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
+import { NavLink } from "react-router-dom";
+import { Menu, X, Phone, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
 import logoDesktop from "@/assets/logo2.png";
 import logoMobile from "@/assets/logo3.jpg";
 
 export const Navigation = () => {
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
-        document.body.style.overflow = mobileMenuOpen ? 'hidden' : 'unset';
-        return () => { document.body.style.overflow = 'unset'; };
-    }, [mobileMenuOpen]);
+        const onScroll = () => setScrolled(window.scrollY > 20);
+        window.addEventListener("scroll", onScroll);
+        return () => window.removeEventListener("scroll", onScroll);
+    }, []);
 
-    const closeMobileMenu = () => setMobileMenuOpen(false);
+    useEffect(() => {
+        document.body.style.overflow = isMenuOpen ? 'hidden' : 'unset';
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isMenuOpen]);
 
     const navItems = [
         { to: "/", label: "Início" },
+        { to: "/atuacao", label: "Áreas de Atuação" },
         { to: "/sobre", label: "Sobre" },
-        { to: "/atuacao", label: "Atuação" },
-        { to: "/faq", label: "FAQ" },
+        { to: "/faq", label: "Dúvidas" },
     ];
-
-    const linkClasses = "relative text-base font-bold text-primary-foreground/90 transition-all duration-300 hover:text-accent group px-3 py-1 rounded-lg ";
-    const activeLinkClasses = "text-accent after:scale-x-100 bg-primary-foreground/5 dark:bg-primary/30";
 
     return (
         <>
-            <nav
+            <header
                 className={cn(
-                    "fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300",
-                    "bg-primary/95 backdrop-blur-lg shadow-xl border border-primary-foreground/10",
-                    "h-[80px] w-[93%] rounded-lg"
+                    "fixed top-0 left-0 w-full z-50 transition-all duration-500 ease-in-out",
+                    // AQUI É A MÁGICA: Azul (primary) quando rola, transparente no topo
+                    scrolled
+                        ? "py-2 bg-primary/95 backdrop-blur-md shadow-md border-b border-white/10"
+                        : "py-6 bg-transparent"
                 )}
             >
-                <div className="px-4 sm:px-6 h-full flex items-center justify-between">
-                    <NavLink to="/" className="flex items-center space-x-3 group" onClick={closeMobileMenu}>
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between items-center">
 
-                        <img
-                            src={logoMobile}
-                            alt="Ian Granja Advocacia Logo"
-                            className="h-24 w-auto lg:hidden transition-all duration-300 group-hover:scale-105 rounded-md object-contain"
-                        />
+                        {/* --- LOGO SÓ A IMAGEM (CONDICIONAL) --- */}
+                        <NavLink
+                            to="/"
+                            className="flex items-center gap-3 group relative z-50 shrink-0"
+                            onClick={() => setIsMenuOpen(false)}
+                        >
+                            {/* Logo Mobile (Aparece só em telas pequenas lg:hidden) */}
+                            <img
+                                src={logoMobile}
+                                alt="Logo"
+                                className="lg:hidden h-16 w-auto object-contain transition-transform duration-300 group-hover:scale-105 rounded-md"
+                            />
 
-                        <img
-                            src={logoDesktop}
-                            alt="Ian Granja Advocacia Logo"
-                            className="hidden lg:block h-10 w-auto transition-all duration-300 group-hover:scale-105"
-                        />
+                            {/* Logo Desktop (Aparece só em telas grandes hidden lg:block) */}
+                            <img
+                                src={logoDesktop}
+                                alt="Logo"
+                                className="hidden lg:block h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                            />
+                        </NavLink>
 
-                    </NavLink>
+                        {/* --- MENU DESKTOP --- */}
+                        <div className="hidden lg:flex items-center">
+                            {/* Tirei a cápsula de fundo pra ficar limpo no azul */}
+                            <nav className="flex items-center gap-1">
+                                <ul className="flex items-center px-2">
+                                    {navItems.map((item) => (
+                                        <li key={item.to}>
+                                            <NavLink
+                                                to={item.to}
+                                                className={({ isActive }) => cn(
+                                                    "text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 block",
+                                                    // Texto branco (primary-foreground) pra contrastar com o azul ou fundo escuro
+                                                    isActive
+                                                        ? "text-white bg-white/20"
+                                                        : "text-white/90 hover:text-white hover:bg-white/10"
+                                                )}
+                                            >
+                                                {item.label}
+                                            </NavLink>
+                                        </li>
+                                    ))}
+                                </ul>
 
-                    <div className="flex items-center gap-2">
-                        <div className="hidden lg:flex items-center space-x-4 lg:space-x-6">
-                            {navItems.map((item) => (
-                                <NavLink
-                                    key={item.to}
-                                    to={item.to}
-                                    className={linkClasses}
-                                    activeClassName={activeLinkClasses}
-                                >
-                                    {item.label}
-                                </NavLink>
-                            ))}
+                                <div className="h-5 w-px bg-white/30 mx-3" />
+
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        asChild
+                                        size="sm"
+                                        className="rounded-full font-bold shadow-lg bg-white text-primary hover:bg-white/90 hover:-translate-y-0.5 transition-all"
+                                    >
+                                        <NavLink to="#">
+                                            Agendar
+                                            <ArrowRight className="ml-1 h-3 w-3" />
+                                        </NavLink>
+                                    </Button>
+                                </div>
+                            </nav>
                         </div>
 
-                        <Button
-                            variant="default"
-                            size="sm"
-                            asChild
-                            className="hidden lg:flex bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-300 text-sm px-6 py-2 h-10 font-bold"
-                        >
-                            <NavLink to="#" isContactLink>
-                                <Phone className="mr-2 h-4 w-4" />
-                                Fale com Advogado
-                            </NavLink>
-                        </Button>
-
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="lg:hidden h-10 w-10 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition-colors duration-200 relative z-50"
-                            aria-expanded={mobileMenuOpen}
-                            aria-controls="mobile-menu"
-                        >
-                            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                        </Button>
+                        {/* --- MENU MOBILE TOGGLE --- */}
+                        <div className="lg:hidden flex items-center gap-3">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className="relative z-50 text-white hover:bg-white/20 rounded-full"
+                            >
+                                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                            </Button>
+                        </div>
                     </div>
                 </div>
-            </nav>
+            </header>
 
+            {/* --- MOBILE OVERLAY (Fundo Azulão Também) --- */}
             <div
-                id="mobile-menu"
                 className={cn(
-                    "fixed inset-0 z-40 lg:hidden transition-opacity duration-300",
-                    "bg-primary/95 backdrop-blur-lg",
-                    mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                    "fixed inset-0 z-40 bg-primary/95 backdrop-blur-xl lg:hidden transition-all duration-300",
+                    isMenuOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
                 )}
-                onClick={closeMobileMenu}
             >
-                <div
-                    className={cn(
-                        "h-full w-full flex flex-col items-center justify-center transition-all duration-300",
-                        mobileMenuOpen ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
-                    )}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div className="flex flex-col items-center space-y-8 px-6 w-full">
+                {/* Detalhes de fundo pra não ficar chapado */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-40 h-40 bg-black/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex flex-col h-full justify-center items-center px-6 gap-8">
+                    <nav className="flex flex-col items-center gap-6">
                         {navItems.map((item, index) => (
                             <NavLink
                                 key={item.to}
                                 to={item.to}
-                                onClick={closeMobileMenu}
-                                className="text-3xl font-bold text-primary-foreground hover:text-accent transition-all duration-300 uppercase tracking-wide hover:scale-110 active:scale-95"
-                                activeClassName="text-accent"
-                                style={{ transitionDelay: mobileMenuOpen ? `${index * 50}ms` : '0ms' }}
+                                onClick={() => setIsMenuOpen(false)}
+                                className={({ isActive }) => cn(
+                                    "text-3xl font-bold transition-colors tracking-tight",
+                                    isActive ? "text-white scale-110" : "text-white/70 hover:text-white"
+                                )}
+                                style={{
+                                    transitionDelay: isMenuOpen ? `${index * 50}ms` : '0ms'
+                                }}
                             >
                                 {item.label}
                             </NavLink>
                         ))}
+                    </nav>
 
-                        <div className="w-1/3 h-px bg-gradient-to-r from-transparent via-accent to-transparent my-6" />
+                    <div className="w-16 h-1 bg-white/20 rounded-full" />
 
+                    <div className="flex flex-col gap-4 w-full max-w-xs">
                         <Button
-                            size="lg"
-                            className="flex items-center gap-3 text-lg font-bold uppercase transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-accent/50 px-8 py-4 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 shadow-xl"
                             asChild
-                            onClick={closeMobileMenu}
+                            size="lg"
+                            className="w-full text-lg font-bold h-14 rounded-2xl shadow-xl bg-white text-primary hover:bg-white/90"
                         >
-                            <NavLink to="#" isContactLink>
-                                <Phone className="h-6 w-6"/> Fale com Advogado
+                            <NavLink to="#" onClick={() => setIsMenuOpen(false)}>
+                                <Phone className="mr-2 h-5 w-5" />
+                                Consulta Gratuita
                             </NavLink>
                         </Button>
+                        <p className="text-center text-xs text-white/50 uppercase tracking-widest">
+                            Seg - Sex • 08h às 18h
+                        </p>
                     </div>
                 </div>
             </div>

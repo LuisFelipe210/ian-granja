@@ -4,131 +4,19 @@ import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    Briefcase,
-    Users,
     Shield,
     Scale,
     TrendingUp,
-    Home,
-    Heart,
-    Building2,
-    Sparkles,
     CheckCircle2,
     ArrowRight,
-    X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+// IMPORTANDO OS DADOS EXTERNOS AQUI:
+import { practiceAreas } from "@/data/practiceAreas";
 
 const Atuacao = () => {
-    const [selectedArea, setSelectedArea] = useState(null);
     const [activeIndex, setActiveIndex] = useState(0);
-
-    const practiceAreas = [
-        {
-            icon: Briefcase,
-            title: "Direito Bancário",
-            description:
-                "Defendemos os consumidores contra práticas abusivas de instituições financeiras, com foco na recuperação de veículos apreendidos, revisão de contratos e defesa em execuções bancárias.",
-            services: [
-                "Recuperação de veículos financiados",
-                "Revisão de contratos bancários",
-                "Defesa em execuções bancárias",
-                "Questionamento de juros abusivos",
-                "Ações contra cobranças indevidas",
-            ],
-        },
-        {
-            icon: Users,
-            title: "Direito Trabalhista",
-            description:
-                "Representamos trabalhadores e empresas em disputas judiciais e extrajudiciais, priorizando soluções céleres e seguras para rescisões, verbas e relações de trabalho.",
-            services: [
-                "Reclamações trabalhistas",
-                "Rescisões contratuais",
-                "Horas extras e adicionais",
-                "Assédio moral e dano moral",
-                "Consultoria preventiva para empresas",
-            ],
-        },
-        {
-            icon: Shield,
-            title: "Direito do Consumidor",
-            description:
-                "Atuamos na defesa de consumidores em casos de cobranças indevidas, negativação irregular, falhas na prestação de serviços e descumprimento contratual.",
-            services: [
-                "Negativação indevida",
-                "Defeitos em produtos e serviços",
-                "Cobranças abusivas",
-                "Cancelamento de contratos",
-                "Indenizações por danos morais e materiais",
-            ],
-        },
-        {
-            icon: Scale,
-            title: "Direito Empresarial",
-            description:
-                "Assessoria jurídica completa para empresas e associações de proteção veicular, com foco em contratos, responsabilidade civil, regulamentação e defesa administrativa.",
-            services: [
-                "Elaboração e revisão de contratos",
-                "Consultoria societária",
-                "Recuperação judicial",
-                "Defesas administrativas",
-                "Compliance empresarial",
-            ],
-        },
-        {
-            icon: TrendingUp,
-            title: "Superendividamento",
-            description:
-                "Ajudamos consumidores a reorganizar sua vida financeira, com ações para revisão de dívidas, negociação com bancos e defesa contra abusos de crédito.",
-            services: [
-                "Negociação de dívidas",
-                "Ações de superendividamento",
-                "Suspensão de protestos",
-                "Planejamento financeiro jurídico",
-                "Defesa contra execuções múltiplas",
-            ],
-        },
-        {
-            icon: Heart,
-            title: "Planos de Saúde",
-            description:
-                "Defesa de usuários contra negativas de cobertura, reajustes abusivos, cancelamentos indevidos e demora em autorizações de tratamentos médicos.",
-            services: [
-                "Negativas de cobertura",
-                "Reajustes abusivos",
-                "Cancelamento indevido",
-                "Autorização de cirurgias e exames",
-                "Internações de emergência",
-            ],
-        },
-        {
-            icon: Home,
-            title: "Direito Imobiliário",
-            description:
-                "Atuamos em questões relacionadas a compra e venda de imóveis, distratos, financiamentos, usucapião e problemas com construtoras e incorporadoras.",
-            services: [
-                "Contratos de compra e venda",
-                "Distrato e rescisão",
-                "Usucapião",
-                "Ações contra construtoras",
-                "Regularização imobiliária",
-            ],
-        },
-        {
-            icon: Building2,
-            title: "Direito Civil",
-            description:
-                "Atuação ampla em questões cíveis, incluindo responsabilidade civil, contratos, família e sucessões, sempre com foco na melhor solução para nossos clientes.",
-            services: [
-                "Ações indenizatórias",
-                "Contratos em geral",
-                "Inventários e partilhas",
-                "Divórcios e união estável",
-                "Pensão alimentícia",
-            ],
-        },
-    ];
 
     const howWeWork = [
         {
@@ -163,7 +51,6 @@ const Atuacao = () => {
                 (prevIndex + 1) % howWeWork.length
             );
         }, 2000);
-
 
         return () => clearInterval(interval);
     }, [howWeWork.length]);
@@ -225,10 +112,10 @@ const Atuacao = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
                         {practiceAreas.map((area, index) => (
-                            <div
+                            <Link
                                 key={index}
-                                className="group relative h-full cursor-pointer"
-                                onClick={() => setSelectedArea(area)}
+                                to={`/atuacao/${area.slug}`}
+                                className="group relative h-full cursor-pointer block"
                             >
                                 <div className="absolute -inset-1 bg-gradient-to-br from-accent/30 to-accent/10 rounded-2xl blur-lg opacity-100 lg:opacity-0 group-hover:lg:opacity-100 transition duration-500"></div>
 
@@ -287,87 +174,10 @@ const Atuacao = () => {
                                         </div>
                                     </CardContent>
                                 </Card>
-                            </div>
+                            </Link>
                         ))}
                     </div>
                 </div>
-
-                {selectedArea && (
-                    <div
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setSelectedArea(null)}
-                    >
-                        <div
-                            className="relative bg-card rounded-lg max-w-2xl w-full max-h-[95vh] flex flex-col border-2 border-accent/30 shadow-2xl"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="bg-gradient-to-br from-primary to-primary/90 p-6 sm:p-8 relative rounded-lg overflow-hidden flex-shrink-0">
-                                <div className="absolute inset-0 opacity-10">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-accent rounded-full filter blur-3xl animate-pulse"></div>
-                                </div>
-                                <div className="relative flex items-start justify-between">
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-3 sm:p-4 rounded-xl bg-accent/20 border-2 border-accent/40">
-                                            <selectedArea.icon className="h-8 w-8 sm:h-10 sm:w-10 text-accent" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-2xl sm:text-3xl font-bold  text-primary-foreground mb-1">
-                                                {selectedArea.title}
-                                            </h3>
-                                            <p className="text-sm text-primary-foreground/80 leading-relaxed">
-                                                {selectedArea.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => setSelectedArea(null)}
-                                        className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary-foreground/10 hover:bg-primary-foreground/20 border border-primary-foreground/20 flex items-center justify-center transition-all duration-300 hover:scale-110"
-                                    >
-                                        <X className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="p-4 sm:p-8 overflow-y-auto flex-1">
-                                <div className="flex items-center gap-2 mb-4 sm:mb-6">
-                                    <div className="h-px flex-1 bg-accent/20"></div>
-                                    <h4 className="text-xs sm:text-sm font-semibold text-accent uppercase tracking-wider">
-                                        Todos os Serviços Oferecidos
-                                    </h4>
-                                    <div className="h-px flex-1 bg-accent/20"></div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                                    {selectedArea.services.map((service, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-zinc-900 border border-accent/40 hover:bg-accent/10 hover:border-accent/60 transition-all duration-300 group"
-                                        >
-                                            <div className="w-5 h-5 rounded-full bg-accent/20 border-2 border-accent/40 flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
-                                                <CheckCircle2 className="w-3 h-3 text-accent group-hover:text-accent-foreground transition-colors duration-300" />
-                                            </div>
-                                            <span className="text-xs sm:text-sm text-foreground leading-relaxed">
-                                                {service}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="mt-6 p-4 sm:p-6 rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 border-2 border-accent/30">
-                                    <p className="text-center text-xs sm:text-sm text-muted-foreground mb-4">
-                                        Precisa de ajuda com <span className="font-semibold text-accent">{selectedArea.title}</span>?
-                                    </p>
-                                    <Button size="lg" className="w-full bg-accent hover:bg-accent/70 text-accent-foreground" asChild>
-                                        <NavLink to="#" isContactLink>
-                                            Falar com um Especialista
-                                            <ArrowRight className="ml-2 w-4 h-4" />
-                                        </NavLink>
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </section>
 
             <section className="py-24 bg-primary relative overflow-hidden">
