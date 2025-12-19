@@ -69,7 +69,7 @@ const AtuacaoDetalhes = () => {
                             <Link to="/atuacao" className="text-primary-foreground/60 hover:text-primary-foreground transition-colors text-sm uppercase tracking-wider font-medium flex items-center gap-2">
                                 Áreas de Atuação <ChevronRight className="w-3 h-3" />
                             </Link>
-                            <span className="text-accent font-bold tracking-widest uppercase text-[10px] border border-accent/30 px-3 py-1 bg-accent/10 rounded-full">
+                            <span className="text-accent font-bold tracking-widest uppercase text-[10px]">
                                 Especialidade
                             </span>
                         </div>

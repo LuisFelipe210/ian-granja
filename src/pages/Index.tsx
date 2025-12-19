@@ -103,7 +103,7 @@ const Index = () => {
                 </div>
 
                 <div className="container relative z-10 px-4 text-center max-w-4xl mx-auto mt-16">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm font-semibold mb-6 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 text-white text-sm font-semibold mb-6">
                         <Scale className="w-4 h-4" /> Especialistas em Resolução de Conflitos
                     </div>
 
@@ -252,8 +252,6 @@ const Index = () => {
                             <div className="flex text-amber-500">
                                 {[...Array(5)].map((_, i) => <Star key={i} fill="currentColor" className="w-5 h-5" />)}
                             </div>
-                            <span className="text-slate-900 font-bold">4.9/5</span>
-                            <span className="text-slate-500 text-sm">(Google Reviews)</span>
                         </div>
                     </div>
 

@@ -97,7 +97,7 @@ const FAQ = () => {
                     <div className="max-w-4xl">
                         <div className="flex items-center gap-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                             <div className="h-px w-12 bg-accent"></div>
-                            <span className="text-accent font-bold tracking-widest uppercase text-[10px] border border-accent/30 px-3 py-1 bg-accent/10 rounded-full">
+                            <span className="text-accent font-bold tracking-widest uppercase text-[10px]">
                                 Suporte Jurídico
                             </span>
                         </div>
