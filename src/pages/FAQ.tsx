@@ -87,32 +87,36 @@ const FAQ = () => {
         <div className="min-h-screen bg-background font-sans selection:bg-accent selection:text-accent-foreground">
             <Navigation />
 
-            {/* --- HERO SECTION: Premium Dark --- */}
-            <section className="relative pt-32 pb-24 bg-primary text-white overflow-hidden border-b border-white/5">
+            {/* --- HERO SECTION: BG-PRIMARY + TEXT-PRIMARY-FOREGROUND --- */}
+            <section className="relative pt-36 pb-24 bg-primary text-primary-foreground overflow-hidden border-b border-primary-foreground/10">
                 <div className="absolute inset-0 opacity-[0.05]"
-                     style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
+                     style={{ backgroundImage: 'linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
                 </div>
 
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="max-w-4xl">
-                        <div className="flex items-center gap-4 mb-8">
+                        <div className="flex items-center gap-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                             <div className="h-px w-12 bg-accent"></div>
-                            <span className="text-accent font-medium tracking-[0.2em] uppercase text-xs">Suporte Jurídico</span>
+                            <span className="text-accent font-bold tracking-widest uppercase text-[10px] border border-accent/30 px-3 py-1 bg-accent/10 rounded-full">
+                                Suporte Jurídico
+                            </span>
                         </div>
-                        <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight tracking-tight drop-shadow-xl">
+
+                        <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight tracking-tight drop-shadow-xl text-primary-foreground">
                             Perguntas <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-white">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-accent/80 to-primary-foreground">
                                 Frequentes
                             </span>
                         </h1>
-                        <p className="text-xl text-gray-300 leading-relaxed max-w-2xl border-l-4 border-accent/20 pl-6 rounded-sm">
+
+                        <p className="text-xl text-primary-foreground/80 leading-relaxed max-w-2xl border-l-4 border-accent pl-6 rounded-sm">
                             Esclareça suas principais dúvidas sobre nossos serviços, processos e a forma como atuamos na defesa dos seus direitos.
                         </p>
                     </div>
                 </div>
             </section>
 
-            {/* --- FAQ LIST: Cards Separados e Modernos --- */}
+            {/* --- FAQ LIST: BG-MUTED/20 + CARDS BG-CARD --- */}
             <section className="py-24 bg-muted/20 relative">
                 {/* Detalhe de fundo */}
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-accent/5 via-transparent to-transparent pointer-events-none" />
@@ -123,11 +127,11 @@ const FAQ = () => {
                             <AccordionItem
                                 key={index}
                                 value={`item-${index}`}
-                                className="group border border-border/60 bg-white rounded-2xl px-2 shadow-sm hover:shadow-md transition-all duration-300 data-[state=open]:border-accent/50 data-[state=open]:ring-1 data-[state=open]:ring-accent/20"
+                                className="group border border-border/60 bg-card rounded-2xl px-2 shadow-sm hover:shadow-md transition-all duration-300 data-[state=open]:border-accent/50 data-[state=open]:ring-1 data-[state=open]:ring-accent/20"
                             >
                                 <AccordionTrigger className="px-6 py-5 hover:no-underline text-left">
                                     <div className="flex items-center gap-4 w-full">
-                                        <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-accent text-sm font-bold shrink-0 group-data-[state=open]:bg-accent group-data-[state=open]:text-accent-foreground transition-colors">
+                                        <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-accent text-sm font-bold shrink-0 group-data-[state=open]:bg-accent group-data-[state=open]:text-primary transition-colors">
                                             {index + 1}
                                         </div>
                                         <span className="text-lg font-semibold text-foreground group-hover:text-accent transition-colors flex-grow">
@@ -144,7 +148,7 @@ const FAQ = () => {
                 </div>
             </section>
 
-            {/* --- DIFERENCIAIS: Cards Flutuantes --- */}
+            {/* --- DIFERENCIAIS: BG-BACKGROUND --- */}
             <section className="py-24 bg-background">
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
@@ -158,7 +162,7 @@ const FAQ = () => {
                         {features.map((feature, index) => (
                             <div key={index} className="group bg-card p-8 rounded-[2rem] border border-border/60 hover:border-accent/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center">
                                 <div className="mb-6 w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center border border-accent/20 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
-                                    <feature.icon className="w-8 h-8 text-accent group-hover:text-accent-foreground transition-colors duration-300" strokeWidth={1.5} />
+                                    <feature.icon className="w-8 h-8 text-accent group-hover:text-primary transition-colors duration-300" strokeWidth={1.5} />
                                 </div>
                                 <h3 className="text-xl font-bold text-foreground mb-3">{feature.title}</h3>
                                 <p className="text-muted-foreground leading-relaxed">
@@ -170,31 +174,32 @@ const FAQ = () => {
                 </div>
             </section>
 
-            {/* --- CTA: Premium Dark --- */}
-            <section className="py-24 bg-[#0f172a] text-white overflow-hidden relative">
+            {/* --- CTA: BG-PRIMARY + TEXT-PRIMARY-FOREGROUND --- */}
+            <section className="py-24 bg-primary text-primary-foreground overflow-hidden relative">
+                {/* Efeito Glow */}
                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-accent via-transparent to-transparent"></div>
 
                 <div className="container mx-auto px-4 text-center relative z-10">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-accent text-sm font-semibold mb-8 rounded-full border border-white/20 backdrop-blur-md">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-foreground/5 text-accent text-sm font-semibold mb-8 rounded-full border border-primary-foreground/10 backdrop-blur-md">
                         <HelpCircle className="w-4 h-4" />
                         Ainda com dúvidas?
                     </div>
 
-                    <h2 className="text-3xl md:text-5xl font-bold mb-8 text-white max-w-4xl mx-auto leading-tight">
+                    <h2 className="text-3xl md:text-5xl font-bold mb-8 text-primary-foreground max-w-4xl mx-auto leading-tight">
                         Nossa equipe está pronta para <br/> orientar você.
                     </h2>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                        <Button size="xl" className="h-14 px-8 text-lg bg-accent hover:bg-accent/90 text-accent-foreground rounded-full min-w-[240px] shadow-lg hover:scale-105 transition-transform" asChild>
+                        <Button size="xl" className="h-14 px-8 text-lg bg-accent hover:bg-accent/90 text-primary rounded-full min-w-[240px] shadow-lg hover:scale-105 transition-transform" asChild>
                             <NavLink to="#" isContactLink>
                                 <Phone className="mr-2 h-5 w-5" />
                                 Falar com Especialista
                             </NavLink>
                         </Button>
 
-                        <span className="text-white/40 text-sm uppercase tracking-widest font-semibold px-4">ou</span>
+                        <span className="text-primary-foreground/40 text-sm uppercase tracking-widest font-semibold px-4">ou</span>
 
-                        <Button variant="outline" size="xl" className="h-14 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white hover:text-[#0f172a] rounded-full min-w-[240px] hover:scale-105 transition-transform" asChild>
+                        <Button variant="outline" size="xl" className="h-14 px-8 text-lg border-primary-foreground/20 bg-transparent text-primary-foreground hover:bg-primary-foreground hover:text-primary rounded-full min-w-[240px] hover:scale-105 transition-transform" asChild>
                             <a href="https://wa.me/5587988448690" target="_blank" rel="noopener noreferrer">
                                 <FaWhatsapp className="mr-2 h-5 w-5" />
                                 WhatsApp Direto
