@@ -24,8 +24,8 @@ const Sobre = () => {
     // Credenciais destacadas para dar autoridade
     const credentials = [
         { icon: FileSignature, label: "OAB/PE", value: "61.107" },
-        { icon: GraduationCap, label: "Formação", value: "Pós graduado em direito civil, processo civil e direito bancário" },
         { icon: TrendingUp, label: "Experiência", value: "5+ Anos de Mercado" },
+        { icon: GraduationCap, label: "Formação", value: "Pós graduado em direito civil, processo civil e direito bancário" },
     ];
 
     const values = [
@@ -126,13 +126,17 @@ const Sobre = () => {
                                 </div>
                             </div>
 
-                            {/* Grid de Credenciais (Box visualmente fechado) */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Grid de Credenciais (Bento Style) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {credentials.map((cred, i) => (
-                                    <div key={i} className="bg-muted/30 p-4 rounded-2xl border border-border flex flex-col items-center text-center hover:bg-muted/50 transition-colors">
-                                        <cred.icon className="w-6 h-6 text-accent mb-2" />
-                                        <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold">{cred.label}</span>
-                                        <span className="text-lg font-bold text-foreground">{cred.value}</span>
+                                    <div key={i} className={`bg-muted/30 p-6 rounded-2xl border border-border flex hover:bg-muted/50 transition-all duration-300 group ${i === 2 ? 'flex-col sm:flex-row sm:col-span-2 items-start sm:items-center gap-6' : 'flex-col items-start'}`}>
+                                        <div className={`bg-accent/10 rounded-xl text-accent group-hover:bg-accent group-hover:text-primary transition-colors ${i === 2 ? 'p-4' : 'p-3 mb-4'}`}>
+                                            <cred.icon className={i === 2 ? 'w-8 h-8' : 'w-6 h-6'} />
+                                        </div>
+                                        <div>
+                                            <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold mb-1 block">{cred.label}</span>
+                                            <span className={`${i === 2 ? 'text-lg md:text-xl' : 'text-xl'} font-bold text-foreground leading-snug`}>{cred.value}</span>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
