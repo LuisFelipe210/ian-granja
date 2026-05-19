@@ -24,7 +24,7 @@ const Sobre = () => {
     // Credenciais destacadas para dar autoridade
     const credentials = [
         { icon: FileSignature, label: "OAB/PE", value: "61.107" },
-        { icon: GraduationCap, label: "Formação", value: "Láurea Acadêmica" },
+        { icon: GraduationCap, label: "Formação", value: "Pós graduado em direito civil, processo civil e direito bancário" },
         { icon: TrendingUp, label: "Experiência", value: "5+ Anos de Mercado" },
     ];
 
@@ -63,7 +63,7 @@ const Sobre = () => {
             {/* --- HERO SECTION: IDENTIDADE VISUAL PADRONIZADA --- */}
             <section className="relative pt-36 pb-24 bg-primary text-primary-foreground overflow-hidden border-b border-primary-foreground/10">
                 <div className="absolute inset-0 opacity-[0.05]"
-                     style={{ backgroundImage: 'linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
+                    style={{ backgroundImage: 'linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
                 </div>
 
                 <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
@@ -210,8 +210,8 @@ const Sobre = () => {
                                     <div>
                                         <h4 className="font-bold text-foreground text-lg mb-1">Endereço</h4>
                                         <p className="text-muted-foreground text-sm leading-relaxed">
-                                            Av. Cardoso de Sá, n. 860, sala 5<br/>
-                                            Cidade Universitária<br/>
+                                            Av. Cardoso de Sá, n. 860, sala 5<br />
+                                            Cidade Universitária<br />
                                             Petrolina - PE
                                         </p>
                                     </div>
@@ -224,7 +224,7 @@ const Sobre = () => {
                                     <div>
                                         <h4 className="font-bold text-foreground text-lg mb-1">Atendimento</h4>
                                         <p className="text-muted-foreground text-sm">
-                                            Segunda a Sexta<br/>
+                                            Segunda a Sexta<br />
                                             08h às 18h
                                         </p>
                                     </div>
