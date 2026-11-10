@@ -193,6 +193,42 @@ const Notas = () => (
     </>
 );
 
+/** Contorno de um balão de conversa, que se desenha depois do aparelho. */
+const Box = ({ d, delay = 0 }: { d: string; delay?: number }) => {
+    const reduce = useReducedMotion();
+
+    return (
+        <motion.path
+            d={d}
+            fill="none"
+            stroke={PAPER_LINE}
+            strokeWidth={1.5}
+            initial={reduce ? false : { pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.8, ease: EASE, delay }}
+        />
+    );
+};
+
+/** Celular com a conversa: a foto do documento enviada, a resposta e o retorno em dourado. */
+const Celular = () => (
+    <Page
+        d="M162 30h196a12 12 0 0 1 12 12v336a12 12 0 0 1-12 12h-196a12 12 0 0 1-12-12v-336a12 12 0 0 1 12-12z"
+        rot={4}
+        delay={0.1}
+    >
+        <Lines x={236} y={52} w={48} rows={[1]} delay={0.7} />
+        <Box d={sheet(232, 82, 114, 122)} delay={0.7} />
+        <Lines x={246} y={104} w={86} rows={[1, 0.9]} delay={0.9} />
+        <Mark x={246} y={140} w={62} delay={1.5} />
+        <Lines x={246} y={158} w={86} rows={[0.85, 0.6]} delay={1} />
+        <Box d={sheet(174, 226, 152, 58)} delay={1.1} />
+        <Lines x={188} y={246} w={124} rows={[1, 0.7]} delay={1.2} />
+        <Mark x={258} y={318} w={88} h={30} delay={2.1} />
+        <Lines x={232} y={372} w={56} rows={[1]} delay={0.75} />
+    </Page>
+);
+
 /** Folha grifada saindo do envelope, pronta para ser enviada. */
 const Envelope = () => {
     const reduce = useReducedMotion();
@@ -279,6 +315,7 @@ const variants = {
     pilha: Pilha,
     duvida: Duvida,
     notas: Notas,
+    celular: Celular,
     envelope: Envelope,
     branco: Branco,
 };

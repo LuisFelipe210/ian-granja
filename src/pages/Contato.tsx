@@ -68,7 +68,12 @@ const Contato = () => {
                         </>,
                     ]}
                     lead="Estamos prontos para ouvir o seu caso. Fale pelo WhatsApp para uma resposta mais rápida ou preencha a ficha abaixo."
-                    art={<HeroArt variant="envelope" />}
+                    aside={
+                        <div className="hidden items-center lg:flex">
+                            <HeroArt variant="celular" className="mx-0 w-1/2 max-w-none lg:ml-0" />
+                            <HeroArt variant="envelope" className="mx-0 w-1/2 max-w-none lg:ml-0" />
+                        </div>
+                    }
                 />
 
                 <section className="bg-background">
