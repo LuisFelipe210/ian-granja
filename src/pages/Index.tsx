@@ -56,16 +56,16 @@ const Index = () => {
                     <div className="container grid grid-cols-1 gap-x-12 gap-y-14 pb-20 pt-32 md:pt-40 lg:grid-cols-12 lg:pb-28">
                         <div className="lg:col-span-6 lg:pt-8">
                             <h1 className="display text-[clamp(2.25rem,4.3vw,3.625rem)]">
-                                <Rise>Antes de assinar,</Rise>
+                                <Rise>Já assinou?</Rise>
                                 <Rise delay={0.09}>
-                                    <Grifo delay={950}>deixa a gente ler.</Grifo>
+                                    <Grifo delay={950}>Ainda dá para ler.</Grifo>
                                 </Rise>
                             </h1>
 
                             <p className="mt-8 max-w-[48ch] text-lg leading-relaxed text-paper/80">
-                                Contrato do banco, carta do plano de saúde, termo de rescisão. Mande o papel que
-                                chegou para você: Ian Granja lê, explica em português claro e diz o que dá para
-                                fazer.
+                                Contrato do banco, carta do plano de saúde, termo de rescisão. Mesmo depois de
+                                assinado, mande o papel: Ian Granja lê, explica em português claro e diz o que
+                                ainda dá para fazer.
                             </p>
 
                             <div className="mt-10 flex flex-col gap-x-8 gap-y-5 sm:flex-row sm:items-center">
