@@ -173,6 +173,26 @@ const Duvida = () => (
     </>
 );
 
+/** Bilhetes soltos, presos por um clipe: as perguntas que chegam antes da conversa. */
+const Notas = () => (
+    <>
+        <Page d={sheet(70, 56, 240, 130)} rot={-6} cx={190} cy={121} delay={0.1}>
+            <Lines x={94} y={92} w={170} rows={[1, 0.8]} delay={0.8} />
+            <Mark x={94} y={146} w={110} delay={1.3} />
+        </Page>
+        <Page d={sheet(210, 160, 250, 140)} rot={4} cx={335} cy={230} delay={0.25}>
+            <Lines x={234} y={196} w={60} rows={[1]} delay={0.95} />
+            <Mark x={302} y={196} w={124} delay={1.6} />
+            <Lines x={234} y={214} w={196} rows={[1, 0.9, 0.5]} delay={1} />
+        </Page>
+        <Page d={sheet(90, 270, 230, 112)} rot={-3} cx={205} cy={326} delay={0.4}>
+            <Lines x={114} y={304} w={176} rows={[1, 0.92]} delay={1.1} />
+            <Mark x={114} y={348} w={84} delay={1.9} />
+        </Page>
+        <Pen d="M262 28v74a15 15 0 0 1-30 0v-58a8 8 0 0 1 16 0v52" width={2} delay={2.2} duration={0.8} />
+    </>
+);
+
 /** Folha grifada saindo do envelope, pronta para ser enviada. */
 const Envelope = () => {
     const reduce = useReducedMotion();
@@ -258,6 +278,7 @@ export const SignatureArt = ({ className }: SignatureArtProps) => {
 const variants = {
     pilha: Pilha,
     duvida: Duvida,
+    notas: Notas,
     envelope: Envelope,
     branco: Branco,
 };

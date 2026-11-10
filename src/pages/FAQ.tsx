@@ -99,7 +99,12 @@ const FAQ = () => (
                     </>,
                 ]}
                 lead="As dúvidas mais comuns sobre nossos serviços, os processos e a forma como atuamos na defesa dos seus direitos."
-                art={<HeroArt variant="duvida" />}
+                aside={
+                    <div className="hidden items-center lg:flex">
+                        <HeroArt variant="notas" className="mx-0 w-1/2 max-w-none lg:ml-0" />
+                        <HeroArt variant="duvida" className="mx-0 w-1/2 max-w-none lg:ml-0" />
+                    </div>
+                }
             />
 
             <section className="bg-background">
