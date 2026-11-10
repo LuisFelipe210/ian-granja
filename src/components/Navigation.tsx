@@ -1,169 +1,149 @@
-import { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
-import { Menu, X, Phone, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Cta } from "@/components/Cta";
+import { HOURS } from "@/lib/contact";
+import logo from "@/assets/logo2.png";
 
-import logoDesktop from "@/assets/logo2.png";
-import logoMobile from "@/assets/logo3.jpg";
+const navItems = [
+    { to: "/", label: "Início" },
+    { to: "/atuacao", label: "Áreas de atuação" },
+    { to: "/sobre", label: "Sobre" },
+    { to: "/faq", label: "Dúvidas" },
+];
+
+const EASE = [0.16, 1, 0.3, 1] as const;
 
 export const Navigation = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const { pathname } = useLocation();
+    const reduce = useReducedMotion();
 
     useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 20);
-        window.addEventListener("scroll", onScroll);
+        const onScroll = () => setScrolled(window.scrollY > 12);
+        onScroll();
+        window.addEventListener("scroll", onScroll, { passive: true });
         return () => window.removeEventListener("scroll", onScroll);
     }, []);
 
     useEffect(() => {
-        document.body.style.overflow = isMenuOpen ? 'hidden' : 'unset';
-        return () => { document.body.style.overflow = 'unset'; };
-    }, [isMenuOpen]);
+        setIsMenuOpen(false);
+    }, [pathname]);
 
-    const navItems = [
-        { to: "/", label: "Início" },
-        { to: "/atuacao", label: "Áreas de Atuação" },
-        { to: "/sobre", label: "Sobre" },
-        { to: "/faq", label: "Dúvidas" },
-    ];
+    useEffect(() => {
+        document.body.style.overflow = isMenuOpen ? "hidden" : "";
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && setIsMenuOpen(false);
+        window.addEventListener("keydown", onKey);
+        return () => {
+            document.body.style.overflow = "";
+            window.removeEventListener("keydown", onKey);
+        };
+    }, [isMenuOpen]);
 
     return (
         <>
             <header
                 className={cn(
-                    "fixed top-0 left-0 w-full z-50 transition-all duration-500 ease-in-out",
-                    scrolled
-                        ? "py-2 bg-primary/95 backdrop-blur-md shadow-md border-b border-white/10" // Ajustei pro azul escuro executivo
-                        : "py-6 bg-transparent"
+                    "fixed inset-x-0 top-0 z-50 border-b bg-ink text-paper transition-colors duration-300",
+                    scrolled || isMenuOpen ? "border-paper/15" : "border-transparent",
                 )}
             >
-                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center">
+                <div className="container flex h-[4.5rem] items-center justify-between gap-6">
+                    <Link to="/" className="shrink-0" aria-label="Ian Granja Advogados, página inicial">
+                        <img src={logo} alt="Ian Granja Advogados" width={768} height={132} className="h-9 w-auto md:h-10" />
+                    </Link>
 
-                        {/* --- LOGO --- */}
-                        <NavLink
-                            to="/"
-                            className="flex items-center gap-3 group relative z-50 shrink-0"
-                            onClick={() => setIsMenuOpen(false)}
-                        >
-                            <img
-                                src={logoMobile}
-                                alt="Logo"
-                                className="lg:hidden h-16 w-auto object-contain transition-transform duration-300 group-hover:scale-105 rounded-md"
-                            />
-                            <img
-                                src={logoDesktop}
-                                alt="Logo"
-                                className="hidden lg:block h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
-                            />
-                        </NavLink>
-
-                        {/* --- MENU DESKTOP --- */}
-                        <div className="hidden lg:flex items-center">
-                            <nav className="flex items-center gap-1">
-                                <ul className="flex items-center px-2">
-                                    {navItems.map((item) => (
-                                        <li key={item.to}>
-                                            <NavLink
-                                                to={item.to}
-                                                className={({ isActive }) => cn(
-                                                    "text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 block",
-                                                    isActive
-                                                        ? "text-white bg-white/20"
-                                                        : "text-white/90 hover:text-white hover:bg-white/10"
-                                                )}
-                                            >
-                                                {item.label}
-                                            </NavLink>
-                                        </li>
-                                    ))}
-                                </ul>
-
-                                <div className="h-5 w-px bg-white/30 mx-3" />
-
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        asChild
-                                        size="sm"
-                                        className="rounded-full font-bold shadow-lg bg-white text-[#0f172a] hover:bg-white/90 hover:-translate-y-0.5 transition-all"
-                                    >
-                                        {/* AQUI MUDOU, CARALHO: Agora vai pra /contato */}
-                                        <NavLink to="/contato">
-                                            Agendar
-                                            <ArrowRight className="ml-1 h-3 w-3" />
-                                        </NavLink>
-                                    </Button>
-                                </div>
-                            </nav>
-                        </div>
-
-                        {/* --- MENU MOBILE TOGGLE --- */}
-                        <div className="lg:hidden flex items-center gap-3">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                                className="relative z-50 text-white hover:bg-white/20 rounded-full"
-                            >
-                                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* --- MOBILE OVERLAY --- */}
-            <div
-                className={cn(
-                    "fixed inset-0 z-40 bg-primary/95 backdrop-blur-xl lg:hidden transition-all duration-300",
-                    isMenuOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
-                )}
-            >
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-40 h-40 bg-black/10 rounded-full blur-3xl pointer-events-none" />
-
-                <div className="flex flex-col h-full justify-center items-center px-6 gap-8">
-                    <nav className="flex flex-col items-center gap-6">
-                        {navItems.map((item, index) => (
+                    <nav aria-label="Principal" className="hidden items-center gap-9 lg:flex">
+                        {navItems.map((item) => (
                             <NavLink
                                 key={item.to}
                                 to={item.to}
-                                onClick={() => setIsMenuOpen(false)}
-                                className={({ isActive }) => cn(
-                                    "text-3xl font-bold transition-colors tracking-tight",
-                                    isActive ? "text-white scale-110" : "text-white/70 hover:text-white"
-                                )}
-                                style={{
-                                    transitionDelay: isMenuOpen ? `${index * 50}ms` : '0ms'
-                                }}
+                                end={item.to === "/"}
+                                className={({ isActive }) =>
+                                    cn(
+                                        "relative py-2 text-[0.9375rem] font-medium transition-colors duration-200",
+                                        "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:origin-left after:bg-gold-light after:transition-transform after:duration-300 after:ease-out",
+                                        isActive
+                                            ? "text-paper after:scale-x-100"
+                                            : "text-paper/75 after:scale-x-0 hover:text-paper hover:after:scale-x-100",
+                                    )
+                                }
                             >
                                 {item.label}
                             </NavLink>
                         ))}
+                        <Link
+                            to="/contato"
+                            className="inline-flex h-11 items-center border border-gold-light/70 px-5 text-[0.9375rem] font-semibold text-gold-light transition-colors duration-200 hover:bg-gold-light hover:text-ink"
+                        >
+                            Agendar
+                        </Link>
                     </nav>
 
-                    <div className="w-16 h-1 bg-white/20 rounded-full" />
-
-                    <div className="flex flex-col gap-4 w-full max-w-xs">
-                        <Button
-                            asChild
-                            size="lg"
-                            className="w-full text-lg font-bold h-14 rounded-2xl shadow-xl bg-white text-[#0f172a] hover:bg-white/90"
-                        >
-                            {/* AQUI TAMBÉM MUDOU: Link corrigido */}
-                            <NavLink to="/contato" onClick={() => setIsMenuOpen(false)}>
-                                <Phone className="mr-2 h-5 w-5" />
-                                Consulta Gratuita
-                            </NavLink>
-                        </Button>
-                        <p className="text-center text-xs text-white/50 uppercase tracking-widest">
-                            Seg - Sex • 08h às 18h
-                        </p>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setIsMenuOpen((open) => !open)}
+                        aria-expanded={isMenuOpen}
+                        aria-controls="menu-mobile"
+                        aria-label={isMenuOpen ? "Fechar menu" : "Abrir menu"}
+                        className="-mr-2 inline-flex size-11 items-center justify-center text-paper lg:hidden"
+                    >
+                        {isMenuOpen ? <X className="size-6" /> : <Menu className="size-6" />}
+                    </button>
                 </div>
-            </div>
+            </header>
+
+            <AnimatePresence>
+                {isMenuOpen && (
+                    <motion.div
+                        id="menu-mobile"
+                        initial={reduce ? false : { clipPath: "inset(0 0 100% 0)" }}
+                        animate={{ clipPath: "inset(0 0 0% 0)" }}
+                        exit={reduce ? { opacity: 0 } : { clipPath: "inset(0 0 100% 0)" }}
+                        transition={{ duration: 0.5, ease: EASE }}
+                        className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-ink px-5 pb-8 pt-[6.5rem] text-paper lg:hidden"
+                    >
+                        <nav aria-label="Principal" className="flex flex-col border-t border-paper/20">
+                            {navItems.map((item) => (
+                                <NavLink
+                                    key={item.to}
+                                    to={item.to}
+                                    end={item.to === "/"}
+                                    className={({ isActive }) =>
+                                        cn(
+                                            "subdisplay border-b border-paper/20 py-5 text-[2rem]",
+                                            isActive ? "text-gold-light" : "text-paper",
+                                        )
+                                    }
+                                >
+                                    {item.label}
+                                </NavLink>
+                            ))}
+                            <NavLink
+                                to="/contato"
+                                className={({ isActive }) =>
+                                    cn(
+                                        "subdisplay border-b border-paper/20 py-5 text-[2rem]",
+                                        isActive ? "text-gold-light" : "text-paper",
+                                    )
+                                }
+                            >
+                                Contato
+                            </NavLink>
+                        </nav>
+
+                        <div className="mt-auto pt-10">
+                            <Cta whatsapp="Olá! Quero mandar um documento para o Ian dar uma olhada." className="w-full">
+                                Mandar meu documento
+                            </Cta>
+                            <p className="mt-4 text-sm text-paper/75">{HOURS}</p>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </>
     );
 };

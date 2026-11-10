@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/decision/assigned.html"
+        ],
+        "createdAt": "2026-11-10T03:10:27.386Z",
+        "reason": "agent: esboço descartável da rodada de direção (A Estante, não escolhida); não é publicado nem importado pelo site"
+      }
+    ]
+  }
+}
