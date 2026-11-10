@@ -4,148 +4,204 @@
 
 @layer base {
     :root {
-        --background: 0 0% 95%;
+        /* Papel branco-frio, tingido do azul da marca */
+        --background: 224 26% 95%;
         --foreground: 226 79% 12%;
 
-        --card: 0 0% 100%;
+        --card: 220 33% 99%;
         --card-foreground: 226 79% 12%;
 
-        --popover: 0 0% 100%;
+        --popover: 220 33% 99%;
         --popover-foreground: 226 79% 12%;
 
+        /* Azul-marinho da marca: a mesa */
         --primary: 226 79% 12%;
-        --primary-foreground: 0 0% 100%;
+        --primary-foreground: 224 26% 95%;
+        --ink-deep: 227 82% 8%;
+        --ink-soft: 226 62% 19%;
 
+        /* Dourado da marca: a caneta. Dourado claro: o marca-texto */
         --gold: 41 26% 50%;
-        --gold-foreground: 0 0% 100%;
+        --gold-foreground: 226 79% 12%;
+        --gold-light: 43 45% 73%;
+        --gold-deep: 40 34% 34%;
 
-        --secondary: 226 30% 96.1%;
+        --secondary: 224 22% 90%;
         --secondary-foreground: 226 79% 12%;
 
-        --muted: 226 30% 94%;
-        --muted-foreground: 226 20% 45.1%;
+        --muted: 224 22% 90%;
+        --muted-foreground: 226 32% 32%;
 
         --accent: 41 26% 50%;
-        --accent-foreground: 0 0% 100%;
+        --accent-foreground: 226 79% 12%;
 
-        --destructive: 0 84.2% 60.2%;
+        --destructive: 0 70% 42%;
         --destructive-foreground: 0 0% 100%;
 
-        --border: 226 30% 89.8%;
-        --input: 226 30% 89.8%;
-
+        --border: 226 24% 82%;
+        --input: 226 24% 70%;
         --ring: 41 26% 50%;
 
-        --radius: 0.5rem;
+        --radius: 0.125rem;
 
-        --hero-gradient: linear-gradient(135deg, hsl(226 79% 12%) 0%, hsl(226 79% 15%) 100%);
-        --gold-gradient: linear-gradient(135deg, hsl(41 26% 50%) 0%, hsl(41 26% 45%) 100%);
-        --subtle-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(226 30% 98%) 100%);
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-        --shadow-elegant: 0 10px 40px -10px hsl(226 79% 12% / 0.15);
-
-        --shadow-gold: 0 4px 20px hsl(41 26% 50% / 0.25);
-
-        --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-        --sidebar-background: 226 30% 98%;
-        --sidebar-foreground: 226 50% 25%;
+        --sidebar-background: 224 26% 95%;
+        --sidebar-foreground: 226 79% 12%;
         --sidebar-primary: 226 79% 12%;
-        --sidebar-primary-foreground: 0 0% 98%;
-        --sidebar-accent: 226 30% 96%;
+        --sidebar-primary-foreground: 224 26% 95%;
+        --sidebar-accent: 224 22% 90%;
         --sidebar-accent-foreground: 226 79% 12%;
-        --sidebar-border: 226 30% 90%;
+        --sidebar-border: 226 24% 82%;
         --sidebar-ring: 41 26% 50%;
     }
 
-    .dark {
-        --background: 226 79% 12%;
-        --foreground: 0 0% 98%;
-
-        --card: 226 70% 15%;
-        --card-foreground: 0 0% 98%;
-
-        --popover: 226 70% 15%;
-        --popover-foreground: 0 0% 98%;
-
-        --primary: 41 26% 66%;
-        --primary-foreground: 226 79% 12%;
-
-        --gold: 41 26% 66%;
-        --gold-foreground: 226 79% 12%;
-
-        --secondary: 226 60% 18%;
-        --secondary-foreground: 0 0% 98%;
-
-        --muted: 226 60% 16%;
-        --muted-foreground: 226 15% 65%;
-
-        --accent: 41 26% 66%;
-        --accent-foreground: 226 79% 12%;
-
-        --destructive: 0 62.8% 50%;
-        --destructive-foreground: 0 0% 98%;
-
-        --border: 226 40% 25%;
-        --input: 226 40% 25%;
-        --ring: 41 26% 66%;
-
-        /* Dark sidebar */
-        --sidebar-background: 226 79% 12%;
-        --sidebar-foreground: 0 0% 98%;
-        --sidebar-primary: 41 26% 66%;
-        --sidebar-primary-foreground: 226 79% 12%;
-        --sidebar-accent: 226 70% 15%;
-        --sidebar-accent-foreground: 0 0% 98%;
-        --sidebar-border: 226 70% 15%;
-        --sidebar-ring: 41 26% 66%;
-    }
-}
-
-@layer base {
     * {
         @apply border-border;
     }
 
+    html {
+        scroll-behavior: smooth;
+        scrollbar-color: hsl(var(--gold)) hsl(var(--ink-deep));
+        -webkit-text-size-adjust: 100%;
+    }
+
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground font-sans antialiased;
+        font-optical-sizing: auto;
+        caret-color: hsl(var(--gold-deep));
+    }
+
+    ::selection {
+        background: hsl(var(--gold-light));
+        color: hsl(var(--primary));
+    }
+
+    :focus-visible {
+        outline: 2px solid hsl(var(--gold));
+        outline-offset: 3px;
+    }
+
+    h1,
+    h2,
+    h3 {
+        text-wrap: balance;
+    }
+
+    p {
+        text-wrap: pretty;
+    }
+
+    a {
+        text-underline-offset: 0.22em;
+        text-decoration-thickness: 1.5px;
+    }
+
+    mark {
+        background-color: transparent;
+        color: inherit;
     }
 }
 
-@layer utilities {
-    @keyframes balance {
-        0% { transform: rotate(0deg); }
-        20% { transform: rotate(-25deg); }
-        40% { transform: rotate(20deg); }
-        60% { transform: rotate(-10deg); }
-        80% { transform: rotate(5deg); }
-        100% { transform: rotate(0deg); }
+@layer components {
+    /* Voz de título: Archivo largo e pesado */
+    .display {
+        font-family: "Archivo Variable", "Archivo", sans-serif;
+        font-stretch: 116%;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 0.96;
     }
 
-    .animate-balance {
-        animation: balance 2s ease-in-out forwards;
-        transform-origin: center center;
+    .subdisplay {
+        font-family: "Archivo Variable", "Archivo", sans-serif;
+        font-stretch: 108%;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.05;
     }
 
-    .fade-out {
-        animation: fadeOut 0.5s ease-out forwards;
+    /* Rótulo de documento: caixa-alta estreita, só dentro das folhas */
+    .rubric {
+        font-family: "Archivo Variable", "Archivo", sans-serif;
+        font-stretch: 88%;
+        font-weight: 650;
+        font-size: 0.6875rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
     }
 
-    @keyframes fadeOut {
-        from { opacity: 1; }
-        to { opacity: 0; visibility: hidden; }
+    /* O grifo: marca-texto que corre sobre o trecho */
+    .grifo {
+        background-image: linear-gradient(hsl(var(--gold-light)), hsl(var(--gold-light)));
+        background-repeat: no-repeat;
+        background-position: 0 50%;
+        background-size: 0% 100%;
+        -webkit-box-decoration-break: clone;
+        box-decoration-break: clone;
+        padding: 0.04em 0.16em;
+        margin: 0 -0.16em;
+        transition:
+            background-size 0.85s var(--ease-out),
+            color 0.3s linear;
     }
 
-    .bg-noise {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        pointer-events: none;
-        z-index: 99999; /* Fica por cima de tudo */
-        opacity: 0.05; /* BEM suave, só pra dar textura */
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    .grifo[data-on="true"],
+    .group:hover .grifo-hover,
+    .group:focus-visible .grifo-hover,
+    .group[data-state="open"] .grifo-hover {
+        background-size: 100% 100%;
+        color: hsl(var(--primary));
+    }
+
+    .grifo-hover {
+        transition-duration: 0.45s, 0.2s;
+    }
+
+    /* A folha: papel sobre a mesa */
+    .sheet {
+        background: hsl(var(--card));
+        color: hsl(var(--primary));
+        box-shadow:
+            0 1px 0 hsl(0 0% 100% / 0.7) inset,
+            0 2px 4px hsl(var(--ink-deep) / 0.25),
+            0 28px 60px -24px hsl(var(--ink-deep) / 0.7);
+    }
+
+    .sheet-on-paper {
+        background: hsl(var(--card));
+        box-shadow:
+            0 1px 2px hsl(var(--primary) / 0.08),
+            0 18px 40px -22px hsl(var(--primary) / 0.28);
+    }
+
+    /* Linha de formulário: campo sublinhado, como em ficha impressa */
+    .field {
+        @apply w-full bg-transparent px-0 py-3 text-base text-foreground placeholder:text-muted-foreground/80;
+        border: 0;
+        border-bottom: 1.5px solid hsl(var(--input));
+        border-radius: 0;
+        transition: border-color 0.2s linear;
+    }
+
+    .field:hover {
+        border-bottom-color: hsl(var(--primary) / 0.7);
+    }
+
+    .field:focus {
+        outline: none;
+        border-bottom-color: hsl(var(--primary));
+        box-shadow: 0 2px 0 hsl(var(--gold));
     }
 }
 
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    .grifo,
+    .grifo-hover {
+        transition: none;
+    }
+}

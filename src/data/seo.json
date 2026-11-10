@@ -1,0 +1,58 @@
+{
+  "siteUrl": "https://www.iangranja.adv.br",
+  "siteName": "Ian Granja Advogados",
+  "pages": {
+    "/": {
+      "title": "Ian Granja Advogados | Advogado em Petrolina-PE",
+      "description": "Advogado em Petrolina-PE para direito bancário, trabalhista, do consumidor, planos de saúde e mais. Mande seu documento e receba uma explicação em português claro."
+    },
+    "/atuacao": {
+      "title": "Áreas de atuação | Ian Granja Advogados, Petrolina-PE",
+      "description": "Direito bancário, trabalhista, do consumidor, empresarial, imobiliário, civil, superendividamento e planos de saúde. Atendimento em Petrolina-PE e online."
+    },
+    "/atuacao/direito-bancario": {
+      "title": "Advogado de Direito Bancário em Petrolina-PE | Ian Granja",
+      "description": "Busca e apreensão de veículo, juros abusivos e revisão de contrato bancário. Advogado em Petrolina-PE, com atendimento presencial e online."
+    },
+    "/atuacao/direito-trabalhista": {
+      "title": "Advogado Trabalhista em Petrolina-PE | Ian Granja",
+      "description": "Rescisão, verbas não pagas, horas extras e assédio moral. Atendimento a trabalhadores e empresas em Petrolina-PE e online."
+    },
+    "/atuacao/direito-consumidor": {
+      "title": "Advogado do Consumidor em Petrolina-PE | Ian Granja",
+      "description": "Negativação indevida, cobrança abusiva, produto com defeito e cancelamento de contrato. Advogado em Petrolina-PE, com atendimento presencial e online."
+    },
+    "/atuacao/direito-empresarial": {
+      "title": "Advogado Empresarial em Petrolina-PE | Ian Granja",
+      "description": "Contratos, consultoria societária, compliance e defesa administrativa para empresas e associações de proteção veicular. Petrolina-PE e online."
+    },
+    "/atuacao/superendividamento": {
+      "title": "Advogado para Superendividamento em Petrolina-PE | Ian Granja",
+      "description": "Dívidas maiores que a renda? Renegociação e plano de pagamento com base na Lei 14.181/2021. Atendimento em Petrolina-PE e online."
+    },
+    "/atuacao/planos-saude": {
+      "title": "Advogado de Plano de Saúde em Petrolina-PE | Ian Granja",
+      "description": "Negativa de cobertura, reajuste abusivo, cancelamento e demora na autorização de tratamento. Advogado em Petrolina-PE, presencial e online."
+    },
+    "/atuacao/direito-imobiliario": {
+      "title": "Advogado Imobiliário em Petrolina-PE | Ian Granja",
+      "description": "Atraso na entrega do imóvel, distrato, usucapião e contratos de compra e venda. Atendimento em Petrolina-PE e online."
+    },
+    "/atuacao/direito-civil": {
+      "title": "Advogado Cível em Petrolina-PE | Ian Granja",
+      "description": "Inventário, divórcio, pensão alimentícia, contratos e indenizações. Advogado em Petrolina-PE, com atendimento presencial e online."
+    },
+    "/sobre": {
+      "title": "Sobre Ian Granja | Advogado em Petrolina-PE, OAB/PE 61.107",
+      "description": "Conheça Ian Granja, advogado inscrito na OAB/PE 61.107, pós-graduado em direito civil, processo civil e direito bancário, com escritório em Petrolina-PE."
+    },
+    "/faq": {
+      "title": "Dúvidas frequentes | Ian Granja Advogados",
+      "description": "Como funciona a primeira consulta, honorários, prazos e documentos necessários. Respostas diretas sobre o atendimento do escritório."
+    },
+    "/contato": {
+      "title": "Contato | Ian Granja Advogados, Petrolina-PE",
+      "description": "Fale pelo WhatsApp (87) 9 8844-8690, por e-mail ou visite o escritório na Av. Cardoso de Sá, 860, Petrolina-PE. Segunda a sexta, das 8h às 18h."
+    }
+  }
+}

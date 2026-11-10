@@ -1,311 +1,233 @@
-import React from "react";
+import { useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
-import { NavLink } from "@/components/NavLink";
-import heroImage from "@/assets/hero-law-office.jpg";
-import lawyerPortrait from "@/assets/lawyer-portrait.jpg";
-import cliente1 from "@/assets/cliente1.jpg";
-import cliente2 from "@/assets/cliente2.jpg";
-import cliente3 from "@/assets/cliente3.jpg";
-import {
-    Briefcase,
-    Users,
-    Shield,
-    Heart,
-    CheckCircle2,
-    ArrowRight,
-    Star,
-    Phone,
-    Scale,
-    Clock,
-    Trophy
-} from "lucide-react";
-import {
-    Carousel,
-    CarouselContent,
-    CarouselItem,
-    CarouselNext,
-    CarouselPrevious,
-} from "@/components/ui/carousel";
-import Autoplay from "embla-carousel-autoplay";
-import {FaWhatsapp} from "react-icons/fa";
+import { Cta, TextLink } from "@/components/Cta";
+import { Grifo } from "@/components/Grifo";
+import { Rise } from "@/components/PageHero";
+import { DocumentSheet } from "@/components/DocumentSheet";
+import { AreaIndex } from "@/components/AreaIndex";
+import { Fecho } from "@/components/Fecho";
+import { areaDocuments, heroDocumentSlugs } from "@/data/documents";
+import { OAB } from "@/lib/contact";
+import { cn } from "@/lib/utils";
+import lawyerPortrait from "@/assets/lawyer-portrait.webp";
+import cliente1 from "@/assets/cliente1.webp";
+import cliente2 from "@/assets/cliente2.webp";
+import cliente3 from "@/assets/cliente3.webp";
+
+const testimonials = [
+    {
+        before: "Profissionalismo ímpar. O Dr. Ian conseguiu ",
+        mark: "resolver uma situação que se arrastava há anos",
+        after: " em outros escritórios.",
+        author: "Jefferson Adriano",
+        role: "Empresário",
+        image: cliente1,
+    },
+    {
+        before: "Me senti segura desde o primeiro atendimento. A ",
+        mark: "transparência sobre os riscos e possibilidades",
+        after: " foi total.",
+        author: "Maria Almeida",
+        role: "Autônoma",
+        image: cliente3,
+    },
+    {
+        before: "Resultado rápido e ",
+        mark: "atendimento humanizado",
+        after: ". Indico para todos os meus conhecidos.",
+        author: "Victor Flávio",
+        role: "Dentista",
+        image: cliente2,
+    },
+];
 
 const Index = () => {
-    const plugin = React.useRef(
-        Autoplay({ delay: 6000, stopOnInteraction: true })
-    );
-
-    const stats = [
-        { number: "+2.000", label: "Consultas Realizadas", icon: Users },
-        { number: "98%", label: "Taxa de Sucesso", icon: Trophy },
-        { number: "24h", label: "Atendimento Ágil", icon: Clock },
-    ];
-
-    const services = [
-        {
-            icon: Briefcase,
-            title: "Direito Bancário",
-            description: "Revisão de juros abusivos, busca e apreensão de veículos e defesa patrimonial.",
-        },
-        {
-            icon: Users,
-            title: "Direito Trabalhista",
-            description: "Defesa implacável dos direitos do trabalhador e compliance para empresas.",
-        },
-        {
-            icon: Shield,
-            title: "Consumidor",
-            description: "Indenizações por danos morais, negativação indevida e problemas com voos.",
-        },
-        {
-            icon: Heart,
-            title: "Direito à Saúde",
-            description: "Liminares para cirurgias, medicamentos de alto custo e home care.",
-        },
-    ];
-
-    const testimonials = [
-        {
-            text: "Profissionalismo ímpar. O Dr. Ian conseguiu resolver uma situação que se arrastava há anos em outros escritórios.",
-            author: "Jefferson Adriano",
-            role: "Empresário",
-            image: cliente1
-        },
-        {
-            text: "Me senti segura desde o primeiro atendimento. A transparência sobre os riscos e possibilidades foi total.",
-            author: "Maria Almeida",
-            role: "Autônoma",
-            image: cliente3
-        },
-        {
-            text: "Resultado rápido e atendimento humanizado. Indico para todos os meus conhecidos.",
-            author: "Victor Flávio",
-            role: "Dentista",
-            image: cliente2
-        },
-    ];
+    const [active, setActive] = useState(heroDocumentSlugs[0]);
+    const doc = areaDocuments[active];
 
     return (
-        <div className="min-h-screen bg-background font-sans">
+        <div className="min-h-screen bg-background">
             <Navigation />
 
-            {/* --- 1. HERO SECTION: IMPONENTE & CENTRALIZADO --- */}
-            <section className="relative h-[100vh] min-h-[600px] flex flex-col justify-center items-center overflow-hidden">
-                {/* Background com Overlay Gradiente Profissional */}
-                <div className="absolute inset-0 z-0">
-                    <img
-                        src={heroImage}
-                        alt="Escritório de Advocacia"
-                        className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/80 to-primary/60" />
-                </div>
+            <main>
+                {/* A mesa: o título e o documento já grifado */}
+                <section className="overflow-hidden bg-ink text-paper">
+                    <div className="container grid grid-cols-1 gap-x-12 gap-y-14 pb-20 pt-32 md:pt-40 lg:grid-cols-12 lg:pb-28">
+                        <div className="lg:col-span-6 lg:pt-8">
+                            <h1 className="display text-[clamp(2.25rem,4.3vw,3.625rem)]">
+                                <Rise>Antes de assinar,</Rise>
+                                <Rise delay={0.09}>
+                                    <Grifo delay={950}>deixa a gente ler.</Grifo>
+                                </Rise>
+                            </h1>
 
-                <div className="container relative z-10 px-4 text-center max-w-4xl mx-auto mt-16">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 text-white text-sm font-semibold mb-6">
-                        <Scale className="w-4 h-4" /> Especialistas em Resolução de Conflitos
-                    </div>
+                            <p className="mt-8 max-w-[48ch] text-lg leading-relaxed text-paper/80">
+                                Contrato do banco, carta do plano de saúde, termo de rescisão. Mande o papel que
+                                chegou para você: Ian Granja lê, explica em português claro e diz o que dá para
+                                fazer.
+                            </p>
 
-                    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight tracking-tight drop-shadow-2xl">
-                        Justiça eficiente para <br/>
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-accent/80 to-white">
-                            proteger seu patrimônio.
-                        </span>
-                    </h1>
+                            <div className="mt-10 flex flex-col gap-x-8 gap-y-5 sm:flex-row sm:items-center">
+                                <Cta whatsapp="Olá! Quero mandar um documento para o Ian dar uma olhada.">
+                                    Mandar meu documento
+                                </Cta>
+                                <TextLink to="/atuacao" className="text-paper">
+                                    Ver áreas de atuação
+                                </TextLink>
+                            </div>
 
-                    <p className="text-lg md:text-xl text-slate-200 mb-10 max-w-2xl mx-auto leading-relaxed">
-                        Advocacia estratégica com foco em resultados rápidos.
-                        Não deixe seus direitos para depois.
-                    </p>
+                            <p className="mt-12 text-sm font-medium text-paper/75">
+                                Ian Granja, {OAB}. Petrolina-PE e atendimento online.
+                            </p>
+                        </div>
 
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Button size="xl" className="h-14 px-8 text-lg rounded-full bg-accent hover:bg-accent/90 text-slate-900 font-bold shadow-[0_0_20px_rgba(var(--accent),0.3)] hover:shadow-[0_0_30px_rgba(var(--accent),0.5)] transition-all transform hover:-translate-y-1" asChild>
-                            <NavLink to="#" isContactLink>
-                                <Phone className="mr-2 w-5 h-5" /> Falar com Especialista
-                            </NavLink>
-                        </Button>
-                        <Button size="xl" variant="outline" className="h-14 px-8 text-lg rounded-full border-white/20 text-black hover:bg-white hover:text-slate-900 transition-all backdrop-blur-sm" asChild>
-                            <NavLink to="/atuacao">Conhecer Áreas</NavLink>
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Strip de Estatísticas Flutuante */}
-                <div className="absolute bottom-0 w-full border-t border-white/10 bg-primary0/50 backdrop-blur-md py-6 hidden md:block">
-                    <div className="container mx-auto px-4 flex justify-center gap-16 text-white">
-                        {stats.map((stat, i) => (
-                            <div key={i} className="flex items-center gap-4 opacity-80 hover:opacity-100 transition-opacity">
-                                <div className="p-3 bg-white/10 rounded-full">
-                                    <stat.icon className="w-6 h-6 text-accent" />
+                        <div className="min-w-0 lg:col-span-6">
+                            <div className="lg:-rotate-[1.2deg]">
+                                <div
+                                    role="group"
+                                    aria-label="Escolha o tipo de documento"
+                                    className="flex gap-1"
+                                >
+                                    {heroDocumentSlugs.map((slug) => (
+                                        <button
+                                            key={slug}
+                                            type="button"
+                                            aria-pressed={slug === active}
+                                            onClick={() => setActive(slug)}
+                                            className={cn(
+                                                "min-h-11 flex-auto whitespace-nowrap px-2 text-[0.8125rem] font-semibold transition-colors duration-200 sm:flex-none sm:px-4 sm:text-sm",
+                                                slug === active
+                                                    ? "bg-paper-white text-ink"
+                                                    : "bg-ink-soft text-paper/85 hover:bg-paper/25 hover:text-paper",
+                                            )}
+                                        >
+                                            {/* No celular entra o rótulo curto, para as quatro abas caberem à vista. */}
+                                            <span className="sm:hidden">
+                                                {areaDocuments[slug].tabShort ?? areaDocuments[slug].tab}
+                                            </span>
+                                            <span className="hidden sm:inline">{areaDocuments[slug].tab}</span>
+                                        </button>
+                                    ))}
                                 </div>
-                                <div>
-                                    <p className="text-2xl font-bold leading-none">{stat.number}</p>
-                                    <p className="text-xs uppercase tracking-wider text-slate-300">{stat.label}</p>
+
+                                <div className="relative">
+                                    <div
+                                        aria-hidden
+                                        className="absolute inset-0 hidden translate-x-3 translate-y-2 rotate-[1.6deg] bg-paper/45 lg:block"
+                                    />
+                                    <div
+                                        aria-hidden
+                                        className="absolute inset-0 hidden translate-x-1.5 translate-y-1 rotate-[0.7deg] bg-paper/75 lg:block"
+                                    />
+                                    {/* A folha fica sempre no lugar; só o texto troca e o grifo corre de novo. */}
+                                    <DocumentSheet key={active} doc={doc} notes="side" className="relative" />
                                 </div>
                             </div>
-                        ))}
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            {/* --- 2. SOBRE (SPLIT LAYOUT) --- */}
-            <section className="py-24 bg-white relative overflow-hidden">
-                <div className="container mx-auto px-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-
-                        {/* Lado Esquerdo: Imagem */}
-                        <div className="relative group mx-auto lg:mx-0 max-w-md lg:max-w-none">
-                            <div className="absolute -inset-4 bg-accent/20 rounded-tr-[4rem] rounded-bl-[4rem] transform rotate-3 group-hover:rotate-2 transition-transform duration-500"></div>
-                            <img
-                                src={lawyerPortrait}
-                                alt="Ian Granja Advogado"
-                                className="relative rounded-tr-[3rem] rounded-bl-[3rem] shadow-2xl z-10 w-full object-cover aspect-[3/4]"
-                            />
-
-                            {/* Card Flutuante na Imagem */}
-                            <div className="absolute bottom-8 -right-4 lg:-right-8 z-20 bg-white p-6 rounded-xl shadow-xl border border-slate-100 max-w-[200px]">
-                                <p className="text-accent font-bold text-4xl mb-1">5+</p>
-                                <p className="text-slate-600 text-sm font-medium leading-snug">Anos de experiência em casos complexos.</p>
+                {/* Quem lê: o advogado qualificado como num documento */}
+                <section className="bg-background">
+                    <div className="container grid gap-x-16 gap-y-12 py-20 md:py-28 lg:grid-cols-12 lg:items-center">
+                        <div className="lg:col-span-5">
+                            <div className="sheet-on-paper max-w-md p-3 lg:rotate-[1deg]">
+                                <img
+                                    src={lawyerPortrait}
+                                    alt="Ian Granja, advogado, em seu escritório"
+                                    width={1024}
+                                    height={1024}
+                                    loading="lazy"
+                                    className="aspect-[4/5] w-full object-cover object-top"
+                                />
                             </div>
                         </div>
 
-                        {/* Lado Direito: Texto */}
-                        <div>
-                            <span className="text-accent font-bold uppercase tracking-widest text-sm mb-2 block">O Escritório</span>
-                            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6 leading-tight">
-                                Mais que advogados, somos parceiros estratégicos do seu negócio.
+                        <div className="lg:col-span-7">
+                            <h2 className="display text-[clamp(2rem,4.2vw,3.5rem)]">Quem lê o seu documento.</h2>
+
+                            <p className="mt-8 max-w-[38ch] font-serif text-[clamp(1.25rem,2.1vw,1.625rem)] leading-[1.55] text-ink">
+                                Ian Granja, advogado inscrito na <Grifo>OAB/PE sob o nº 61.107</Grifo>,
+                                pós-graduado em direito civil, processo civil e direito bancário, com escritório
+                                em Petrolina-PE e <Grifo delay={250}>atendimento direto pelo WhatsApp</Grifo>.
+                            </p>
+
+                            <p className="mt-8 max-w-[62ch] text-[1.0625rem] leading-relaxed text-muted-foreground">
+                                Por trás de cada processo existe uma história, um patrimônio ou uma família. Por
+                                isso a atuação é técnica, mas o atendimento é, acima de tudo, humano: transparência
+                                total sobre honorários e riscos, e comunicação sem juridiquês.
+                            </p>
+
+                            <TextLink to="/sobre" className="mt-9 text-ink">
+                                Conheça o advogado
+                            </TextLink>
+                        </div>
+                    </div>
+                </section>
+
+                {/* As áreas, pela frase com que o cliente chega */}
+                <section className="bg-ink text-paper">
+                    <div className="container py-20 md:py-28">
+                        <div className="mb-12 grid gap-x-12 gap-y-6 lg:grid-cols-12 lg:items-end">
+                            <h2 className="display text-[clamp(2rem,4.2vw,3.5rem)] lg:col-span-7">
+                                O que aconteceu com você?
                             </h2>
-                            <p className="text-slate-600 text-lg mb-6 leading-relaxed">
-                                Fundado pelo Dr. Ian Granja, nosso escritório nasceu com a missão de eliminar a burocracia e entregar resultados práticos.
-                            </p>
-                            <p className="text-slate-600 mb-8 leading-relaxed">
-                                Entendemos que por trás de cada processo existe uma história, um patrimônio ou uma família. Por isso, nossa atuação é técnica, mas nosso atendimento é, acima de tudo, humano.
-                            </p>
-
-                            <div className="space-y-4 mb-8">
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle2 className="w-6 h-6 text-accent shrink-0 mt-0.5" />
-                                    <p className="text-slate-700 font-medium">Transparência total sobre honorários e riscos.</p>
-                                </div>
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle2 className="w-6 h-6 text-accent shrink-0 mt-0.5" />
-                                    <p className="text-slate-700 font-medium">Comunicação direta via WhatsApp, sem "juridiquês".</p>
-                                </div>
-                            </div>
-
-                            <Button variant="default" size="lg" className="rounded-full px-8 bg-primary hover:bg-slate-800" asChild>
-                                <NavLink to="/sobre">Conheça nossa História <ArrowRight className="ml-2 w-4 h-4" /></NavLink>
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* --- 3. SERVIÇOS (DARK MODE) --- */}
-            <section className="py-24 bg-primary text-white">
-                <div className="container mx-auto px-4">
-                    <div className="text-center max-w-3xl mx-auto mb-16">
-                        <span className="text-accent font-bold uppercase tracking-widest text-sm mb-3 block">Áreas de Atuação</span>
-                        <h2 className="text-3xl md:text-5xl font-bold mb-6">Excelência Técnica Especializada</h2>
-                        <p className="text-slate-400 text-lg">
-                            Não somos generalistas. Focamos onde somos melhores para garantir a máxima eficiência para o seu caso.
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {services.map((item, index) => (
-                            <NavLink key={index} to="/atuacao" className="group relative bg-white/5 p-8 rounded-3xl border border-white/10 hover:bg-white/10 transition-all duration-300 hover:-translate-y-2">
-                                <div className="w-14 h-14 bg-accent/20 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-accent transition-colors duration-300">
-                                    <item.icon className="w-7 h-7 text-accent group-hover:text-slate-900 transition-colors" />
-                                </div>
-                                <h3 className="text-xl font-bold mb-3">{item.title}</h3>
-                                <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                                    {item.description}
-                                </p>
-                                <div className="flex items-center text-accent text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                                    Detalhes <ArrowRight className="ml-2 w-4 h-4" />
-                                </div>
-                            </NavLink>
-                        ))}
-                    </div>
-
-                    <div className="mt-12 text-center">
-                        <Button variant="outline" size="lg" className="rounded-full border-white/20 text-black   hover:bg-white hover:text-slate-900 px-8" asChild>
-                            <NavLink to="/atuacao">Ver Todas as Áreas</NavLink>
-                        </Button>
-                    </div>
-                </div>
-            </section>
-
-            {/* --- 4. PROVA SOCIAL (Clean & Trust) --- */}
-            <section className="py-24 bg-slate-50">
-                <div className="container mx-auto px-4">
-                    <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
-                        <div className="max-w-xl">
-                            <h2 className="text-3xl font-bold text-slate-900 mb-4">A voz de quem confia.</h2>
-                            <p className="text-slate-600 text-lg">
-                                A satisfação dos nossos clientes é o principal indicador do nosso sucesso.
+                            <p className="max-w-[46ch] text-lg leading-relaxed text-paper/80 lg:col-span-5">
+                                Escolha a frase mais parecida com a sua. Cada uma leva à área que cuida do
+                                assunto e ao tipo de documento que costuma vir junto.
                             </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="flex text-amber-500">
-                                {[...Array(5)].map((_, i) => <Star key={i} fill="currentColor" className="w-5 h-5" />)}
-                            </div>
+                        <AreaIndex />
+                    </div>
+                </section>
+
+                {/* Depoimentos: declarações assinadas */}
+                <section className="bg-background">
+                    <div className="container py-20 md:py-28">
+                        <h2 className="display max-w-[16ch] text-[clamp(2rem,4.2vw,3.5rem)]">
+                            Quem já passou por aqui.
+                        </h2>
+
+                        <div className="mt-14 grid gap-y-12 lg:grid-cols-3 lg:gap-x-0">
+                            {testimonials.map((t, i) => (
+                                <figure
+                                    key={t.author}
+                                    className={cn(
+                                        "flex flex-col border-ink/20 lg:px-10",
+                                        i === 0 && "lg:pl-0",
+                                        i > 0 && "border-t pt-12 lg:border-l lg:border-t-0 lg:pt-0",
+                                        i === testimonials.length - 1 && "lg:pr-0",
+                                    )}
+                                >
+                                    <blockquote className="font-serif text-xl leading-[1.6] text-ink">
+                                        “{t.before}
+                                        <Grifo delay={i * 200}>{t.mark}</Grifo>
+                                        {t.after}”
+                                    </blockquote>
+                                    <figcaption className="mt-8 flex items-center gap-4 lg:mt-auto lg:pt-10">
+                                        <img
+                                            src={t.image}
+                                            alt=""
+                                            loading="lazy"
+                                            className="size-14 object-cover object-top"
+                                        />
+                                        <span>
+                                            <span className="block font-semibold text-ink">{t.author}</span>
+                                            <span className="block text-sm text-muted-foreground">{t.role}</span>
+                                        </span>
+                                    </figcaption>
+                                </figure>
+                            ))}
                         </div>
                     </div>
+                </section>
 
-                    <div className="relative px-4 md:px-12">
-                        <Carousel
-                            plugins={[plugin.current]}
-                            className="w-full"
-                            opts={{ align: "start", loop: true }}
-                        >
-                            <CarouselContent className="-ml-4">
-                                {testimonials.map((t, i) => (
-                                    <CarouselItem key={i} className="md:basis-1/2 lg:basis-1/3 pl-4">
-                                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-lg hover:shadow-xl transition-shadow h-full flex flex-col">
-                                            <div className="mb-6 text-accent">
-                                                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" className="opacity-20">
-                                                    <path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 8.44772 14.017 9V11C14.017 11.5523 13.5693 12 13.017 12H12.017V5H22.017V15C22.017 18.3137 19.3307 21 16.017 21H14.017ZM5.0166 21L5.0166 18C5.0166 16.8954 5.91203 16 7.0166 16H10.0166C10.5689 16 11.0166 15.5523 11.0166 15V9C11.0166 8.44772 10.5689 8 10.0166 8H6.0166C5.46432 8 5.0166 8.44772 5.0166 9V11C5.0166 11.5523 4.56889 12 4.0166 12H3.0166V5H13.0166V15C13.0166 18.3137 10.3303 21 7.0166 21H5.0166Z" />
-                                                </svg>
-                                            </div>
-                                            <p className="text-slate-700 leading-relaxed mb-6 flex-grow italic">
-                                                "{t.text}"
-                                            </p>
-                                            <div className="flex items-center gap-4 pt-6 border-t border-slate-100">
-                                                <img src={t.image} alt={t.author} className="w-12 h-12 rounded-full object-cover" />
-                                                <div>
-                                                    <p className="font-bold text-slate-900 text-sm">{t.author}</p>
-                                                    <p className="text-slate-500 text-xs">{t.role}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CarouselItem>
-                                ))}
-                            </CarouselContent>
-                            <CarouselPrevious className="hidden md:flex -left-4 bg-white hover:bg-accent hover:text-white border-slate-200" />
-                            <CarouselNext className="hidden md:flex -right-4 bg-white hover:bg-accent hover:text-white border-slate-200" />
-                        </Carousel>
-                    </div>
-                </div>
-            </section>
-
-            {/* --- 5. CTA FINAL (Chamada para ação) --- */}
-            <section className="py-20 bg-accent text-slate-900">
-                <div className="container mx-auto px-4 text-center">
-                    <h2 className="text-3xl md:text-5xl font-bold mb-6">Precisa de orientação jurídica imediata?</h2>
-                    <p className="text-xl mb-10 opacity-90 max-w-2xl mx-auto font-medium">
-                        Não espere o problema crescer. Converse agora com nossa equipe e descubra a melhor estratégia para o seu caso.
-                    </p>
-                    <Button size="xl" className="h-16 px-10 text-lg rounded-full bg-primary text-white hover:bg-slate-800 shadow-2xl transition-transform hover:scale-105" asChild>
-                        <NavLink to="#" isContactLink>
-                            <FaWhatsapp className="mr-3 w-6 h-6" />Atendimento via WhatsApp
-                        </NavLink>
-                    </Button>
-                    <p className="mt-6 text-sm opacity-70 font-medium">Resposta média em até 15 minutos durante o horário comercial.</p>
-                </div>
-            </section>
+                <Fecho
+                    title="Mande o papel. A gente lê."
+                    text="Uma foto do contrato, da carta ou da notificação já basta para a primeira conversa. Você recebe uma explicação clara do que está escrito e das opções que existem."
+                />
+            </main>
 
             <Footer />
         </div>
