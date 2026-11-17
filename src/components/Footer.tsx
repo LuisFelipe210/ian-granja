@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Calculator } from "lucide-react";
 import { practiceAreas } from "@/data/practiceAreas";
 import {
     ADDRESS_LINES,
@@ -84,7 +85,18 @@ export const Footer = () => (
         <div className="border-t border-paper/15">
             <div className="container flex flex-col gap-2 py-6 pr-20 text-sm text-paper/75 md:flex-row md:justify-between">
                 <p>© {new Date().getFullYear()} Ian Granja Advogados. Todos os direitos reservados.</p>
-                <p>Ian Granja, {OAB}</p>
+                <p className="flex items-center gap-2">
+                    <span>Ian Granja, {OAB}</span>
+                    <Link
+                        to="/ferramentas/calculadora-revisional"
+                        rel="nofollow"
+                        title="Calculadora revisional"
+                        aria-label="Calculadora revisional (uso interno)"
+                        className="inline-flex size-6 items-center justify-center text-paper/20 no-underline transition-colors duration-200 hover:text-paper/65"
+                    >
+                        <Calculator aria-hidden className="size-3.5" />
+                    </Link>
+                </p>
             </div>
         </div>
     </footer>
