@@ -8,6 +8,8 @@
     "build": "vite build && node scripts/generate-seo.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "typecheck": "tsc -b --noEmit",
+    "test": "node --experimental-strip-types --test tests/juros.test.ts tests/send-contact.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

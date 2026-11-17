@@ -7,7 +7,7 @@ import { Footer } from "@/components/Footer";
 import { PageHero } from "@/components/PageHero";
 import { DocumentSheet } from "@/components/DocumentSheet";
 import { FaqList } from "@/components/FaqList";
-import { Cta } from "@/components/Cta";
+import { Cta, TextLink } from "@/components/Cta";
 import { Fecho } from "@/components/Fecho";
 import { HOURS } from "@/lib/contact";
 
@@ -160,6 +160,18 @@ const AtuacaoDetalhes = () => {
                                     </Cta>
                                     <p className="mt-5 text-sm text-paper/75">{HOURS}. Online e presencial.</p>
                                 </div>
+
+                                {area.slug === "direito-bancario" && (
+                                    <div className="border-t-2 border-gold pt-4">
+                                        <h2 className="subdisplay text-xl text-ink">Seus juros estão acima da média?</h2>
+                                        <p className="mt-3 leading-relaxed text-muted-foreground">
+                                            Compare a taxa do seu contrato com a média do Banco Central no mês em que você assinou.
+                                        </p>
+                                        <TextLink to="/calculadora-juros-abusivos" className="mt-4 text-ink">
+                                            Usar a calculadora
+                                        </TextLink>
+                                    </div>
+                                )}
 
                                 <nav aria-label="Outras áreas de atuação">
                                     <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Outras áreas</h2>

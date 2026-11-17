@@ -36,6 +36,7 @@ export const Footer = () => (
                 <ul className="space-y-3">
                     <li><Link to="/" className={linkClass}>Início</Link></li>
                     <li><Link to="/atuacao" className={linkClass}>Áreas de atuação</Link></li>
+                    <li><Link to="/calculadora-juros-abusivos" className={linkClass}>Calculadora de juros</Link></li>
                     <li><Link to="/sobre" className={linkClass}>Sobre</Link></li>
                     <li><Link to="/faq" className={linkClass}>Dúvidas</Link></li>
                     <li><Link to="/contato" className={linkClass}>Contato</Link></li>
@@ -82,7 +83,7 @@ export const Footer = () => (
 
         <div className="border-t border-paper/15">
             <div className="container flex flex-col gap-2 py-6 pr-20 text-sm text-paper/75 md:flex-row md:justify-between">
-                <p>© {new Date().getFullYear()} Ian Granja Advocacia. Todos os direitos reservados.</p>
+                <p>© {new Date().getFullYear()} Ian Granja Advogados. Todos os direitos reservados.</p>
                 <p>Ian Granja, {OAB}</p>
             </div>
         </div>

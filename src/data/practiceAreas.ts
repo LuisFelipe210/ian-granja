@@ -1,23 +1,19 @@
-import {
-    Briefcase,
-    Users,
-    Shield,
-    Scale,
-    TrendingUp,
-    Home,
-    Heart,
-    Building2
-} from "lucide-react";
+export interface PracticeArea {
+    slug: string;
+    title: string;
+    description: string;
+    fullDescription: string;
+    services: string[];
+}
 
-export const practiceAreas = [
+export const practiceAreas: PracticeArea[] = [
     {
         slug: "direito-bancario",
-        icon: Briefcase,
         title: "Direito Bancário",
         description:
-            "Defendemos os consumidores contra práticas abusivas de instituições financeiras, com foco na recuperação de veículos apreendidos, revisão de contratos e defesa em execuções bancárias.",
+            "Defesa contra práticas abusivas de bancos e financeiras, com foco em busca e apreensão de veículos, revisão de contratos e defesa em cobranças judiciais.",
         fullDescription:
-            "O Direito Bancário é uma área fundamental para restabelecer o equilíbrio nas relações entre clientes e instituições financeiras. Nossa atuação é focada em identificar e combater cláusulas abusivas, juros exorbitantes e práticas ilegais que comprometem o patrimônio do consumidor. Atuamos fortemente na defesa de busca e apreensão de veículos, analisando minuciosamente os contratos para encontrar irregularidades que possam reverter a medida ou reduzir drasticamente o saldo devedor. Além disso, defendemos clientes em ações de execução e cobrança, garantindo que nenhum excesso seja cometido pelos bancos.",
+            "O Direito Bancário ajuda a equilibrar a relação entre quem toma crédito e as instituições financeiras. O trabalho começa pela leitura do contrato para identificar juros muito acima da média do Banco Central, tarifas embutidas e falhas de notificação. Atuamos na defesa em ações de busca e apreensão de veículos, na revisão de contratos de financiamento e empréstimo e na resposta a execuções e cobranças judiciais movidas por bancos.",
         services: [
             "Recuperação de veículos financiados",
             "Revisão de contratos bancários",
@@ -28,12 +24,11 @@ export const practiceAreas = [
     },
     {
         slug: "direito-trabalhista",
-        icon: Users,
         title: "Direito Trabalhista",
         description:
-            "Representamos trabalhadores e empresas em disputas judiciais e extrajudiciais, priorizando soluções céleres e seguras para rescisões, verbas e relações de trabalho.",
+            "Atuação para trabalhadores e empresas em acordos e ações trabalhistas, envolvendo rescisões, verbas não pagas, horas extras e relações de trabalho.",
         fullDescription:
-            "No âmbito do Direito Trabalhista, oferecemos uma advocacia estratégica tanto para reclamantes quanto para reclamadas. Para os trabalhadores, lutamos pelo reconhecimento de vínculos empregatícios, pagamento correto de horas extras, adicionais de insalubridade ou periculosidade e indenizações por danos morais ou assédio. Para as empresas, atuamos de forma preventiva e contenciosa, auditando contratos, reduzindo passivos trabalhistas e realizando defesas técnicas em reclamações, sempre buscando a segurança jurídica e a redução de custos com litígios desnecessários.",
+            "No Direito Trabalhista, atendemos tanto trabalhadores quanto empregadores. Para quem saiu do emprego ou ainda está trabalhando, conferimos o termo de rescisão e apuramos diferenças de vínculo, horas extras, adicionais de insalubridade ou periculosidade e pedidos de indenização por assédio. Para empresas, fazemos revisão preventiva de contratos e rotinas internas e defesa técnica em reclamações trabalhistas.",
         services: [
             "Reclamações trabalhistas",
             "Rescisões contratuais",
@@ -44,12 +39,11 @@ export const practiceAreas = [
     },
     {
         slug: "direito-consumidor",
-        icon: Shield,
         title: "Direito do Consumidor",
         description:
-            "Atuamos na defesa de consumidores em casos de cobranças indevidas, negativação irregular, falhas na prestação de serviços e descumprimento contratual.",
+            "Defesa do consumidor em casos de negativação indevida, cobranças sem origem, produto com defeito, falha na prestação de serviço e cancelamento de contrato.",
         fullDescription:
-            "O Código de Defesa do Consumidor é uma ferramenta poderosa para proteger a parte mais vulnerável da relação comercial. Nossa equipe é especialista em reparar danos causados por grandes empresas, seja por falha na prestação de serviços, produtos defeituosos ou práticas comerciais desleais. Atuamos com vigor em casos de negativação indevida nos órgãos de proteção ao crédito (SPC/Serasa), buscando não apenas a limpeza do nome, mas a devida reparação financeira. Também lidamos com cancelamentos abusivos de serviços, problemas com companhias aéreas e telefonia.",
+            "Quando uma empresa cobra por algo que não foi contratado, deixa de entregar o combinado ou inclui o nome do cliente no SPC ou Serasa sem aviso ou sem dívida válida, o Código de Defesa do Consumidor prevê a correção do problema e possível reparação. Atuamos em casos de negativação indevida, falhas de serviço, cancelamentos unilaterais e conflitos com operadoras de telefonia, bancos e companhias aéreas.",
         services: [
             "Negativação indevida",
             "Defeitos em produtos e serviços",
@@ -60,12 +54,11 @@ export const practiceAreas = [
     },
     {
         slug: "direito-empresarial",
-        icon: Scale,
         title: "Direito Empresarial",
         description:
-            "Assessoria jurídica completa para empresas e associações de proteção veicular, com foco em contratos, responsabilidade civil, regulamentação e defesa administrativa.",
+            "Assessoria jurídica para empresas e associações de proteção veicular em contratos, questões societárias, adequação regulatória e defesa administrativa.",
         fullDescription:
-            "O Direito Empresarial moderno exige uma visão de negócios aliada ao conhecimento jurídico. Oferecemos suporte integral para a estruturação e manutenção de empresas, com expertise especial em Associações de Proteção Veicular. Cuidamos desde a elaboração e análise de contratos sociais e estatutos até a defesa em processos administrativos e judiciais. Nossa consultoria visa blindar a operação da empresa, garantindo compliance com as normas vigentes, gestão de riscos e proteção patrimonial dos sócios, permitindo que o empresário foque no crescimento do seu negócio.",
+            "Empresas e associações precisam de contratos claros para trabalhar com segurança no dia a dia. Oferecemos acompanhamento jurídico na elaboração e revisão de contratos sociais, estatutos e contratos de prestação de serviços, com experiência específica junto a Associações de Proteção Veicular. Também atuamos em defesas administrativas, processos judiciais, recuperação judicial e organização preventiva de riscos do negócio.",
         services: [
             "Elaboração e revisão de contratos",
             "Consultoria societária",
@@ -76,12 +69,11 @@ export const practiceAreas = [
     },
     {
         slug: "superendividamento",
-        icon: TrendingUp,
         title: "Superendividamento",
         description:
-            "Ajudamos consumidores a reorganizar sua vida financeira, com ações para revisão de dívidas, negociação com bancos e defesa contra abusos de crédito.",
+            "Reorganização de dívidas com base na Lei do Superendividamento, buscando renegociação conjunta com credores e preservação do mínimo para viver.",
         fullDescription:
-            "Com base na Lei do Superendividamento (Lei 14.181/2021), atuamos para devolver a dignidade financeira a pessoas que perderam o controle de suas dívidas. Nosso trabalho consiste em elaborar um plano de repactuação de débitos, negociando diretamente com credores para obter descontos significativos e parcelamentos que caibam no bolso do cliente, preservando o mínimo existencial. Analisamos se houve concessão irresponsável de crédito por parte das instituições e buscamos judicialmente a revisão de contratos que levaram à situação de insolvência civil.",
+            "Com base na Lei 14.181/2021 (Lei do Superendividamento), analisamos o conjunto de dívidas de consumo que passou a comprometer a renda básica do mês. O trabalho envolve montar um plano de pagamento compatível com o orçamento familiar, negociar com os credores em conjunto e verificar se houve concessão de crédito sem avaliação da capacidade de pagamento ou encargos irregulares nos contratos.",
         services: [
             "Negociação de dívidas",
             "Ações de superendividamento",
@@ -92,12 +84,11 @@ export const practiceAreas = [
     },
     {
         slug: "planos-saude",
-        icon: Heart,
         title: "Planos de Saúde",
         description:
-            "Defesa de usuários contra negativas de cobertura, reajustes abusivos, cancelamentos indevidos e demora em autorizações de tratamentos médicos.",
+            "Defesa de beneficiários contra negativa de tratamento, reajuste abusivo, cancelamento de contrato e demora na autorização de exames e cirurgias.",
         fullDescription:
-            "A saúde não pode esperar, e as operadoras de planos de saúde frequentemente desrespeitam as normas da ANS e o contrato firmado. Nossa atuação é focada na obtenção rápida de liminares para garantir tratamentos, cirurgias, fornecimento de medicamentos de alto custo e internações de emergência negadas indevidamente. Combatemos também os reajustes abusivos (seja por faixa etária ou sinistralidade) e os cancelamentos unilaterais de contratos, garantindo que o beneficiário mantenha seu acesso à saúde com qualidade e respeito.",
+            "Quando o plano de saúde recusa uma cirurgia, um exame, um medicamento prescrito pelo médico ou uma internação de urgência, avaliamos rapidamente a negativa à luz do contrato, da Lei 14.454/2022 e das regras da ANS para pedir autorização judicial quando cabível. Também analisamos aumentos por faixa etária ou sinistralidade e casos de cancelamento indevido do plano.",
         services: [
             "Negativas de cobertura",
             "Reajustes abusivos",
@@ -108,12 +99,11 @@ export const practiceAreas = [
     },
     {
         slug: "direito-imobiliario",
-        icon: Home,
         title: "Direito Imobiliário",
         description:
-            "Atuamos em questões relacionadas a compra e venda de imóveis, distratos, financiamentos, usucapião e problemas com construtoras e incorporadoras.",
+            "Acompanhamento em compra e venda de imóveis, atraso na entrega pela construtora, distrato, financiamento e regularização por usucapião.",
         fullDescription:
-            "O patrimônio imobiliário é, muitas vezes, o bem mais valioso de uma família ou empresa. Oferecemos segurança jurídica em transações de compra e venda, analisando toda a documentação para evitar fraudes e passivos ocultos. Atuamos fortemente em casos de atraso na entrega de imóveis na planta, vícios construtivos e distratos (devolução do imóvel). Além disso, somos especialistas em regularização fundiária através de usucapião (judicial e extrajudicial) e em ações de reintegração de posse e despejo.",
+            "Na compra ou venda de um imóvel, conferimos a documentação do bem e as cláusulas do contrato para evitar problemas futuros. Para quem comprou na planta e enfrenta atraso além do prazo de tolerância, defeitos na construção ou retenção excessiva na devolução do imóvel (distrato), atuamos na cobrança dos direitos previstos em lei. Também cuidamos de regularização por usucapião judicial ou em cartório, reintegração de posse e despejo.",
         services: [
             "Contratos de compra e venda",
             "Distrato e rescisão",
@@ -124,12 +114,11 @@ export const practiceAreas = [
     },
     {
         slug: "direito-civil",
-        icon: Building2,
         title: "Direito Civil",
         description:
-            "Atuação ampla em questões cíveis, incluindo responsabilidade civil, contratos, família e sucessões, sempre com foco na melhor solução para nossos clientes.",
+            "Atuação em inventário, divórcio, pensão alimentícia, elaboração e revisão de contratos e ações de indenização por danos materiais ou morais.",
         fullDescription:
-            "O Direito Civil é a base das relações privadas e exige uma advocacia sensível e técnica. Atuamos na resolução de conflitos familiares (divórcios, guarda, pensão), sucessórios (inventários e testamentos) e obrigacionais. Temos forte expertise em responsabilidade civil, buscando indenizações justas para quem sofreu danos materiais ou morais. Seja na elaboração de um contrato complexo ou na defesa em uma disputa judicial, nosso objetivo é garantir que os direitos civis de nossos clientes sejam integralmente respeitados.",
+            "No Direito Civil, cuidamos de questões do dia a dia pessoal e familiar que exigem orientação técnica clara: abertura de inventário e partilha de bens em cartório ou na Justiça, divórcio, guarda e pensão alimentícia. Também atuamos na revisão de contratos particulares e em ações indenizatórias por prejuízos materiais ou morais, buscando a solução mais direta e adequada para o caso.",
         services: [
             "Ações indenizatórias",
             "Contratos em geral",

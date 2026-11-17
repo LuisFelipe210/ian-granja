@@ -14,9 +14,10 @@ interface FormData {
     email: string;
     phone: string;
     message: string;
+    website: string;
 }
 
-const emptyForm: FormData = { name: "", email: "", phone: "", message: "" };
+const emptyForm: FormData = { name: "", email: "", phone: "", message: "", website: "" };
 
 const sendEmail = async (data: FormData): Promise<boolean> => {
     try {
@@ -85,7 +86,7 @@ const Contato = () => {
                                     Preencha para uma análise inicial do seu caso. Todos os campos são necessários.
                                 </p>
 
-                                <form onSubmit={handleSubmit} className="mt-9 space-y-7">
+                                <form onSubmit={handleSubmit} className="relative mt-9 space-y-7">
                                     <div className="grid gap-7 md:grid-cols-2">
                                         <div>
                                             <label htmlFor="name" className={labelClass}>Nome completo</label>
@@ -153,6 +154,18 @@ const Contato = () => {
                                         {isLoading && <Loader2 aria-hidden className="size-5 animate-spin" />}
                                         {isLoading ? "Enviando" : "Enviar ficha"}
                                     </button>
+                                    <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] !mt-0 h-0 w-0 overflow-hidden">
+                                        <label htmlFor="website">Site</label>
+                                        <input
+                                            id="website"
+                                            name="website"
+                                            type="text"
+                                            tabIndex={-1}
+                                            autoComplete="off"
+                                            value={formData.website}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
                                 </form>
                             </div>
                         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Menu, X } from "lucide-react";
@@ -10,6 +10,7 @@ import logo from "@/assets/logo2.png";
 const navItems = [
     { to: "/", label: "Início" },
     { to: "/atuacao", label: "Áreas de atuação" },
+    { to: "/calculadora-juros-abusivos", label: "Calculadora de juros" },
     { to: "/sobre", label: "Sobre" },
     { to: "/faq", label: "Dúvidas" },
 ];
@@ -19,6 +20,7 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 export const Navigation = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
     const { pathname } = useLocation();
     const reduce = useReducedMotion();
 
@@ -34,11 +36,23 @@ export const Navigation = () => {
     }, [pathname]);
 
     useEffect(() => {
-        document.body.style.overflow = isMenuOpen ? "hidden" : "";
-        const onKey = (e: KeyboardEvent) => e.key === "Escape" && setIsMenuOpen(false);
+        if (!isMenuOpen) return;
+        document.body.style.overflow = "hidden";
+        const mq = window.matchMedia("(min-width: 1024px)");
+        const onMedia = (e: MediaQueryListEvent) => {
+            if (e.matches) setIsMenuOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setIsMenuOpen(false);
+                requestAnimationFrame(() => menuButtonRef.current?.focus());
+            }
+        };
+        mq.addEventListener("change", onMedia);
         window.addEventListener("keydown", onKey);
         return () => {
             document.body.style.overflow = "";
+            mq.removeEventListener("change", onMedia);
             window.removeEventListener("keydown", onKey);
         };
     }, [isMenuOpen]);
@@ -84,6 +98,7 @@ export const Navigation = () => {
                     </nav>
 
                     <button
+                        ref={menuButtonRef}
                         type="button"
                         onClick={() => setIsMenuOpen((open) => !open)}
                         aria-expanded={isMenuOpen}

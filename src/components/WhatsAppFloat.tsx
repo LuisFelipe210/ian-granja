@@ -1,8 +1,14 @@
+import { useLocation } from "react-router-dom";
 import { FaWhatsapp } from "react-icons/fa";
 import { whatsappUrl } from "@/lib/contact";
 
-/** Atalho fixo para o WhatsApp, presente em todas as páginas. */
-export const WhatsAppFloat = () => (
+/** Atalho fixo para o WhatsApp nas páginas públicas; as ferramentas internas não têm. */
+export const WhatsAppFloat = () => {
+    const { pathname } = useLocation();
+    return pathname.startsWith("/ferramentas/") ? null : <BotaoWhatsApp />;
+};
+
+const BotaoWhatsApp = () => (
     <a
         href={whatsappUrl()}
         target="_blank"

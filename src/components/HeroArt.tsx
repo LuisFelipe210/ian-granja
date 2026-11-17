@@ -255,6 +255,53 @@ const Envelope = () => {
     );
 };
 
+/** Traço em papel que se desenha, como a linha de um gráfico. */
+const Trace = ({ d, delay = 0, width = 2.5 }: { d: string; delay?: number; width?: number }) => {
+    const reduce = useReducedMotion();
+
+    return (
+        <motion.path
+            d={d}
+            fill="none"
+            stroke={PAPER_LINE}
+            strokeWidth={width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={reduce ? false : { pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 1.1, ease: EASE, delay }}
+        />
+    );
+};
+
+/**
+ * O contrato com a taxa grifada e, na frente, a folha do cálculo: a média do mercado
+ * em papel, a taxa do contrato em dourado bem acima e a seta marcando a distância.
+ */
+const Calculo = () => (
+    <>
+        <Page d={sheet(66, 36, 230, 300)} rot={-5} cx={181} cy={186} delay={0.1}>
+            <Lines x={92} y={70} w={80} rows={[1]} delay={0.7} />
+            <Rule d="M92 86h178" />
+            <Lines x={92} y={112} w={178} rows={[1, 0.9]} delay={0.8} />
+            <Lines x={92} y={148} w={40} rows={[1]} delay={0.9} />
+            <Mark x={140} y={148} w={104} delay={1.4} />
+            <Lines x={92} y={166} w={178} rows={[0.95, 0.7]} delay={0.95} />
+            <Lines x={92} y={220} w={178} rows={[1, 0.85, 0.5]} delay={1.05} />
+            <Lines x={92} y={292} w={70} rows={[1]} delay={1.15} />
+        </Page>
+        <Page d={sheet(214, 140, 262, 226)} rot={3} cx={345} cy={253} delay={0.35}>
+            <Trace d="M244 172v156h204" width={1.5} delay={0.9} />
+            <Trace d="M250 300c18-5 30 3 46-2s28-9 44-4 28 3 44-5 26-4 50-7" delay={1.3} />
+            <Pen d="M250 208h188" delay={2} />
+            <Pen d="M410 216v64M402 224l8-8 8 8M402 272l8 8 8-8" width={2} delay={2.5} duration={0.7} />
+            <Mark x={322} y={295} w={10} h={10} delay={2.2} />
+            <Lines x={244} y={348} w={64} rows={[1]} delay={1.2} />
+            <Lines x={340} y={348} w={46} rows={[1]} delay={1.25} />
+        </Page>
+    </>
+);
+
 /** Folha em branco, com a ponta dobrada. */
 const Branco = () => (
     <>
@@ -318,6 +365,7 @@ const variants = {
     celular: Celular,
     envelope: Envelope,
     branco: Branco,
+    calculo: Calculo,
 };
 
 interface HeroArtProps {

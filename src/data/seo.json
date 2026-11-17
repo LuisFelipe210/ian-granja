@@ -53,6 +53,10 @@
     "/contato": {
       "title": "Contato | Ian Granja Advogados, Petrolina-PE",
       "description": "Fale pelo WhatsApp (87) 9 8844-8690, por e-mail ou visite o escritório na Av. Cardoso de Sá, 860, Petrolina-PE. Segunda a sexta, das 8h às 18h."
+    },
+    "/calculadora-juros-abusivos": {
+      "title": "Calculadora de Juros Abusivos | Ian Granja Advogados",
+      "description": "Compare a taxa do seu financiamento ou empréstimo com a média do Banco Central no mês em que você assinou. Grátis, sem cadastro. Petrolina-PE."
     }
   }
 }

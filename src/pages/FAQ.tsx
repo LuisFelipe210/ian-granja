@@ -65,8 +65,8 @@ const features = [
         description: "Resposta rápida. Não deixamos você esperando quando o assunto é urgente.",
     },
     {
-        title: "Primeira análise",
-        description: "Entendemos seu cenário sem compromisso para direcionar a melhor estratégia.",
+        title: "Primeira conversa",
+        description: "Lemos os seus documentos, ouvimos o relato e explicamos os caminhos possíveis.",
     },
     {
         title: "Transparência total",

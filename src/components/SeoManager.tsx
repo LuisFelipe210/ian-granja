@@ -5,6 +5,14 @@ import { practiceAreas } from "@/data/practiceAreas";
 
 const pages = seo.pages as Record<string, { title: string; description: string }>;
 
+/** Páginas de uso interno: título próprio, fora do Google e do sitemap. */
+const PRIVATE_PAGES: Record<string, { title: string; description: string }> = {
+    "/ferramentas/calculadora-revisional": {
+        title: `Calculadora revisional | ${seo.siteName}`,
+        description: "Ferramenta interna.",
+    },
+};
+
 const NOT_FOUND = {
     title: `Página não encontrada | ${seo.siteName}`,
     description: "A página que você procurou não existe ou foi movida.",
@@ -43,12 +51,13 @@ export const SeoManager = () => {
     useEffect(() => {
         const path = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
         const page = pages[path];
-        const { title, description } = page ?? NOT_FOUND;
+        const privatePage = PRIVATE_PAGES[path];
+        const { title, description } = page ?? privatePage ?? NOT_FOUND;
         const url = `${seo.siteUrl}${path === "/" ? "/" : path}`;
 
         document.title = title;
         setAttr('meta[name="description"]', "content", description);
-        setAttr('meta[name="robots"]', "content", page ? "index, follow" : "noindex, follow");
+        setAttr('meta[name="robots"]', "content", page ? "index, follow" : privatePage ? "noindex, nofollow" : "noindex, follow");
         setAttr('link[rel="canonical"]', "href", url);
         setAttr('meta[property="og:title"]', "content", title);
         setAttr('meta[property="og:description"]', "content", description);

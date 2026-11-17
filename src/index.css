@@ -177,7 +177,7 @@
 
     /* Linha de formulário: campo sublinhado, como em ficha impressa */
     .field {
-        @apply w-full bg-transparent px-0 py-3 text-base text-foreground placeholder:text-muted-foreground/80;
+        @apply w-full bg-transparent px-0 py-3 text-base text-foreground placeholder:text-ink/35;
         border: 0;
         border-bottom: 1.5px solid hsl(var(--input));
         border-radius: 0;
