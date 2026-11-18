@@ -1,34 +1,92 @@
-import { useRef, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
-import { Check, Copy, Loader2 } from "lucide-react";
-import { useReducedMotion } from "motion/react";
-import { cn } from "@/lib/utils";
-import { Campo, MesAno, ModalidadeSelect, PessoaToggle, labelClass } from "@/components/juros/Campos";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-    LIMITE_ABUSIVO,
-    analisar,
+    ArrowLeft,
+    BarChart3,
+    BookmarkCheck,
+    Calculator,
+    Check,
+    Copy,
+    CopyPlus,
+    ExternalLink,
+    FileDown,
+    FilePlus2,
+    FileSpreadsheet,
+    FolderClock,
+    KeyRound,
+    Loader2,
+    LogOut,
+    Plus,
+    Save,
+    Table2,
+    Tags,
+} from "lucide-react";
+import { useReducedMotion } from "motion/react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { labelClass } from "@/components/juros/Campos";
+import { TelaLogin, ModalAlterarSenha } from "@/components/juros/RevisionalAuth";
+import { GerenciarCategorias, SeloCategoria } from "@/components/juros/GerenciarCategorias";
+import { HistoricoCalculos } from "@/components/juros/HistoricoCalculos";
+import { FormContratoRevisional } from "@/components/juros/FormContratoRevisional";
+import { ModalRankingOlinda } from "@/components/juros/ModalRankingOlinda";
+import { SecoesPericiaisExtras } from "@/components/juros/SecoesPericiaisExtras";
+import { GraficoSerieBacen, PainelGraficosCaso } from "@/components/juros/GraficosCasoRevisional";
+import { PainelEstatisticas } from "@/components/juros/PainelEstatisticas";
+import {
+    MODALIDADES,
     brl,
-    consultarBacen,
-    historico,
-    lerDecimal,
-    lerMoeda,
-    mIdx,
     mNome,
     nivel,
     num,
     resumo,
     validar,
     type Analise,
-    type Modalidade,
     type Nivel,
-    type Pessoa,
 } from "@/lib/juros";
+import {
+    INDICES_CORRECAO_OPCOES,
+    PARAMETROS_DECISAO_PADRAO,
+    TIPOS_JUROS_OPCOES,
+    calcularProcessoRevisional,
+    contratoInputParaForm,
+    criarContratoFormEmBranco,
+    formParaContratoInput,
+    prepararDadosBacenProcesso,
+    type ContratoFormState,
+    type DeducaoItem,
+    type ParametrosDecisao,
+    type ProcessoRevisionalInput,
+    type ResultadoContrato,
+    type ResultadoProcessoRevisional,
+    type TarifaItem,
+    type TaxaOlindaSelecao,
+} from "@/lib/juros/revisional-pro";
+import { baixarCsvDemonstrativo, baixarLaudoPdf } from "@/lib/juros/laudo-pdf";
+import {
+    IS_LOCAL_SUPABASE,
+    RevisionalApiError,
+    atualizarCalculo,
+    calculoParaProcesso,
+    consumirHashRecuperacao,
+    criarCalculo,
+    criarCategoria,
+    listarCalculos,
+    listarCategorias,
+    obterSessaoAtiva,
+    processoParaPayload,
+    sairDaSessao,
+    type CalculoSalvo,
+    type Categoria,
+    type FichaCliente,
+    type RevisionalSession,
+} from "@/lib/revisional-db";
 import { HeroArt } from "@/components/HeroArt";
 import logo from "@/assets/logo2.png";
 
 /**
- * Calculadora revisional completa, para uso do advogado.
- * Fica fora do menu e fora do sitemap (noindex no SeoManager): acesso só pelo link.
+ * Calculadora revisional pericial completa, para uso interno do escritório.
+ * Protegida por login fechado no Supabase, com histórico, categorias, API Olinda e Laudo PDF.
  */
 
 const ROTULO: Record<Nivel, string> = { abuso: "Indício de abuso", acima: "Acima da média", media: "Na média" };
@@ -38,11 +96,34 @@ const COR: Record<Nivel, string> = {
     media: "bg-ink/10 text-ink",
 };
 
+const FICHA_VAZIA: FichaCliente = {
+    clienteNome: "",
+    processoGlobal: "",
+    banco: "",
+    documentoContrato: "",
+    categoriaId: null,
+    observacoes: "",
+};
+
 const Selo = ({ n }: { n: Nivel }) => (
     <span className={cn("inline-block px-2.5 py-1 text-xs font-semibold", COR[n])}>{ROTULO[n]}</span>
 );
 
-const Comparacao = ({ titulo, contrato, media, serie, mes, razao }: { titulo: string; contrato: string; media: string; serie: number | null; mes: string; razao: number }) => (
+const Comparacao = ({
+    titulo,
+    contrato,
+    media,
+    serie,
+    mes,
+    razao,
+}: {
+    titulo: string;
+    contrato: string;
+    media: string;
+    serie: number | null;
+    mes: string;
+    razao: number;
+}) => (
     <div className="border border-ink/25 bg-card p-5">
         <div className="flex items-center justify-between gap-3">
             <h3 className="rubric text-ink/80">{titulo}</h3>
@@ -55,102 +136,26 @@ const Comparacao = ({ titulo, contrato, media, serie, mes, razao }: { titulo: st
             </div>
             <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">
-                    Média BACEN {mNome(mes)}
+                    Média BCB {mNome(mes)}
                     {serie ? <span className="text-xs"> · SGS {serie}</span> : null}
                 </dt>
                 <dd className="font-semibold text-ink">{media}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-4 border-t border-ink/20 pt-2">
-                <dt className="text-muted-foreground">Contrato / média</dt>
+                <dt className="text-muted-foreground">Contrato / paradigma</dt>
                 <dd className="subdisplay text-2xl text-ink">{num(razao)}x</dd>
             </div>
         </dl>
     </div>
 );
 
-/** Taxa média mensal ao longo do tempo, com a taxa do contrato e o mês da contratação. */
-const Grafico = ({ a }: { a: Analise }) => {
-    const serie = a.media.serieAm;
-    const pts = serie ? historico(serie, a.entrada.mes) : [];
-    if (pts.length < 2) return null;
-
-    const W = 720;
-    const H = 240;
-    const L = 46;
-    const R = 14;
-    const T = 14;
-    const B = 30;
-    const ini = mIdx(pts[0].mes);
-    const fim = mIdx(pts[pts.length - 1].mes);
-    const ymax = Math.max(a.contratoAm, ...pts.map((p) => p.v)) * 1.15;
-    const X = (ix: number) => L + ((ix - ini) / Math.max(1, fim - ini)) * (W - L - R);
-    const Y = (v: number) => T + (1 - v / ymax) * (H - T - B);
-    const kx = mIdx(a.media.mes);
-    const anos: number[] = [];
-    for (let ix = ini; ix <= fim; ix++) if (ix % 12 === 0) anos.push(ix);
-
-    return (
-        <figure className="border border-ink/25 bg-card p-4">
-            <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Taxa média mensal do BACEN ao longo do tempo comparada à taxa do contrato">
-                {[0, 1, 2, 3, 4].map((t) => {
-                    const v = (ymax * t) / 4;
-                    return (
-                        <g key={t}>
-                            <line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="hsl(var(--border))" />
-                            <text x={L - 8} y={Y(v) + 4} fontSize="11" textAnchor="end" fill="hsl(var(--muted-foreground))">
-                                {num(v, 1)}%
-                            </text>
-                        </g>
-                    );
-                })}
-                {anos.map((ix) => (
-                    <text key={ix} x={X(ix)} y={H - 8} fontSize="11" textAnchor="middle" fill="hsl(var(--muted-foreground))">
-                        {Math.floor(ix / 12)}
-                    </text>
-                ))}
-                <polyline
-                    fill="none"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth="2.5"
-                    strokeLinejoin="round"
-                    points={pts.map((p) => `${X(mIdx(p.mes)).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ")}
-                />
-                <line x1={L} x2={W - R} y1={Y(a.contratoAm)} y2={Y(a.contratoAm)} stroke="hsl(var(--destructive))" strokeWidth="2" strokeDasharray="6 4" />
-                <line x1={L} x2={W - R} y1={Y(a.media.am * LIMITE_ABUSIVO)} y2={Y(a.media.am * LIMITE_ABUSIVO)} stroke="hsl(var(--gold))" strokeWidth="1.5" strokeDasharray="2 4" />
-                {kx >= ini && kx <= fim && (
-                    <g>
-                        <line x1={X(kx)} x2={X(kx)} y1={T} y2={H - B} stroke="hsl(var(--gold-deep))" strokeWidth="1.5" />
-                        <circle cx={X(kx)} cy={Y(a.media.am)} r="5" fill="hsl(var(--gold-light))" stroke="hsl(var(--primary))" strokeWidth="2" />
-                    </g>
-                )}
-            </svg>
-            <figcaption className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                    <span className="h-0.5 w-5 bg-ink" />
-                    Média BACEN, % a.m. (SGS {serie})
-                </span>
-                <span className="inline-flex items-center gap-2">
-                    <span className="h-0.5 w-5 border-t-2 border-dashed border-destructive" />
-                    Taxa do contrato
-                </span>
-                <span className="inline-flex items-center gap-2">
-                    <span className="h-0.5 w-5 border-t-2 border-dotted border-gold" />
-                    {num(LIMITE_ABUSIVO, 1)}x a média do mês
-                </span>
-                <span className="inline-flex items-center gap-2">
-                    <span className="h-3 w-0.5 bg-gold-deep" />
-                    Contratação ({mNome(a.media.mes)})
-                </span>
-            </figcaption>
-        </figure>
-    );
-};
-
 const Linha = ({ rotulo, a, b, fmt }: { rotulo: string; a: number; b: number; fmt: (x: number) => string }) => {
     const d = a - b;
     return (
         <tr className="border-b border-ink/15 last:border-0">
-            <th scope="row" className="py-2.5 pr-4 text-left font-medium text-ink">{rotulo}</th>
+            <th scope="row" className="py-2.5 pr-4 text-left font-medium text-ink">
+                {rotulo}
+            </th>
             <td className="py-2.5 pl-4 text-right">{fmt(a)}</td>
             <td className="py-2.5 pl-4 text-right">{fmt(b)}</td>
             <td className={cn("py-2.5 pl-4 text-right font-semibold", d > 0.004 ? "text-destructive" : "text-ink")}>
@@ -161,73 +166,138 @@ const Linha = ({ rotulo, a, b, fmt }: { rotulo: string; a: number; b: number; fm
     );
 };
 
-const Resultado = ({ a, online }: { a: Analise; online: boolean }) => {
-    const [copiado, setCopiado] = useState(false);
+const montarTextoPeticaoPro = (
+    res: ResultadoProcessoRevisional,
+    ficha: FichaCliente,
+    categoria?: Categoria | null,
+) => {
+    const linhas: string[] = [];
+    if (ficha.clienteNome.trim()) linhas.push(`Cliente / Autor(a): ${ficha.clienteNome.trim()}`);
+    if (ficha.processoGlobal?.trim()) linhas.push(`Processo nº: ${ficha.processoGlobal.trim()}`);
+    if (categoria) linhas.push(`Categoria: ${categoria.nome}`);
+
+    const indiceLabel =
+        res.parametros.tipoJuros === "SELIC"
+            ? "SELIC (englobando correção + juros)"
+            : (INDICES_CORRECAO_OPCOES.find((o) => o.id === res.parametros.indiceCorrecao)?.label ?? "");
+    const jurosLabel =
+        res.parametros.tipoJuros === "FIXO_CUSTOM"
+            ? `${num(res.parametros.jurosFixoMensal)}% a.m.`
+            : (TIPOS_JUROS_OPCOES.find((o) => o.id === res.parametros.tipoJuros)?.label ?? "");
+
+    linhas.push(`Atualização até ${res.parametros.dataBaseAtualizacao}: ${indiceLabel} | Juros: ${jurosLabel}`);
+
+    const blocosContratos = res.contratos.map((rc, idx) => {
+        const analiseTexto: Analise =
+            rc.contrato.fonteTaxaRevisional === "banco_olinda"
+                ? { ...rc.analise, media: { ...rc.analise.media, nota: "" } }
+                : rc.analise;
+        const cab = [
+            `--- Contrato ${idx + 1}: ${rc.contrato.descricao || rc.analise.entrada.mod.nome} ---`,
+            rc.contrato.instituicao ? `Instituição financeira: ${rc.contrato.instituicao}` : "",
+            rc.contrato.numeroContrato ? `Nº contrato: ${rc.contrato.numeroContrato}` : "",
+            `Paradigma: ${rc.fonteTaxaRotulo}`,
+            resumo(analiseTexto),
+            `Diferença nas pagas atualizada: ${brl(rc.totalAtualizadoParcelas)}${rc.extrasAtualizado > 0 ? ` | Extras: ${brl(rc.extrasAtualizado)}` : ""}`,
+        ]
+            .filter(Boolean)
+            .join("\n");
+        return cab;
+    });
+
+    const partes = [linhas.join("\n"), ...blocosContratos];
+
+    if (res.tarifas.length > 0) {
+        const tarLines = res.tarifas.map(
+            (t) =>
+                `- ${t.titulo}: ${brl(t.valorOriginal)} (${t.item.emDobro ? "em dobro" : "simples"}) -> atualizado: ${brl(t.total)}`,
+        );
+        partes.push(["Seguros e Tarifas Abusivas:", ...tarLines].join("\n"));
+    }
+
+    const r = res.resumo;
+    partes.push(
+        [
+            "Resumo Global da Ação:",
+            `Total líquido a restituir / compensar: ${brl(r.totalRestituicaoAtualizado)}`,
+            r.economiaVincendasTotal > 0 ? `Economia nas parcelas vincendas: ${brl(r.economiaVincendasTotal)}` : "",
+            `Proveito econômico / Valor total da ação: ${brl(r.valorTotalAcao)}`,
+        ]
+            .filter(Boolean)
+            .join("\n"),
+    );
+
+    if (ficha.observacoes.trim()) {
+        partes.push(`Observações: ${ficha.observacoes.trim()}`);
+    }
+
+    return partes.join("\n\n");
+};
+
+const BlocoContratoResultado = ({
+    rc,
+    emDobro,
+}: {
+    rc: ResultadoContrato;
+    emDobro: boolean;
+}) => {
+    const a = rc.analise;
     const e = a.entrada;
-    const texto = resumo(a);
     const pct = (x: number) => `${num(x)}%`;
 
-    const copiar = async () => {
-        try {
-            await navigator.clipboard.writeText(texto);
-            setCopiado(true);
-            setTimeout(() => setCopiado(false), 1800);
-        } catch {
-            /* sem permissão de área de transferência: o texto continua visível para copiar à mão */
-        }
-    };
-
     return (
-        <div className="space-y-8" aria-live="polite">
-            <header className="border-b border-ink/25 pb-6">
+        <div className="space-y-7">
+            <header className="border-b border-ink/25 pb-5">
                 <div className="flex flex-wrap items-center gap-3">
-                    <Selo n={a.nivel} />
+                    <Selo n={rc.nivel} />
                     <span className="text-sm text-muted-foreground">
                         {e.mod.nome} ({e.mod.pessoa.toUpperCase()}) · contratado em {mNome(e.mes)}
+                        {rc.contrato.instituicao ? ` · ${rc.contrato.instituicao}` : ""}
                     </span>
                 </div>
                 <h2 className="subdisplay mt-4 text-[2rem] text-ink">
-                    {a.nivel === "media" ? "Taxa dentro da média de mercado" : `Taxa ${num(a.razaoAm, 2)}x a média mensal`}
+                    {rc.nivel === "media" ? "Taxa dentro da média" : `Taxa ${num(a.razaoAm, 2)}x a média mensal`}
                 </h2>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    {a.manual
-                        ? "Taxa média informada manualmente."
-                        : `Fonte: BACEN/SGS, séries ${a.media.serieAm} (% a.m.) e ${a.media.serieAa} (% a.a.), ${mNome(a.media.mes)}. ${online ? "Consultado agora no Banco Central." : "BACEN indisponível: usados os dados guardados no site."}`}
-                    {a.media.nota && <span className="mt-1 block font-medium text-ink">{a.media.nota}</span>}
-                    {nivel(a.razaoAa) !== a.nivel && (
+                <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+                    Paradigma: <strong className="text-ink">{rc.fonteTaxaRotulo}</strong> ·{" "}
+                    {rc.onlineBacen ? "Séries atualizadas no Banco Central." : "Dados guardados / entrada manual."}
+                    {rc.contrato.fonteTaxaRevisional === "media_sgs" && a.media.nota && (
+                        <span className="mt-1 block font-medium text-ink">{a.media.nota}</span>
+                    )}
+                    {nivel(a.razaoAa) !== rc.nivel && (
                         <span className="mt-1 block font-medium text-ink">
                             Na capitalização composta anual, a razão atinge {num(a.razaoAa, 2)}x da média anual.
                         </span>
                     )}
                     {a.custosEmbutidos && (
                         <span className="mt-1 block font-medium text-destructive">
-                            Pelas parcelas, a taxa efetiva é {pct(a.taxaEfetiva)} a.m., maior que a informada ({pct(a.contratoAm)} a.m.): há custos embutidos.
+                            Pelas parcelas, a taxa efetiva é {pct(a.taxaEfetiva)} a.m., maior que a informada (
+                            {pct(a.contratoAm)} a.m.): há custos ou seguros embutidos.
                         </span>
                     )}
                 </p>
             </header>
 
             <div className="grid gap-4 md:grid-cols-2">
-                <Comparacao titulo="Mensal" contrato={`${pct(a.contratoAm)} a.m.`} media={`${pct(a.media.am)} a.m.`} serie={a.media.serieAm} mes={a.media.mes} razao={a.razaoAm} />
-                <Comparacao titulo="Anual" contrato={`${pct(a.contratoAa)} a.a.`} media={`${pct(a.media.aa)} a.a.`} serie={a.media.serieAa} mes={a.media.mes} razao={a.razaoAa} />
+                <Comparacao
+                    titulo="Mensal"
+                    contrato={`${pct(a.contratoAm)} a.m.`}
+                    media={`${pct(a.media.am)} a.m.`}
+                    serie={a.media.serieAm}
+                    mes={a.media.mes}
+                    razao={a.razaoAm}
+                />
+                <Comparacao
+                    titulo="Anual"
+                    contrato={`${pct(a.contratoAa)} a.a.`}
+                    media={`${pct(a.media.aa)} a.a.`}
+                    serie={a.media.serieAa}
+                    mes={a.media.mes}
+                    razao={a.razaoAa}
+                />
             </div>
 
-            <dl className="grid border-y border-ink/25 tabular-nums sm:grid-cols-3 sm:divide-x sm:divide-ink/20">
-                <div className="py-5 sm:pr-5">
-                    <dt className="text-sm text-muted-foreground">Diferença no contrato todo</dt>
-                    <dd className="subdisplay mt-1 text-[1.75rem] text-ink">{brl(a.diferenca)}</dd>
-                </div>
-                <div className="border-t border-ink/20 py-5 sm:border-t-0 sm:px-5">
-                    <dt className="text-sm text-muted-foreground">Já pago a mais ({e.pagas} parcelas)</dt>
-                    <dd className="subdisplay mt-1 text-[1.75rem] text-ink">{brl(a.pagoAMais)}</dd>
-                </div>
-                <div className="border-t border-ink/20 py-5 sm:border-t-0 sm:pl-5">
-                    <dt className="text-sm text-muted-foreground">Em dobro (art. 42, CDC)</dt>
-                    <dd className="subdisplay mt-1 text-[1.75rem] text-ink">{brl(a.pagoAMais * 2)}</dd>
-                </div>
-            </dl>
-
-            <Grafico a={a} />
+            <GraficoSerieBacen rc={rc} />
 
             <div className="overflow-x-auto border border-ink/25 bg-card px-5 py-2">
                 <table className="w-full min-w-[34rem] text-sm tabular-nums">
@@ -237,7 +307,7 @@ const Resultado = ({ a, online }: { a: Analise; online: boolean }) => {
                                 <span className="sr-only">Item</span>
                             </th>
                             <th className="py-2.5 pl-4 text-right font-semibold">Contrato</th>
-                            <th className="py-2.5 pl-4 text-right font-semibold">Na taxa média</th>
+                            <th className="py-2.5 pl-4 text-right font-semibold">Paradigma</th>
                             <th className="py-2.5 pl-4 text-right font-semibold">Diferença</th>
                         </tr>
                     </thead>
@@ -248,14 +318,439 @@ const Resultado = ({ a, online }: { a: Analise; online: boolean }) => {
                         <Linha rotulo="Total de juros" a={a.juros} b={a.jurosNaMedia} fmt={brl} />
                         {e.pagas > 0 && e.pagas < e.parcelas && (
                             <>
-                                <Linha rotulo="Saldo no cronograma (original vs. média)" a={a.saldoHoje} b={a.saldoHojeNaMedia} fmt={brl} />
-                                <Linha rotulo="Saldo recalculado (abatendo pagas)" a={a.saldoHoje} b={a.saldoRecalculado} fmt={brl} />
+                                <Linha
+                                    rotulo="Saldo no cronograma (original vs. média)"
+                                    a={a.saldoHoje}
+                                    b={a.saldoHojeNaMedia}
+                                    fmt={brl}
+                                />
+                                <Linha
+                                    rotulo="Saldo recalculado (abatendo pagas)"
+                                    a={a.saldoHoje}
+                                    b={a.saldoRecalculado}
+                                    fmt={brl}
+                                />
                             </>
                         )}
                         <Linha rotulo="Total a pagar" a={a.total} b={a.totalNaMedia} fmt={brl} />
                     </tbody>
                 </table>
             </div>
+
+            <details className="group border border-ink/25 bg-card">
+                <summary className="cursor-pointer px-5 py-4 font-semibold text-ink">
+                    Demonstrativo completo das parcelas (atualizado: {brl(rc.totalAtualizadoParcelas)})
+                </summary>
+                <div className="max-h-[28rem] overflow-auto border-t border-ink/25">
+                    <table className="w-full min-w-[46rem] text-xs tabular-nums">
+                        <thead className="sticky top-0 bg-secondary text-muted-foreground">
+                            <tr>
+                                <th className="px-3 py-2.5 text-left font-semibold">Nº</th>
+                                <th className="px-3 py-2.5 text-left font-semibold">Vencimento</th>
+                                <th className="px-3 py-2.5 text-right font-semibold">Devido</th>
+                                <th className="px-3 py-2.5 text-right font-semibold">Pago</th>
+                                <th className="px-3 py-2.5 text-right font-semibold">
+                                    {emDobro ? "Dif. (Dobro)" : "Diferença"}
+                                </th>
+                                <th className="px-3 py-2.5 text-right font-semibold">Correção</th>
+                                <th className="px-3 py-2.5 text-right font-semibold">Juros</th>
+                                <th className="px-3 py-2.5 text-right font-semibold">Total Atualizado</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ink/10">
+                            {rc.linhas.map((l) => (
+                                <tr key={l.numero} className={cn(!l.paga && "bg-background/50 text-muted-foreground")}>
+                                    <td className="px-3 py-2">
+                                        {l.numero}
+                                        {l.paga && <Check aria-hidden className="ml-1 inline size-3 text-gold-deep" />}
+                                    </td>
+                                    <td className="px-3 py-2">{l.vencimento.split("-").reverse().join("/")}</td>
+                                    <td className="px-3 py-2 text-right">{brl(l.valorDevido)}</td>
+                                    <td className="px-3 py-2 text-right">{l.paga ? brl(l.valorPago) : "Vincenda"}</td>
+                                    <td className="px-3 py-2 text-right">{brl(l.diferencaBaseRestituicao)}</td>
+                                    <td className="px-3 py-2 text-right">{brl(l.correcao)}</td>
+                                    <td className="px-3 py-2 text-right">{brl(l.juros)}</td>
+                                    <td className="px-3 py-2 text-right font-semibold text-ink">
+                                        {brl(l.totalAtualizado)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+
+            {rc.extras.length > 0 && (
+                <div className="overflow-x-auto border border-ink/25 bg-card p-5">
+                    <h3 className="font-semibold text-ink">Pagamentos extras / antecipações</h3>
+                    <table className="mt-3 w-full text-xs tabular-nums">
+                        <thead>
+                            <tr className="border-b border-ink/20 text-muted-foreground">
+                                <th className="py-2 text-left">Descrição</th>
+                                <th className="py-2 text-left">Data</th>
+                                <th className="py-2 text-right">Base</th>
+                                <th className="py-2 text-right">Correção</th>
+                                <th className="py-2 text-right">Juros</th>
+                                <th className="py-2 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ink/10">
+                            {rc.extras.map((ex) => (
+                                <tr key={ex.id}>
+                                    <td className="py-2">{ex.descricao}</td>
+                                    <td className="py-2">{ex.data.split("-").reverse().join("/")}</td>
+                                    <td className="py-2 text-right">{brl(ex.valorBase)}</td>
+                                    <td className="py-2 text-right">{brl(ex.correcao)}</td>
+                                    <td className="py-2 text-right">{brl(ex.juros)}</td>
+                                    <td className="py-2 text-right font-semibold">{brl(ex.total)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+interface ResultadoPainelProps {
+    resultado: ResultadoProcessoRevisional;
+    ficha: FichaCliente;
+    categoria?: Categoria | null;
+    calculoAtivoId: string | null;
+    salvando: boolean;
+    onSalvar: (comoNovo: boolean) => void;
+}
+
+const ResultadoPainel = ({
+    resultado,
+    ficha,
+    categoria,
+    calculoAtivoId,
+    salvando,
+    onSalvar,
+}: ResultadoPainelProps) => {
+    const [contratoAtivoIdx, setContratoAtivoIdx] = useState(0);
+    const [visaoResultado, setVisaoResultado] = useState<"demonstrativo" | "graficos">("demonstrativo");
+    const [incluirGraficosPdf, setIncluirGraficosPdf] = useState(true);
+    const [copiado, setCopiado] = useState(false);
+
+    const safeIdx = Math.min(contratoAtivoIdx, Math.max(0, resultado.contratos.length - 1));
+    const contratoAtual = resultado.contratos[safeIdx];
+    const r = resultado.resumo;
+    const texto = montarTextoPeticaoPro(resultado, ficha, categoria);
+
+    const copiar = async () => {
+        try {
+            await navigator.clipboard.writeText(texto);
+            setCopiado(true);
+            setTimeout(() => setCopiado(false), 1800);
+        } catch {
+            /* fallback manual */
+        }
+    };
+
+    const baixarPdf = () => {
+        try {
+            const ok = baixarLaudoPdf(resultado, {
+                clienteNome: ficha.clienteNome || "Cliente",
+                processoGlobal: ficha.processoGlobal,
+                categoriaNome: categoria?.nome,
+                observacoes: ficha.observacoes,
+                incluirGraficos: incluirGraficosPdf,
+            });
+            if (ok) {
+                toast.success("Laudo PDF baixado.");
+            }
+        } catch {
+            toast.error("Não foi possível gerar o arquivo PDF agora.");
+        }
+    };
+
+    return (
+        <div className="space-y-8" aria-live="polite">
+            {/* Barra de ações: salvar, PDF e CSV */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border border-ink/25 bg-card px-5 py-4">
+                <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {calculoAtivoId ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#126A35]">
+                                <BookmarkCheck className="size-4" />
+                                Vinculado ao histórico
+                            </span>
+                        ) : (
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Cálculo ainda não salvo
+                            </span>
+                        )}
+                        {ficha.clienteNome.trim() && (
+                            <span className="text-sm font-semibold text-ink">· {ficha.clienteNome.trim()}</span>
+                        )}
+                        {categoria && <SeloCategoria categoria={categoria} />}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        Exporte o Laudo Técnico em A4, baixe a planilha CSV ou salve o caso completo no banco.
+                    </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={baixarPdf}
+                        className="inline-flex min-h-10 items-center gap-2 border border-gold bg-gold-light px-3.5 text-xs font-semibold text-ink hover:bg-paper-white"
+                    >
+                        <FileDown className="size-4" />
+                        Laudo PDF
+                    </button>
+
+                    <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 border border-ink/25 bg-background/60 px-3 text-xs font-medium text-ink select-none">
+                        <input
+                            type="checkbox"
+                            checked={incluirGraficosPdf}
+                            onChange={(e) => setIncluirGraficosPdf(e.target.checked)}
+                            className="accent-ink"
+                        />
+                        Gráficos no PDF
+                    </label>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            baixarCsvDemonstrativo(resultado, {
+                                clienteNome: ficha.clienteNome || "cliente",
+                                processoGlobal: ficha.processoGlobal,
+                            })
+                        }
+                        className="inline-flex min-h-10 items-center gap-2 border border-ink/35 px-3 text-xs font-semibold text-ink hover:bg-ink/5"
+                    >
+                        <FileSpreadsheet className="size-4" />
+                        CSV
+                    </button>
+
+                    {calculoAtivoId ? (
+                        <>
+                            <button
+                                type="button"
+                                disabled={salvando}
+                                onClick={() => onSalvar(false)}
+                                className="inline-flex min-h-10 items-center gap-2 bg-ink px-4 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
+                            >
+                                {salvando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                                Atualizar salvo
+                            </button>
+                            <button
+                                type="button"
+                                disabled={salvando}
+                                onClick={() => onSalvar(true)}
+                                className="inline-flex min-h-10 items-center gap-2 border border-ink/35 px-3 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-70"
+                            >
+                                <CopyPlus className="size-4" />
+                                Salvar novo
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            type="button"
+                            disabled={salvando}
+                            onClick={() => onSalvar(true)}
+                            className="inline-flex min-h-10 items-center gap-2 bg-ink px-4 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
+                        >
+                            {salvando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                            Salvar no histórico
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Quadro Resumo Global do Laudo */}
+            <section className="border-2 border-ink bg-card">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-ink px-5 py-3 text-paper">
+                    <h2 className="rubric text-gold-light">Resumo Global do Laudo</h2>
+                    <span className="text-xs text-paper/75">
+                        {resultado.contratos.length}{" "}
+                        {resultado.contratos.length === 1 ? "contrato" : "contratos"} · atualização até{" "}
+                        {resultado.parametros.dataBaseAtualizacao.split("-").reverse().join("/")}
+                    </span>
+                </div>
+
+                <dl className="divide-y divide-ink/15 px-5 text-sm tabular-nums">
+                    <div className="flex items-center justify-between gap-4 py-3">
+                        <dt className="text-muted-foreground">
+                            Diferenças nas parcelas pagas (atualizadas)
+                            {resultado.parametros.restituicaoDobroParcelas ? " · Art. 42 CDC (dobro)" : ""}
+                        </dt>
+                        <dd className="font-semibold text-ink">{brl(r.principalContratosAtualizado)}</dd>
+                    </div>
+                    {r.extrasAtualizado > 0 && (
+                        <div className="flex items-center justify-between gap-4 py-3">
+                            <dt className="text-muted-foreground">Pagamentos extras / antecipações</dt>
+                            <dd className="font-semibold text-ink">{brl(r.extrasAtualizado)}</dd>
+                        </div>
+                    )}
+                    {r.tarifasAtualizado > 0 && (
+                        <div className="flex items-center justify-between gap-4 py-3">
+                            <dt className="text-muted-foreground">Seguros prestamistas e tarifas abusivas</dt>
+                            <dd className="font-semibold text-ink">{brl(r.tarifasAtualizado)}</dd>
+                        </div>
+                    )}
+                    {r.deducoesAtualizado > 0 && (
+                        <div className="flex items-center justify-between gap-4 py-3">
+                            <dt className="text-muted-foreground">(-) Deduções / Alvarás abatidos</dt>
+                            <dd className="font-semibold text-destructive">- {brl(r.deducoesAtualizado)}</dd>
+                        </div>
+                    )}
+                    {r.valorMultaGlobal > 0 && (
+                        <div className="flex items-center justify-between gap-4 py-3">
+                            <dt className="text-muted-foreground">
+                                Multa global ({num(resultado.parametros.multaGlobalPercentual)}%)
+                            </dt>
+                            <dd className="font-semibold text-ink">{brl(r.valorMultaGlobal)}</dd>
+                        </div>
+                    )}
+                    {r.valorHonorarios > 0 && (
+                        <div className="flex items-center justify-between gap-4 py-3">
+                            <dt className="text-muted-foreground">
+                                Honorários ({num(resultado.parametros.honorariosPercentual)}%)
+                            </dt>
+                            <dd className="font-semibold text-ink">{brl(r.valorHonorarios)}</dd>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-between gap-4 py-3">
+                        <dt className="font-medium text-ink">Total líquido a restituir / compensar</dt>
+                        <dd className="font-bold text-ink">{brl(r.totalRestituicaoAtualizado)}</dd>
+                    </div>
+                    {r.economiaVincendasTotal > 0 && (
+                        <div className="flex items-center justify-between gap-4 py-3">
+                            <dt className="text-muted-foreground">Economia nas parcelas vincendas</dt>
+                            <dd className="font-semibold text-ink">{brl(r.economiaVincendasTotal)}</dd>
+                        </div>
+                    )}
+                    <div className="flex flex-wrap items-baseline justify-between gap-4 bg-gold-light/30 px-5 py-4 -mx-5">
+                        <dt className="subdisplay text-base text-ink">PROVEITO ECONÔMICO / VALOR DA AÇÃO</dt>
+                        <dd className="display text-[1.75rem] text-ink">{brl(r.valorTotalAcao)}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            {/* Alternância entre Demonstrativo/Tabelas e Gráficos Periciais */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/25 pb-2">
+                <div className="inline-flex border border-ink/25 bg-card">
+                    <button
+                        type="button"
+                        onClick={() => setVisaoResultado("demonstrativo")}
+                        className={cn(
+                            "inline-flex min-h-10 items-center gap-2 px-4 text-xs font-semibold transition-colors",
+                            visaoResultado === "demonstrativo"
+                                ? "bg-ink text-paper"
+                                : "text-ink hover:bg-ink/5",
+                        )}
+                    >
+                        <Table2 className="size-3.5" />
+                        Demonstrativo e Tabelas
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setVisaoResultado("graficos")}
+                        className={cn(
+                            "inline-flex min-h-10 items-center gap-2 border-l border-ink/25 px-4 text-xs font-semibold transition-colors",
+                            visaoResultado === "graficos"
+                                ? "bg-ink text-paper"
+                                : "text-ink hover:bg-ink/5",
+                        )}
+                    >
+                        <BarChart3 className="size-3.5" />
+                        Gráficos Periciais (4)
+                    </button>
+                </div>
+
+                {resultado.contratos.length > 1 && (
+                    <div className="flex flex-wrap gap-1">
+                        {resultado.contratos.map((rc, idx) => (
+                            <button
+                                key={rc.contrato.id}
+                                type="button"
+                                onClick={() => setContratoAtivoIdx(idx)}
+                                className={cn(
+                                    "border border-ink/25 px-3 py-1.5 text-xs font-semibold transition-colors",
+                                    safeIdx === idx ? "bg-ink text-paper" : "bg-card text-ink hover:bg-ink/5",
+                                )}
+                            >
+                                {rc.contrato.descricao || `Contrato ${idx + 1}`}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {contratoAtual &&
+                (visaoResultado === "graficos" ? (
+                    <PainelGraficosCaso rc={contratoAtual} resultado={resultado} />
+                ) : (
+                    <BlocoContratoResultado
+                        rc={contratoAtual}
+                        emDobro={resultado.parametros.restituicaoDobroParcelas}
+                    />
+                ))}
+
+            {resultado.tarifas.length > 0 && (
+                <section className="overflow-x-auto border border-ink/25 bg-card p-5">
+                    <h3 className="font-semibold text-ink">Seguros Prestamistas e Tarifas Abusivas</h3>
+                    <table className="mt-3 w-full min-w-[34rem] text-xs tabular-nums">
+                        <thead>
+                            <tr className="border-b border-ink/20 text-muted-foreground">
+                                <th className="py-2 text-left">Descrição</th>
+                                <th className="py-2 text-left">Data</th>
+                                <th className="py-2 text-left">Tipo</th>
+                                <th className="py-2 text-right">Original</th>
+                                <th className="py-2 text-right">Correção</th>
+                                <th className="py-2 text-right">Juros</th>
+                                <th className="py-2 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ink/10">
+                            {resultado.tarifas.map((t) => (
+                                <tr key={t.item.id}>
+                                    <td className="py-2 font-medium text-ink">{t.titulo}</td>
+                                    <td className="py-2">{t.item.dataCobranca.split("-").reverse().join("/")}</td>
+                                    <td className="py-2">{t.item.emDobro ? "Dobro (Art. 42)" : "Simples"}</td>
+                                    <td className="py-2 text-right">{brl(t.valorOriginal)}</td>
+                                    <td className="py-2 text-right">{brl(t.correcao)}</td>
+                                    <td className="py-2 text-right">{brl(t.juros)}</td>
+                                    <td className="py-2 text-right font-semibold text-ink">{brl(t.total)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </section>
+            )}
+
+            {resultado.deducoes.length > 0 && (
+                <section className="overflow-x-auto border border-ink/25 bg-card p-5">
+                    <h3 className="font-semibold text-ink">Valores a Deduzir (Pagamentos / Alvarás)</h3>
+                    <table className="mt-3 w-full text-xs tabular-nums">
+                        <thead>
+                            <tr className="border-b border-ink/20 text-muted-foreground">
+                                <th className="py-2 text-left">Descrição</th>
+                                <th className="py-2 text-left">Data</th>
+                                <th className="py-2 text-right">Base</th>
+                                <th className="py-2 text-right">Correção + Juros</th>
+                                <th className="py-2 text-right">Total Deduzido</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ink/10">
+                            {resultado.deducoes.map((d) => (
+                                <tr key={d.item.id}>
+                                    <td className="py-2 font-medium text-ink">{d.item.descricao || "Alvará"}</td>
+                                    <td className="py-2">{d.item.data.split("-").reverse().join("/")}</td>
+                                    <td className="py-2 text-right">{brl(d.valorBase)}</td>
+                                    <td className="py-2 text-right">{brl(d.correcao + d.juros)}</td>
+                                    <td className="py-2 text-right font-semibold text-destructive">-{brl(d.total)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </section>
+            )}
 
             <section className="border border-ink/25 bg-card p-5">
                 <div className="flex items-center justify-between gap-4">
@@ -271,208 +766,791 @@ const Resultado = ({ a, online }: { a: Analise; online: boolean }) => {
                 </div>
                 <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-relaxed text-ink/90">{texto}</pre>
             </section>
-
-            <details className="group border border-ink/25 bg-card">
-                <summary className="cursor-pointer px-5 py-4 font-semibold text-ink">Parcela por parcela (taxa efetiva {pct(a.taxaEfetiva)} a.m.)</summary>
-                <div className="max-h-[26rem] overflow-auto border-t border-ink/25">
-                    <TabelaParcelas a={a} />
-                </div>
-            </details>
         </div>
     );
 };
 
-const TabelaParcelas = ({ a }: { a: Analise }) => {
-    const e = a.entrada;
-    const i = a.taxaEfetiva / 100;
-    const linhas: { q: number; j: number; am: number; s: number }[] = [];
-    let s = e.valor;
-    for (let q = 1; q <= e.parcelas; q++) {
-        const j = s * i;
-        const am = e.parcela - j;
-        s = Math.max(0, s - am);
-        linhas.push({ q, j, am, s });
-    }
-    return (
-        <table className="w-full min-w-[40rem] text-sm tabular-nums">
-            <thead className="sticky top-0 bg-secondary text-xs text-muted-foreground">
-                <tr>
-                    {["Nº", "Parcela", "Juros", "Amortização", "Saldo devedor", "Parcela na média"].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-right font-semibold first:text-left">
-                            {h}
-                        </th>
-                    ))}
-                </tr>
-            </thead>
-            <tbody>
-                {linhas.map(({ q, j, am, s }) => (
-                    <tr key={q} className={cn("border-t border-ink/10", q <= e.pagas && "text-muted-foreground")}>
-                        <td className="px-4 py-2 text-left">
-                            {q}
-                            {q <= e.pagas && <span className="sr-only"> (paga)</span>}
-                            {q <= e.pagas && <Check aria-hidden className="ml-1.5 inline size-3.5 text-gold-deep" />}
-                        </td>
-                        <td className="px-4 py-2 text-right">{brl(e.parcela)}</td>
-                        <td className="px-4 py-2 text-right">{brl(j)}</td>
-                        <td className="px-4 py-2 text-right">{brl(am)}</td>
-                        <td className="px-4 py-2 text-right">{brl(s)}</td>
-                        <td className="px-4 py-2 text-right">{brl(a.parcelaNaMedia)}</td>
-                    </tr>
-                ))}
-            </tbody>
-        </table>
-    );
-};
+type AbaAtiva = "calculadora" | "painel" | "historico" | "categorias";
+
+const BASE_ROTA = "/ferramentas/calculadora-revisional";
 
 const CalculadoraAdvogado = () => {
     const reduce = useReducedMotion();
-    const [pessoa, setPessoa] = useState<Pessoa>("pf");
-    const [mod, setMod] = useState<Modalidade | null>(null);
-    const [mes, setMes] = useState("");
-    const [ano, setAno] = useState("");
-    const [taxaM, setTaxaM] = useState("");
-    const [taxaA, setTaxaA] = useState("");
-    const [valorF, setValorF] = useState("");
-    const [parcela, setParcela] = useState("");
-    const [parcelas, setParcelas] = useState("");
-    const [pagas, setPagas] = useState("");
-    const [mediaM, setMediaM] = useState("");
-    const [mediaA, setMediaA] = useState("");
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    const subRota = location.pathname.startsWith(BASE_ROTA)
+        ? location.pathname.slice(BASE_ROTA.length).replace(/^\/+|\/+$/g, "")
+        : "";
+    const aba: AbaAtiva =
+        subRota === "painel"
+            ? "painel"
+            : subRota === "historico"
+              ? "historico"
+              : subRota === "categorias"
+                ? "categorias"
+                : "calculadora";
+    const rotaCasoId = subRota.startsWith("caso/") ? decodeURIComponent(subRota.slice(5)) : null;
+    const origemHistorico = (location.state as { origemHistorico?: string } | null)?.origemHistorico ?? null;
+
+    // Sessão e carregamento inicial
+    const [verificandoSessao, setVerificandoSessao] = useState(true);
+    const [sessao, setSessao] = useState<RevisionalSession | null>(null);
+    const [modalSenhaAberto, setModalSenhaAberto] = useState(false);
+    const [senhaObrigatoria, setSenhaObrigatoria] = useState(false);
+
+    // Dados do banco
+    const [categorias, setCategorias] = useState<Categoria[]>([]);
+    const [calculos, setCalculos] = useState<CalculoSalvo[]>([]);
+    const [carregandoBanco, setCarregandoBanco] = useState(false);
+
+    // Ficha do caso
+    const [formInstanceKey, setFormInstanceKey] = useState(1);
+    const [calculoAtivoId, setCalculoAtivoId] = useState<string | null>(null);
+    const [ficha, setFicha] = useState<FichaCliente>(FICHA_VAZIA);
+    const [criandoCatRapida, setCriandoCatRapida] = useState(false);
+    const [nomeCatRapida, setNomeCatRapida] = useState("");
+    const [salvandoCalculo, setSalvandoCalculo] = useState(false);
+
+    // Estado completo do processo pericial
+    const [contratosForm, setContratosForm] = useState<ContratoFormState[]>(() => [criarContratoFormEmBranco(1)]);
+    const [parametros, setParametros] = useState<ParametrosDecisao>(() => PARAMETROS_DECISAO_PADRAO());
+    const [tarifas, setTarifas] = useState<TarifaItem[]>([]);
+    const [deducoes, setDeducoes] = useState<DeducaoItem[]>([]);
+
+    // Modal Olinda
+    const [olindaAlvoIdx, setOlindaAlvoIdx] = useState<number | null>(null);
+
     const [erro, setErro] = useState<string | null>(null);
     const [carregando, setCarregando] = useState(false);
-    const [res, setRes] = useState<{ a: Analise; online: boolean } | null>(null);
+    const [res, setRes] = useState<{
+        resultado: ResultadoProcessoRevisional;
+        input: ProcessoRevisionalInput;
+    } | null>(null);
+
     const topoRes = useRef<HTMLDivElement>(null);
+    const clienteInputRef = useRef<HTMLInputElement>(null);
+    const casoSincronizadoRef = useRef<string | null>(null);
+
+    const carregarDadosEscritorio = useCallback(async () => {
+        setCarregandoBanco(true);
+        try {
+            const [cats, calcs] = await Promise.all([listarCategorias(), listarCalculos()]);
+            setCategorias(cats);
+            setCalculos(calcs);
+        } catch (e) {
+            if (e instanceof RevisionalApiError && e.status === 401) {
+                setSessao(null);
+            } else {
+                toast.error(e instanceof Error ? e.message : "Erro ao carregar histórico.");
+            }
+        } finally {
+            setCarregandoBanco(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        let ativo = true;
+        (async () => {
+            try {
+                const viaHash = await consumirHashRecuperacao();
+                if (!ativo) return;
+                if (viaHash) {
+                    setSessao(viaHash.session);
+                    if (viaHash.recovery) {
+                        setSenhaObrigatoria(true);
+                        setModalSenhaAberto(true);
+                    }
+                    return;
+                }
+                const existente = await obterSessaoAtiva();
+                if (ativo) setSessao(existente);
+            } finally {
+                if (ativo) setVerificandoSessao(false);
+            }
+        })();
+        return () => {
+            ativo = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (sessao) {
+            carregarDadosEscritorio();
+        }
+    }, [sessao, carregarDadosEscritorio]);
+
+    const contagemPorCategoria = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const c of calculos) {
+            if (c.categoria_id) {
+                counts[c.categoria_id] = (counts[c.categoria_id] ?? 0) + 1;
+            }
+        }
+        return counts;
+    }, [calculos]);
+
+    const categoriaSelecionada = useMemo(
+        () => categorias.find((c) => c.id === ficha.categoriaId) ?? null,
+        [categorias, ficha.categoriaId],
+    );
+
+    const limparCamposEmMemoria = useCallback(() => {
+        casoSincronizadoRef.current = null;
+        setFormInstanceKey((k) => k + 1);
+        setCalculoAtivoId(null);
+        setFicha(FICHA_VAZIA);
+        setContratosForm([criarContratoFormEmBranco(1)]);
+        setParametros(PARAMETROS_DECISAO_PADRAO());
+        setTarifas([]);
+        setDeducoes([]);
+        setErro(null);
+        setRes(null);
+    }, []);
+
+    const limparFormulario = () => {
+        limparCamposEmMemoria();
+        if (location.pathname !== BASE_ROTA) {
+            navigate(BASE_ROTA);
+        }
+    };
+
+    const carregarCasoEmEstado = useCallback(async (c: CalculoSalvo, manterVinculo: boolean) => {
+        const { ficha: fichaRest, processo } = calculoParaProcesso(c);
+        casoSincronizadoRef.current = manterVinculo ? c.id : null;
+        setFormInstanceKey((k) => k + 1);
+        setCalculoAtivoId(manterVinculo ? c.id : null);
+        setFicha(
+            manterVinculo ? fichaRest : { ...fichaRest, clienteNome: `${fichaRest.clienteNome} (cópia)` },
+        );
+        setContratosForm(processo.contratos.map(contratoInputParaForm));
+        setParametros(processo.parametros);
+        setTarifas(processo.tarifas);
+        setDeducoes(processo.deducoes);
+        setErro(null);
+
+        try {
+            const { onlineByContrato, seriesEconomicas } = await prepararDadosBacenProcesso(processo);
+            const resultado = calcularProcessoRevisional(processo, seriesEconomicas, onlineByContrato);
+            setRes({ resultado, input: processo });
+        } catch {
+            setRes(null);
+        }
+    }, []);
+
+    // Sincroniza URL /caso/:id ao recarregar a página ou usar voltar/avançar do navegador (gesto de 2 dedos no Mac)
+    useEffect(() => {
+        if (!rotaCasoId) {
+            if (casoSincronizadoRef.current !== null) {
+                limparCamposEmMemoria();
+            }
+            return;
+        }
+        if (casoSincronizadoRef.current === rotaCasoId) return;
+        const encontrado = calculos.find((item) => item.id === rotaCasoId);
+        if (encontrado) {
+            void carregarCasoEmEstado(encontrado, true);
+        }
+    }, [rotaCasoId, calculos, carregarCasoEmEstado, limparCamposEmMemoria]);
+
+    const abrirCasoDoHistorico = (c: CalculoSalvo) => {
+        const origem = `${location.pathname}${location.search}`;
+        void carregarCasoEmEstado(c, true);
+        navigate(`${BASE_ROTA}/caso/${encodeURIComponent(c.id)}`, {
+            state: { origemHistorico: origem },
+        });
+    };
+
+    const duplicarCasoDoHistorico = (c: CalculoSalvo) => {
+        const origem = `${location.pathname}${location.search}`;
+        void carregarCasoEmEstado(c, false);
+        navigate(BASE_ROTA, {
+            state: { origemHistorico: origem },
+        });
+    };
+
+    const voltarParaHistorico = () => {
+        if (origemHistorico) {
+            navigate(-1);
+        } else {
+            navigate(`${BASE_ROTA}/historico`);
+        }
+    };
 
     const calcular = async (ev: FormEvent) => {
         ev.preventDefault();
-        const entrada = {
-            mod: mod ?? undefined,
-            mes: mes && ano ? `${ano}-${mes}` : "",
-            valor: lerMoeda(valorF),
-            parcela: lerMoeda(parcela),
-            parcelas: parseInt(parcelas, 10) || 0,
-            pagas: parseInt(pagas || "0", 10),
-            taxaMensal: lerDecimal(taxaM),
-            taxaAnual: lerDecimal(taxaA),
-            mediaMensal: lerDecimal(mediaM),
-            mediaAnual: lerDecimal(mediaA),
+        const contratosInput = contratosForm.map(formParaContratoInput);
+
+        for (let idx = 0; idx < contratosInput.length; idx++) {
+            const ct = contratosInput[idx];
+            const form = contratosForm[idx];
+            const mod = MODALIDADES.find((m) => m.id === ct.modalidadeId);
+            const mes = ct.dataContrato.slice(0, 7);
+            const msg = validar({
+                mod,
+                mes,
+                valor: ct.valorFinanciado,
+                parcela: ct.valorParcela,
+                parcelas: ct.parcelas,
+                pagas: ct.pagas,
+            });
+            if (msg) {
+                return setErro(`Contrato ${idx + 1}: ${msg}`);
+            }
+            for (const [txt, v, nome] of [
+                [form.taxaM, ct.taxaMensal, "taxa mensal do contrato"],
+                [form.taxaA, ct.taxaAnual, "taxa anual do contrato"],
+                [form.revisionalM, ct.taxaRevisionalManualAm, "taxa revisional mensal"],
+                [form.revisionalA, ct.taxaRevisionalManualAa, "taxa revisional anual"],
+            ] as const) {
+                if (txt && !(v !== undefined && v > 0)) {
+                    return setErro(`Contrato ${idx + 1}: a ${nome} não é um número válido.`);
+                }
+            }
+            if (ct.fonteTaxaRevisional === "banco_olinda" && !ct.bancoOlinda) {
+                return setErro(`Contrato ${idx + 1}: selecione a instituição na tabela do BCB Olinda.`);
+            }
+            if (ct.fonteTaxaRevisional === "manual" && !(ct.taxaRevisionalManualAm || ct.taxaRevisionalManualAa)) {
+                return setErro(`Contrato ${idx + 1}: informe a taxa revisional manual.`);
+            }
+        }
+
+        const input: ProcessoRevisionalInput = {
+            parametros,
+            contratos: contratosInput,
+            tarifas,
+            deducoes,
         };
-        const msg = validar(entrada);
-        if (msg) return setErro(msg);
-        for (const [txt, v, nome] of [
-            [taxaM, entrada.taxaMensal, "taxa mensal do contrato"],
-            [taxaA, entrada.taxaAnual, "taxa anual do contrato"],
-            [mediaM, entrada.mediaMensal, "taxa média mensal"],
-            [mediaA, entrada.mediaAnual, "taxa média anual"],
-        ] as const)
-            if (txt && !(v > 0)) return setErro(`A ${nome} não é um número válido.`);
 
         setErro(null);
         setCarregando(true);
-        const online = await consultarBacen(entrada.mod!, entrada.mes);
-        const a = analisar({ ...entrada, mod: entrada.mod! });
-        setCarregando(false);
-        if (!a) return setErro("Sem taxa média para esse mês. Informe a média manualmente.");
-        setRes({ a, online });
-        if (window.matchMedia("(max-width: 1023px)").matches)
-            requestAnimationFrame(() =>
-                topoRes.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }),
-            );
+        try {
+            const { onlineByContrato, seriesEconomicas } = await prepararDadosBacenProcesso(input);
+            const resultado = calcularProcessoRevisional(input, seriesEconomicas, onlineByContrato);
+            setRes({ resultado, input });
+            if (window.matchMedia("(max-width: 1023px)").matches) {
+                requestAnimationFrame(() =>
+                    topoRes.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }),
+                );
+            }
+        } catch (e) {
+            setErro(e instanceof Error ? e.message : "Não foi possível concluir o cálculo agora.");
+        } finally {
+            setCarregando(false);
+        }
     };
+
+    const salvarNoBanco = async (comoNovo: boolean) => {
+        if (!res) return;
+        if (!ficha.clienteNome.trim()) {
+            toast.error("Informe o nome do cliente para salvar no histórico.");
+            clienteInputRef.current?.focus();
+            clienteInputRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+            return;
+        }
+
+        setSalvandoCalculo(true);
+        try {
+            const payload = processoParaPayload(res.resultado, res.input, ficha);
+            if (!comoNovo && calculoAtivoId) {
+                const atualizado = await atualizarCalculo(calculoAtivoId, payload);
+                setCalculos((prev) => [atualizado, ...prev.filter((item) => item.id !== atualizado.id)]);
+                toast.success(`Ficha de "${atualizado.cliente_nome}" atualizada.`);
+            } else {
+                const criado = await criarCalculo(payload);
+                casoSincronizadoRef.current = criado.id;
+                setCalculoAtivoId(criado.id);
+                setCalculos((prev) => [criado, ...prev]);
+                navigate(`${BASE_ROTA}/caso/${encodeURIComponent(criado.id)}`, { replace: true });
+                toast.success(`Cálculo de "${criado.cliente_nome}" salvo no histórico.`);
+            }
+        } catch (e) {
+            if (e instanceof RevisionalApiError && e.status === 401) {
+                setSessao(null);
+            }
+            toast.error(e instanceof Error ? e.message : "Não foi possível salvar o cálculo.");
+        } finally {
+            setSalvandoCalculo(false);
+        }
+    };
+
+    const criarCategoriaInline = async () => {
+        if (!nomeCatRapida.trim()) return;
+        try {
+            const maxOrdem = categorias.reduce((acc, c) => Math.max(acc, c.ordem), 0);
+            const nova = await criarCategoria(nomeCatRapida.trim(), "gold", maxOrdem + 1);
+            setCategorias((prev) => [...prev, nova]);
+            setFicha((f) => ({ ...f, categoriaId: nova.id }));
+            setNomeCatRapida("");
+            setCriandoCatRapida(false);
+            toast.success(`Categoria "${nova.nome}" criada.`);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Erro ao criar categoria.");
+        }
+    };
+
+    const encerrarSessao = async () => {
+        await sairDaSessao();
+        setSessao(null);
+        setCalculos([]);
+        limparFormulario();
+    };
+
+    const olindaContratoAtual = olindaAlvoIdx !== null ? contratosForm[olindaAlvoIdx] : null;
+
+    const aplicarTaxaOlinda = (sel: TaxaOlindaSelecao) => {
+        if (olindaAlvoIdx === null) return;
+        setContratosForm((prev) =>
+            prev.map((ct, i) =>
+                i === olindaAlvoIdx
+                    ? {
+                          ...ct,
+                          instituicao: ct.instituicao.trim() ? ct.instituicao : sel.instituicao,
+                          fonteTaxaRevisional: "banco_olinda",
+                          bancoOlinda: sel,
+                      }
+                    : ct,
+            ),
+        );
+    };
+
+    const preencherBancoOlinda = (nomeBanco: string) => {
+        if (olindaAlvoIdx === null) return;
+        setContratosForm((prev) =>
+            prev.map((ct, i) => (i === olindaAlvoIdx ? { ...ct, instituicao: nomeBanco } : ct)),
+        );
+    };
+
+    if (verificandoSessao) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-ink text-paper">
+                <Loader2 className="size-7 animate-spin text-gold-light" aria-label="Carregando" />
+            </div>
+        );
+    }
+
+    if (!sessao) {
+        return <TelaLogin onAutenticado={setSessao} />;
+    }
 
     return (
         <div className="min-h-screen bg-background">
-            <header className="bg-ink text-paper">
-                <div className="container flex h-16 items-center justify-between gap-6">
-                    <Link to="/" aria-label="Ian Granja Advogados, página inicial">
-                        <img src={logo} alt="Ian Granja Advogados" width={768} height={132} className="h-8 w-auto" />
-                    </Link>
-                    <p className="text-sm text-paper/75">Calculadora revisional · uso interno</p>
+            <header className="border-b border-paper/15 bg-ink text-paper">
+                <div className="container flex flex-wrap items-center justify-between gap-4 py-3.5">
+                    <div className="flex items-center gap-4 sm:gap-6">
+                        <Link to={BASE_ROTA} aria-label="Início da Calculadora Revisional">
+                            <img src={logo} alt="Ian Granja Advogados" width={768} height={132} className="h-8 w-auto" />
+                        </Link>
+                        <span className="hidden border-l border-paper/20 pl-5 text-sm font-medium text-paper/80 sm:inline">
+                            Calculadora revisional
+                        </span>
+                        {IS_LOCAL_SUPABASE && (
+                            <span
+                                title="Conectado ao banco PostgreSQL local via OrbStack/Docker (isolado de produção)"
+                                className="inline-flex items-center border border-gold-light/60 bg-gold-light/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-gold-light"
+                            >
+                                Banco Local · Teste
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="hidden text-paper/70 md:inline">{sessao.user.email}</span>
+                        <Link
+                            to="/"
+                            className="inline-flex h-9 items-center gap-1.5 border border-paper/20 px-2.5 font-medium text-paper/75 hover:border-paper/50 hover:text-paper"
+                        >
+                            <ExternalLink className="size-3.5" />
+                            Site
+                        </Link>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSenhaObrigatoria(false);
+                                setModalSenhaAberto(true);
+                            }}
+                            className="inline-flex h-9 items-center gap-1.5 border border-paper/25 px-3 font-semibold text-paper/90 hover:border-gold-light hover:text-gold-light"
+                        >
+                            <KeyRound className="size-3.5" />
+                            Senha
+                        </button>
+                        <button
+                            type="button"
+                            onClick={encerrarSessao}
+                            className="inline-flex h-9 items-center gap-1.5 border border-paper/25 px-3 font-semibold text-paper/90 hover:border-gold-light hover:text-gold-light"
+                        >
+                            <LogOut className="size-3.5" />
+                            Sair
+                        </button>
+                    </div>
+                </div>
+
+                {/* Navegação interna da ferramenta */}
+                <div className="border-t border-paper/10 bg-ink-deep/60">
+                    <div className="container flex flex-wrap items-center justify-between gap-3">
+                        <nav aria-label="Seções da calculadora" className="flex gap-1">
+                            <Link
+                                to={calculoAtivoId ? `${BASE_ROTA}/caso/${encodeURIComponent(calculoAtivoId)}` : BASE_ROTA}
+                                className={cn(
+                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
+                                    aba === "calculadora"
+                                        ? "border-gold-light text-paper"
+                                        : "border-transparent text-paper/70 hover:text-paper",
+                                )}
+                            >
+                                <Calculator className="size-4" />
+                                Calculadora
+                            </Link>
+                            <Link
+                                to={`${BASE_ROTA}/painel`}
+                                className={cn(
+                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
+                                    aba === "painel"
+                                        ? "border-gold-light text-paper"
+                                        : "border-transparent text-paper/70 hover:text-paper",
+                                )}
+                            >
+                                <BarChart3 className="size-4" />
+                                Painel
+                            </Link>
+                            <Link
+                                to={`${BASE_ROTA}/historico`}
+                                className={cn(
+                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
+                                    aba === "historico"
+                                        ? "border-gold-light text-paper"
+                                        : "border-transparent text-paper/70 hover:text-paper",
+                                )}
+                            >
+                                <FolderClock className="size-4" />
+                                Histórico ({calculos.length})
+                            </Link>
+                            <Link
+                                to={`${BASE_ROTA}/categorias`}
+                                className={cn(
+                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
+                                    aba === "categorias"
+                                        ? "border-gold-light text-paper"
+                                        : "border-transparent text-paper/70 hover:text-paper",
+                                )}
+                            >
+                                <Tags className="size-4" />
+                                Categorias ({categorias.length})
+                            </Link>
+                        </nav>
+
+                        {aba === "calculadora" && (calculoAtivoId || res || ficha.clienteNome) && (
+                            <button
+                                type="button"
+                                onClick={limparFormulario}
+                                className="inline-flex h-8 items-center gap-1.5 text-xs font-semibold text-gold-light hover:underline"
+                            >
+                                <FilePlus2 className="size-3.5" />
+                                Novo cálculo em branco
+                            </button>
+                        )}
+                    </div>
                 </div>
             </header>
 
-            <main className="container grid gap-x-12 gap-y-10 py-10 lg:grid-cols-12 lg:py-14">
-                <form onSubmit={calcular} noValidate className="space-y-7 lg:col-span-5 xl:col-span-4">
-                    <div>
-                        <h1 className="subdisplay text-[1.75rem] text-ink">Juros x média do BACEN</h1>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                            Mensal compara com a média mensal; anual com a média anual. Taxas consultadas no SGS no momento do cálculo.
-                        </p>
-                    </div>
+            <ModalAlterarSenha
+                aberto={modalSenhaAberto}
+                obrigatorio={senhaObrigatoria}
+                onFechar={() => {
+                    setSenhaObrigatoria(false);
+                    setModalSenhaAberto(false);
+                }}
+            />
 
-                    <fieldset className="space-y-3">
-                        <legend className={labelClass}>Contratante</legend>
-                        <PessoaToggle
-                            value={pessoa}
-                            onChange={(p) => {
-                                setPessoa(p);
-                                setMod(null);
-                            }}
-                        />
-                    </fieldset>
+            <ModalRankingOlinda
+                aberto={olindaAlvoIdx !== null && Boolean(olindaContratoAtual)}
+                modalidadeId={olindaContratoAtual?.modalidadeId ?? ""}
+                dataRef={olindaContratoAtual?.dataContrato ?? ""}
+                bancoAtual={olindaContratoAtual?.instituicao ?? ""}
+                onFechar={() => setOlindaAlvoIdx(null)}
+                onSelecionarTaxa={aplicarTaxaOlinda}
+                onPreencherBanco={preencherBancoOlinda}
+            />
 
-                    <fieldset className="space-y-2">
-                        <legend className={labelClass}>Modalidade</legend>
-                        <ModalidadeSelect id="adv-tipo" pessoa={pessoa} value={mod?.id ?? null} onChange={setMod} tecnico />
-                    </fieldset>
+            {aba === "painel" && (
+                <main className="container py-10 lg:py-14">
+                    <PainelEstatisticas
+                        calculos={calculos}
+                        categorias={categorias}
+                        carregando={carregandoBanco}
+                        onRecarregar={carregarDadosEscritorio}
+                        onIrCalculadora={() => navigate(BASE_ROTA)}
+                        onAbrirHistoricoCategoria={(catId) => {
+                            const qs = catId && catId !== "todas" ? `?cat=${encodeURIComponent(catId)}` : "";
+                            navigate(`${BASE_ROTA}/historico${qs}`);
+                        }}
+                    />
+                </main>
+            )}
 
-                    <fieldset>
-                        <legend className={labelClass}>Data da contratação</legend>
-                        <MesAno idPrefix="adv" mes={mes} ano={ano} onMes={setMes} onAno={setAno} />
-                    </fieldset>
+            {aba === "historico" && (
+                <main className="container py-10 lg:py-14">
+                    <HistoricoCalculos
+                        calculos={calculos}
+                        categorias={categorias}
+                        calculoAtivoId={calculoAtivoId}
+                        carregando={carregandoBanco}
+                        onRecarregar={carregarDadosEscritorio}
+                        onAbrir={abrirCasoDoHistorico}
+                        onDuplicar={duplicarCasoDoHistorico}
+                        onAtualizado={(atualizado) =>
+                            setCalculos((prev) => prev.map((item) => (item.id === atualizado.id ? atualizado : item)))
+                        }
+                        onExcluido={(id) => {
+                            setCalculos((prev) => prev.filter((item) => item.id !== id));
+                            if (calculoAtivoId === id) {
+                                limparCamposEmMemoria();
+                            }
+                        }}
+                        onGerenciarCategorias={() => navigate(`${BASE_ROTA}/categorias`)}
+                    />
+                </main>
+            )}
 
-                    <div className="grid grid-cols-2 gap-x-5 gap-y-6">
-                        <Campo id="adv-tm" label="Taxa do contrato" tipo="taxa" sufixo="% a.m." value={taxaM} onChange={setTaxaM} placeholder="2,99" />
-                        <Campo id="adv-ta" label="Taxa do contrato" tipo="taxa" sufixo="% a.a." value={taxaA} onChange={setTaxaA} placeholder="42,48" />
-                        <Campo id="adv-valor" label="Valor financiado" tipo="moeda" value={valorF} onChange={setValorF} placeholder="0,00" />
-                        <Campo id="adv-parcela" label="Parcela" tipo="moeda" value={parcela} onChange={setParcela} placeholder="0,00" />
-                        <Campo id="adv-n" label="Nº de parcelas" tipo="inteiro" value={parcelas} onChange={setParcelas} placeholder="48" />
-                        <Campo id="adv-pagas" label="Parcelas pagas" tipo="inteiro" value={pagas} onChange={setPagas} placeholder="0" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">Taxas em branco: usa a taxa efetiva calculada pelas parcelas.</p>
+            {aba === "categorias" && (
+                <main className="container max-w-4xl py-10 lg:py-14">
+                    <GerenciarCategorias
+                        categorias={categorias}
+                        contagemPorCategoria={contagemPorCategoria}
+                        onChange={(novas) => {
+                            setCategorias(novas);
+                            if (ficha.categoriaId && !novas.some((c) => c.id === ficha.categoriaId)) {
+                                setFicha((f) => ({ ...f, categoriaId: null }));
+                            }
+                        }}
+                    />
+                </main>
+            )}
 
-                    <details className="border-y border-ink/25">
-                        <summary className="cursor-pointer py-3 text-sm font-semibold text-ink">Substituir a taxa média do BACEN</summary>
-                        <div className="grid grid-cols-2 gap-5 pb-5">
-                            <Campo id="adv-mm" label="Média" tipo="taxa" sufixo="% a.m." value={mediaM} onChange={setMediaM} />
-                            <Campo id="adv-ma" label="Média" tipo="taxa" sufixo="% a.a." value={mediaA} onChange={setMediaA} />
+            {aba === "calculadora" && (
+                <main className="container grid gap-x-10 gap-y-10 py-10 lg:grid-cols-12 lg:py-14">
+                    {(calculoAtivoId || origemHistorico) && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/20 pb-3 lg:col-span-12">
+                            <button
+                                type="button"
+                                onClick={voltarParaHistorico}
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-ink hover:underline"
+                            >
+                                <ArrowLeft className="size-3.5" />
+                                Voltar para a pauta de clientes
+                            </button>
+                            {ficha.clienteNome && (
+                                <span className="text-xs text-muted-foreground">
+                                    Visualizando ficha de <strong className="text-ink">{ficha.clienteNome}</strong>
+                                </span>
+                            )}
                         </div>
-                    </details>
-
-                    {erro && (
-                        <p role="alert" className="border-t-2 border-destructive pt-3 text-sm font-medium text-destructive">
-                            {erro}
-                        </p>
                     )}
 
-                    <button
-                        type="submit"
-                        disabled={carregando}
-                        className="inline-flex min-h-12 w-full items-center justify-center gap-3 bg-ink px-6 font-semibold text-paper transition-colors duration-200 hover:bg-ink-soft disabled:cursor-wait disabled:opacity-70"
-                    >
-                        {carregando && <Loader2 aria-hidden className="size-5 animate-spin" />}
-                        {carregando ? "Consultando o BACEN" : "Calcular"}
-                    </button>
-                </form>
+                    <form onSubmit={calcular} noValidate className="space-y-6 lg:col-span-5">
+                        <div>
+                            <h1 className="subdisplay text-[1.75rem] text-ink">Cálculo revisional pericial</h1>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                                Múltiplos contratos, tabela por banco (BCB Olinda), tarifas, correção monetária e laudo PDF.
+                            </p>
+                        </div>
 
-                <div ref={topoRes} className="scroll-mt-6 lg:col-span-7 xl:col-span-8">
-                    {res ? (
-                        <Resultado a={res.a} online={res.online} />
-                    ) : (
-                        <div className="grid items-center gap-8 bg-ink p-8 text-paper sm:grid-cols-[minmax(0,1fr)_14rem] lg:mt-16">
-                            <div>
-                                <p className="subdisplay text-2xl">O resultado aparece aqui.</p>
-                                <p className="mt-3 max-w-[56ch] leading-relaxed text-paper/80">
-                                    Escolha a modalidade e a data da contratação, informe as taxas do contrato (se houver) e os valores das
-                                    parcelas. Antes de nov/2025, empréstimo com garantia real usa a série de aquisição de veículos; sem
-                                    garantia usa crédito pessoal não consignado total.
-                                </p>
+                        {/* Ficha global do caso */}
+                        <section className="space-y-5 border border-ink/25 bg-card p-5">
+                            <div className="flex items-baseline justify-between gap-3 border-b border-ink/20 pb-2.5">
+                                <h2 className="rubric text-ink">Identificação do caso</h2>
+                                {calculoAtivoId && (
+                                    <span className="text-xs font-semibold text-gold-deep">Editando salvo</span>
+                                )}
                             </div>
-                            <HeroArt variant="calculo" className="max-w-[14rem]" />
+
+                            <div>
+                                <label htmlFor="adv-cliente" className={labelClass}>
+                                    Nome do cliente / Autor(a)
+                                </label>
+                                <input
+                                    ref={clienteInputRef}
+                                    id="adv-cliente"
+                                    value={ficha.clienteNome}
+                                    onChange={(e) => setFicha({ ...ficha, clienteNome: e.target.value })}
+                                    maxLength={160}
+                                    placeholder="Ex.: José Carlos Ferreira"
+                                    className="field"
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="adv-processo" className={labelClass}>
+                                    Nº do processo (global)
+                                </label>
+                                <input
+                                    id="adv-processo"
+                                    value={ficha.processoGlobal ?? ""}
+                                    onChange={(e) => setFicha({ ...ficha, processoGlobal: e.target.value })}
+                                    maxLength={80}
+                                    placeholder="Ex.: 0002720-86.2026.8.17.1130 (opcional)"
+                                    className="field tabular-nums"
+                                />
+                            </div>
+
+                            <div>
+                                <div className="flex items-baseline justify-between gap-2">
+                                    <label htmlFor="adv-cat" className={labelClass}>
+                                        Categoria
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCriandoCatRapida((v) => !v)}
+                                        className="inline-flex items-center gap-1 text-xs font-semibold text-ink/75 hover:text-ink"
+                                    >
+                                        <Plus className="size-3" />
+                                        Nova categoria
+                                    </button>
+                                </div>
+                                <select
+                                    id="adv-cat"
+                                    value={ficha.categoriaId ?? ""}
+                                    onChange={(e) => setFicha({ ...ficha, categoriaId: e.target.value || null })}
+                                    className="field cursor-pointer [&>option]:text-ink"
+                                >
+                                    <option value="">Sem categoria</option>
+                                    {categorias.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.nome}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                {criandoCatRapida && (
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <input
+                                            value={nomeCatRapida}
+                                            onChange={(e) => setNomeCatRapida(e.target.value)}
+                                            placeholder="Nome da nova categoria"
+                                            maxLength={60}
+                                            className="field py-1.5 text-sm"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={criarCategoriaInline}
+                                            className="inline-flex h-9 shrink-0 items-center bg-ink px-3 text-xs font-semibold text-paper hover:bg-ink-soft"
+                                        >
+                                            Criar
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <label htmlFor="adv-obs" className={labelClass}>
+                                    Observações do caso (aparecem no laudo)
+                                </label>
+                                <textarea
+                                    id="adv-obs"
+                                    rows={2}
+                                    value={ficha.observacoes}
+                                    onChange={(e) => setFicha({ ...ficha, observacoes: e.target.value })}
+                                    maxLength={4000}
+                                    placeholder="Seguro prestamista, tarifa de cadastro, vara, prazos..."
+                                    className="field resize-y text-sm"
+                                />
+                            </div>
+                        </section>
+
+                        {/* Contratos */}
+                        <div className="space-y-5">
+                            {contratosForm.map((ct, idx) => (
+                                <FormContratoRevisional
+                                    key={ct.id}
+                                    index={idx}
+                                    totalContratos={contratosForm.length}
+                                    form={ct}
+                                    onChange={(atualizado) =>
+                                        setContratosForm((prev) => prev.map((x, i) => (i === idx ? atualizado : x)))
+                                    }
+                                    onRemover={() =>
+                                        setContratosForm((prev) => prev.filter((_, i) => i !== idx))
+                                    }
+                                    onAbrirOlinda={() => setOlindaAlvoIdx(idx)}
+                                />
+                            ))}
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setContratosForm((prev) => [...prev, criarContratoFormEmBranco(prev.length + 1)])
+                                }
+                                className="inline-flex min-h-11 w-full items-center justify-center gap-2 border border-dashed border-ink/40 px-4 text-sm font-semibold text-ink hover:bg-ink/5"
+                            >
+                                <Plus className="size-4" />
+                                Adicionar mais um contrato
+                            </button>
                         </div>
-                    )}
-                </div>
-            </main>
+
+                        {/* Seguros, tarifas, correção monetária, juros e deduções */}
+                        <SecoesPericiaisExtras
+                            key={formInstanceKey}
+                            parametros={parametros}
+                            onParametrosChange={setParametros}
+                            tarifas={tarifas}
+                            onTarifasChange={setTarifas}
+                            deducoes={deducoes}
+                            onDeducoesChange={setDeducoes}
+                            dataContratoPadrao={contratosForm[0]?.dataContrato ?? ""}
+                        />
+
+                        {erro && (
+                            <p
+                                role="alert"
+                                className="border-t-2 border-destructive pt-3 text-sm font-medium text-destructive"
+                            >
+                                {erro}
+                            </p>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={carregando}
+                            className="inline-flex min-h-12 w-full items-center justify-center gap-3 bg-ink px-6 font-semibold text-paper transition-colors duration-200 hover:bg-ink-soft disabled:cursor-wait disabled:opacity-70"
+                        >
+                            {carregando && <Loader2 aria-hidden className="size-5 animate-spin" />}
+                            {carregando ? "Consultando BACEN e atualizando índices" : "Calcular revisão completa"}
+                        </button>
+                    </form>
+
+                    <div ref={topoRes} className="scroll-mt-6 lg:col-span-7">
+                        {res ? (
+                            <ResultadoPainel
+                                resultado={res.resultado}
+                                ficha={ficha}
+                                categoria={categoriaSelecionada}
+                                calculoAtivoId={calculoAtivoId}
+                                salvando={salvandoCalculo}
+                                onSalvar={salvarNoBanco}
+                            />
+                        ) : (
+                            <div className="grid items-center gap-8 bg-ink p-8 text-paper sm:grid-cols-[minmax(0,1fr)_14rem] lg:sticky lg:top-8">
+                                <div>
+                                    <p className="subdisplay text-2xl">O laudo aparece aqui.</p>
+                                    <p className="mt-3 max-w-[56ch] leading-relaxed text-paper/80">
+                                        Adicione um ou mais contratos, consulte a taxa média ou a taxa por banco no BCB
+                                        Olinda, inclua tarifas/seguros e gere o demonstrativo atualizado pronto para
+                                        PDF. Você também pode abrir os{" "}
+                                        <Link
+                                            to={`${BASE_ROTA}/historico`}
+                                            className="font-semibold text-gold-light underline underline-offset-4"
+                                        >
+                                            {calculos.length} cálculos salvos
+                                        </Link>
+                                        .
+                                    </p>
+                                </div>
+                                <HeroArt variant="calculo" className="max-w-[14rem]" />
+                            </div>
+                        )}
+                    </div>
+                </main>
+            )}
         </div>
     );
 };

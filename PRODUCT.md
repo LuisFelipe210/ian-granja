@@ -27,8 +27,8 @@ Escritório de um advogado identificado (Ian Granja, OAB/PE 61.107), com atendim
 ## Capabilities and Constraints
 
 - Stack: Vite + React 18 + TypeScript + Tailwind 3 + shadcn/ui, react-router, deploy na Vercel.
-- Rotas: `/`, `/sobre`, `/atuacao`, `/atuacao/:slug` (8 áreas em `src/data/practiceAreas.ts`), `/calculadora-juros-abusivos`, `/ferramentas/calculadora-revisional` (uso interno, `noindex`), `/faq`, `/contato`.
-- Formulário de contato envia para `/api/send-contact` (Vercel Serverless Function com Nodemailer).
+- Rotas: `/`, `/sobre`, `/atuacao`, `/atuacao/:slug` (8 áreas em `src/data/practiceAreas.ts`), `/calculadora-juros-abusivos`, `/ferramentas/calculadora-revisional` (uso interno com login fechado no Supabase, histórico de clientes e categorias, `noindex`), `/faq`, `/contato`.
+- Formulário de contato envia para `/api/send-contact` (Vercel Serverless Function com Nodemailer), e `/api/keep-alive` roda diariamente via Vercel Cron para manter o banco Supabase ativo.
 - Publicidade de advocacia é regulada pela OAB (Provimento 205/2021): sem promessa de resultado, sem mercantilização.
 
 ## Brand Commitments

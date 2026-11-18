@@ -31,8 +31,8 @@ const App = () => (
                     <Route path="/faq" element={<FAQ />} />
                     <Route path="/contato" element={<Contato />} />
                     <Route path="/calculadora-juros-abusivos" element={<CalculadoraJuros />} />
-                    {/* Uso interno do advogado: fora do menu e do sitemap, com noindex. */}
-                    <Route path="/ferramentas/calculadora-revisional" element={<CalculadoraAdvogado />} />
+                    {/* Uso interno do advogado: fora do menu e do sitemap, com noindex e sub-rotas próprias. */}
+                    <Route path="/ferramentas/calculadora-revisional/*" element={<CalculadoraAdvogado />} />
                     <Route path="*" element={<NotFound />} />
                 </Routes>
             </Suspense>

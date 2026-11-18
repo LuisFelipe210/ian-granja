@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
-    "test": "node --experimental-strip-types --test tests/juros.test.ts tests/send-contact.test.ts",
+    "test": "node --experimental-strip-types --test tests/juros.test.ts tests/send-contact.test.ts tests/revisional-db.test.ts tests/revisional-pro.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -91,5 +91,8 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19"
-  }
+  },
+  "browserslist": [
+    "defaults"
+  ]
 }
