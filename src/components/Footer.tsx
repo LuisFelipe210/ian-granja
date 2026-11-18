@@ -84,7 +84,12 @@ export const Footer = () => (
 
         <div className="border-t border-paper/15">
             <div className="container flex flex-col gap-2 py-6 pr-20 text-sm text-paper/75 md:flex-row md:justify-between">
-                <p>© {new Date().getFullYear()} Ian Granja Advogados. Todos os direitos reservados.</p>
+                <p>
+                    © {new Date().getFullYear()} Ian Granja Advogados. Todos os direitos reservados.{" "}
+                    <Link to="/privacidade" className="underline-offset-4 transition-colors hover:text-paper hover:underline">
+                        Política de privacidade
+                    </Link>
+                </p>
                 <p className="flex items-center gap-2">
                     <span>Ian Granja, {OAB}</span>
                     <Link
