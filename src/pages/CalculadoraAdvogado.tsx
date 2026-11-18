@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
     ArrowLeft,
+    ArrowRight,
     BarChart3,
     BookmarkCheck,
+    BookmarkPlus,
     Calculator,
     Check,
     Copy,
@@ -13,10 +15,13 @@ import {
     FilePlus2,
     FileSpreadsheet,
     FolderClock,
+    FolderOpen,
+    Gavel,
     KeyRound,
     Loader2,
     LogOut,
     Plus,
+    RefreshCw,
     Save,
     Table2,
     Tags,
@@ -28,9 +33,12 @@ import { labelClass } from "@/components/juros/Campos";
 import { TelaLogin, ModalAlterarSenha } from "@/components/juros/RevisionalAuth";
 import { GerenciarCategorias, SeloCategoria } from "@/components/juros/GerenciarCategorias";
 import { HistoricoCalculos } from "@/components/juros/HistoricoCalculos";
+import { ProcessosSalvosDjen } from "@/components/juros/ProcessosSalvosDjen";
 import { FormContratoRevisional } from "@/components/juros/FormContratoRevisional";
 import { ModalRankingOlinda } from "@/components/juros/ModalRankingOlinda";
+import { ModalConsultaDjen, type ContextoInicialDjen } from "@/components/juros/ModalConsultaDjen";
 import { SecoesPericiaisExtras } from "@/components/juros/SecoesPericiaisExtras";
+import { AssistenteClaudeRevisional } from "@/components/juros/AssistenteClaudeRevisional";
 import { GraficoSerieBacen, PainelGraficosCaso } from "@/components/juros/GraficosCasoRevisional";
 import { PainelEstatisticas } from "@/components/juros/PainelEstatisticas";
 import {
@@ -39,19 +47,16 @@ import {
     mNome,
     nivel,
     num,
-    resumo,
     validar,
-    type Analise,
     type Nivel,
 } from "@/lib/juros";
 import {
-    INDICES_CORRECAO_OPCOES,
     PARAMETROS_DECISAO_PADRAO,
-    TIPOS_JUROS_OPCOES,
     calcularProcessoRevisional,
     contratoInputParaForm,
     criarContratoFormEmBranco,
     formParaContratoInput,
+    hojeISO,
     prepararDadosBacenProcesso,
     type ContratoFormState,
     type DeducaoItem,
@@ -62,7 +67,19 @@ import {
     type TarifaItem,
     type TaxaOlindaSelecao,
 } from "@/lib/juros/revisional-pro";
+import {
+    aplicarExtracaoClaudeAoEstado,
+    type ClaudeExtracaoRevisional,
+} from "@/lib/juros/claude-revisional";
 import { baixarCsvDemonstrativo, baixarLaudoPdf } from "@/lib/juros/laudo-pdf";
+import {
+    INTERVALO_VERIFICACAO_DJEN_HORAS,
+    anexarMovimentacaoDjenAoProcesso,
+    criarPayloadCarteiraDeDjen,
+    normalizarNumeroProcessoDjen,
+    verificarPublicacoesDjen,
+    type DjenComunicacao,
+} from "@/lib/juros/djen";
 import {
     IS_LOCAL_SUPABASE,
     RevisionalApiError,
@@ -71,8 +88,11 @@ import {
     consumirHashRecuperacao,
     criarCalculo,
     criarCategoria,
+    fichaSemCalculoParaPayload,
+    isCalculoPendente,
     listarCalculos,
     listarCategorias,
+    montarTextoPeticaoPro,
     obterSessaoAtiva,
     processoParaPayload,
     sairDaSessao,
@@ -164,74 +184,6 @@ const Linha = ({ rotulo, a, b, fmt }: { rotulo: string; a: number; b: number; fm
             </td>
         </tr>
     );
-};
-
-const montarTextoPeticaoPro = (
-    res: ResultadoProcessoRevisional,
-    ficha: FichaCliente,
-    categoria?: Categoria | null,
-) => {
-    const linhas: string[] = [];
-    if (ficha.clienteNome.trim()) linhas.push(`Cliente / Autor(a): ${ficha.clienteNome.trim()}`);
-    if (ficha.processoGlobal?.trim()) linhas.push(`Processo nº: ${ficha.processoGlobal.trim()}`);
-    if (categoria) linhas.push(`Categoria: ${categoria.nome}`);
-
-    const indiceLabel =
-        res.parametros.tipoJuros === "SELIC"
-            ? "SELIC (englobando correção + juros)"
-            : (INDICES_CORRECAO_OPCOES.find((o) => o.id === res.parametros.indiceCorrecao)?.label ?? "");
-    const jurosLabel =
-        res.parametros.tipoJuros === "FIXO_CUSTOM"
-            ? `${num(res.parametros.jurosFixoMensal)}% a.m.`
-            : (TIPOS_JUROS_OPCOES.find((o) => o.id === res.parametros.tipoJuros)?.label ?? "");
-
-    linhas.push(`Atualização até ${res.parametros.dataBaseAtualizacao}: ${indiceLabel} | Juros: ${jurosLabel}`);
-
-    const blocosContratos = res.contratos.map((rc, idx) => {
-        const analiseTexto: Analise =
-            rc.contrato.fonteTaxaRevisional === "banco_olinda"
-                ? { ...rc.analise, media: { ...rc.analise.media, nota: "" } }
-                : rc.analise;
-        const cab = [
-            `--- Contrato ${idx + 1}: ${rc.contrato.descricao || rc.analise.entrada.mod.nome} ---`,
-            rc.contrato.instituicao ? `Instituição financeira: ${rc.contrato.instituicao}` : "",
-            rc.contrato.numeroContrato ? `Nº contrato: ${rc.contrato.numeroContrato}` : "",
-            `Paradigma: ${rc.fonteTaxaRotulo}`,
-            resumo(analiseTexto),
-            `Diferença nas pagas atualizada: ${brl(rc.totalAtualizadoParcelas)}${rc.extrasAtualizado > 0 ? ` | Extras: ${brl(rc.extrasAtualizado)}` : ""}`,
-        ]
-            .filter(Boolean)
-            .join("\n");
-        return cab;
-    });
-
-    const partes = [linhas.join("\n"), ...blocosContratos];
-
-    if (res.tarifas.length > 0) {
-        const tarLines = res.tarifas.map(
-            (t) =>
-                `- ${t.titulo}: ${brl(t.valorOriginal)} (${t.item.emDobro ? "em dobro" : "simples"}) -> atualizado: ${brl(t.total)}`,
-        );
-        partes.push(["Seguros e Tarifas Abusivas:", ...tarLines].join("\n"));
-    }
-
-    const r = res.resumo;
-    partes.push(
-        [
-            "Resumo Global da Ação:",
-            `Total líquido a restituir / compensar: ${brl(r.totalRestituicaoAtualizado)}`,
-            r.economiaVincendasTotal > 0 ? `Economia nas parcelas vincendas: ${brl(r.economiaVincendasTotal)}` : "",
-            `Proveito econômico / Valor total da ação: ${brl(r.valorTotalAcao)}`,
-        ]
-            .filter(Boolean)
-            .join("\n"),
-    );
-
-    if (ficha.observacoes.trim()) {
-        partes.push(`Observações: ${ficha.observacoes.trim()}`);
-    }
-
-    return partes.join("\n\n");
 };
 
 const BlocoContratoResultado = ({
@@ -419,7 +371,9 @@ interface ResultadoPainelProps {
     categoria?: Categoria | null;
     calculoAtivoId: string | null;
     salvando: boolean;
+    renovando?: boolean;
     onSalvar: (comoNovo: boolean) => void;
+    onRenovarHoje?: () => void;
 }
 
 const ResultadoPainel = ({
@@ -428,7 +382,9 @@ const ResultadoPainel = ({
     categoria,
     calculoAtivoId,
     salvando,
+    renovando = false,
     onSalvar,
+    onRenovarHoje,
 }: ResultadoPainelProps) => {
     const [contratoAtivoIdx, setContratoAtivoIdx] = useState(0);
     const [visaoResultado, setVisaoResultado] = useState<"demonstrativo" | "graficos">("demonstrativo");
@@ -468,28 +424,30 @@ const ResultadoPainel = ({
     };
 
     return (
-        <div className="space-y-8" aria-live="polite">
-            {/* Barra de ações: salvar, PDF e CSV */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border border-ink/25 bg-card px-5 py-4">
+        <div className="space-y-7" aria-live="polite">
+            {/* Barra de ações: salvar, PDF, renovar e CSV */}
+            <div className="sheet-on-paper flex flex-wrap items-center justify-between gap-4 border border-ink/20 px-5 py-4">
                 <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                         {calculoAtivoId ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#126A35]">
-                                <BookmarkCheck className="size-4" />
-                                Vinculado ao histórico
+                            <span className="inline-flex items-center gap-1.5 bg-[#126A35]/10 px-2 py-0.5 text-xs font-semibold text-[#126A35]">
+                                <BookmarkCheck className="size-3.5" />
+                                Salvo no histórico
                             </span>
                         ) : (
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                Cálculo ainda não salvo
+                            <span className="bg-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Rascunho não salvo
                             </span>
                         )}
                         {ficha.clienteNome.trim() && (
-                            <span className="text-sm font-semibold text-ink">· {ficha.clienteNome.trim()}</span>
+                            <span className="text-sm font-bold text-ink">{ficha.clienteNome.trim()}</span>
                         )}
                         {categoria && <SeloCategoria categoria={categoria} />}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        Exporte o Laudo Técnico em A4, baixe a planilha CSV ou salve o caso completo no banco.
+                        Atualização até {resultado.parametros.dataBaseAtualizacao.split("-").reverse().join("/")} ·{" "}
+                        {resultado.contratos.length}{" "}
+                        {resultado.contratos.length === 1 ? "contrato" : "contratos"}
                     </p>
                 </div>
 
@@ -497,20 +455,20 @@ const ResultadoPainel = ({
                     <button
                         type="button"
                         onClick={baixarPdf}
-                        className="inline-flex min-h-10 items-center gap-2 border border-gold bg-gold-light px-3.5 text-xs font-semibold text-ink hover:bg-paper-white"
+                        className="inline-flex min-h-9 items-center gap-1.5 border border-gold bg-gold-light px-3.5 text-xs font-bold text-ink hover:bg-paper-white"
                     >
-                        <FileDown className="size-4" />
+                        <FileDown className="size-3.5" />
                         Laudo PDF
                     </button>
 
-                    <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 border border-ink/25 bg-background/60 px-3 text-xs font-medium text-ink select-none">
+                    <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 border border-ink/20 bg-background/60 px-2.5 text-xs font-medium text-ink select-none">
                         <input
                             type="checkbox"
                             checked={incluirGraficosPdf}
                             onChange={(e) => setIncluirGraficosPdf(e.target.checked)}
                             className="accent-ink"
                         />
-                        Gráficos no PDF
+                        Gráficos
                     </label>
 
                     <button
@@ -521,11 +479,24 @@ const ResultadoPainel = ({
                                 processoGlobal: ficha.processoGlobal,
                             })
                         }
-                        className="inline-flex min-h-10 items-center gap-2 border border-ink/35 px-3 text-xs font-semibold text-ink hover:bg-ink/5"
+                        className="inline-flex min-h-9 items-center gap-1.5 border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5"
                     >
-                        <FileSpreadsheet className="size-4" />
+                        <FileSpreadsheet className="size-3.5" />
                         CSV
                     </button>
+
+                    {onRenovarHoje && (calculoAtivoId || resultado.parametros.dataBaseAtualizacao !== hojeISO()) && (
+                        <button
+                            type="button"
+                            disabled={renovando || salvando}
+                            onClick={onRenovarHoje}
+                            title="Atualiza a data-base para hoje, consulta os índices recentes do BACEN, recalcula, salva e gera o novo PDF"
+                            className="inline-flex min-h-9 items-center gap-1.5 border border-ink/35 bg-secondary px-3 text-xs font-semibold text-ink hover:bg-ink hover:text-paper disabled:opacity-60"
+                        >
+                            {renovando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                            Renovar p/ hoje
+                        </button>
+                    )}
 
                     {calculoAtivoId ? (
                         <>
@@ -533,18 +504,18 @@ const ResultadoPainel = ({
                                 type="button"
                                 disabled={salvando}
                                 onClick={() => onSalvar(false)}
-                                className="inline-flex min-h-10 items-center gap-2 bg-ink px-4 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
+                                className="inline-flex min-h-9 items-center gap-1.5 bg-ink px-3.5 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
                             >
-                                {salvando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                                {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
                                 Atualizar salvo
                             </button>
                             <button
                                 type="button"
                                 disabled={salvando}
                                 onClick={() => onSalvar(true)}
-                                className="inline-flex min-h-10 items-center gap-2 border border-ink/35 px-3 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-70"
+                                className="inline-flex min-h-9 items-center gap-1.5 border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-70"
                             >
-                                <CopyPlus className="size-4" />
+                                <CopyPlus className="size-3.5" />
                                 Salvar novo
                             </button>
                         </>
@@ -553,19 +524,67 @@ const ResultadoPainel = ({
                             type="button"
                             disabled={salvando}
                             onClick={() => onSalvar(true)}
-                            className="inline-flex min-h-10 items-center gap-2 bg-ink px-4 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
+                            className="inline-flex min-h-9 items-center gap-1.5 bg-ink px-3.5 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
                         >
-                            {salvando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                            {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
                             Salvar no histórico
                         </button>
                     )}
                 </div>
             </div>
 
+            {/* Faixa de 3 KPIs em destaque */}
+            <div className="grid gap-4 sm:grid-cols-3 tabular-nums">
+                <div className="border border-gold bg-gold-light/25 p-5">
+                    <span className="rubric text-gold-deep">Proveito Econômico Total</span>
+                    <p className="display mt-2 text-[1.75rem] text-ink">{brl(r.valorTotalAcao)}</p>
+                    <p className="mt-1.5 text-xs text-ink/75">
+                        Soma de restituição + economia futura
+                    </p>
+                </div>
+
+                <div className="sheet-on-paper border border-ink/20 p-5">
+                    <span className="rubric text-muted-foreground">Líquido a Restituir</span>
+                    <p className="subdisplay mt-2 text-[1.5rem] text-ink">{brl(r.totalRestituicaoAtualizado)}</p>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                        Pagas + tarifas{r.deducoesAtualizado > 0 ? " − deduções" : ""}
+                    </p>
+                </div>
+
+                <div className="sheet-on-paper border border-ink/20 p-5">
+                    {r.economiaVincendasTotal > 0 ? (
+                        <>
+                            <span className="rubric text-muted-foreground">Economia nas Vincendas</span>
+                            <p className="subdisplay mt-2 text-[1.5rem] text-ink">
+                                {brl(r.economiaVincendasTotal)}
+                            </p>
+                            <p className="mt-1.5 text-xs text-muted-foreground">
+                                Taxa {num(contratoAtual?.analise.razaoAm ?? 1, 2)}x paradigma BACEN
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <span className="rubric text-muted-foreground">Grau vs. Paradigma</span>
+                            <div className="mt-2 flex items-baseline justify-between gap-2">
+                                <p className="subdisplay text-[1.5rem] text-ink">
+                                    {num(contratoAtual?.analise.razaoAm ?? 1, 2)}x
+                                </p>
+                                {contratoAtual && <Selo n={contratoAtual.nivel} />}
+                            </div>
+                            <p className="mt-1.5 text-xs text-muted-foreground">
+                                {contratoAtual
+                                    ? `${num(contratoAtual.analise.contratoAm)}% vs ${num(contratoAtual.taxaRevisionalAm)}% a.m.`
+                                    : "Comparativo mensal"}
+                            </p>
+                        </>
+                    )}
+                </div>
+            </div>
+
             {/* Quadro Resumo Global do Laudo */}
-            <section className="border-2 border-ink bg-card">
+            <section className="sheet-on-paper border border-ink/25">
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-ink px-5 py-3 text-paper">
-                    <h2 className="rubric text-gold-light">Resumo Global do Laudo</h2>
+                    <h2 className="rubric text-gold-light">Composição Analítica do Laudo</h2>
                     <span className="text-xs text-paper/75">
                         {resultado.contratos.length}{" "}
                         {resultado.contratos.length === 1 ? "contrato" : "contratos"} · atualização até{" "}
@@ -770,7 +789,7 @@ const ResultadoPainel = ({
     );
 };
 
-type AbaAtiva = "calculadora" | "painel" | "historico" | "categorias";
+type AbaAtiva = "calculadora" | "painel" | "historico" | "processos" | "categorias";
 
 const BASE_ROTA = "/ferramentas/calculadora-revisional";
 
@@ -787,10 +806,15 @@ const CalculadoraAdvogado = () => {
             ? "painel"
             : subRota === "historico"
               ? "historico"
-              : subRota === "categorias"
-                ? "categorias"
-                : "calculadora";
+              : subRota === "processos" || subRota.startsWith("processos/")
+                ? "processos"
+                : subRota === "categorias"
+                  ? "categorias"
+                  : "calculadora";
     const rotaCasoId = subRota.startsWith("caso/") ? decodeURIComponent(subRota.slice(5)) : null;
+    const rotaProcessoId = subRota.startsWith("processos/")
+        ? decodeURIComponent(subRota.slice("processos/".length))
+        : null;
     const origemHistorico = (location.state as { origemHistorico?: string } | null)?.origemHistorico ?? null;
 
     // Sessão e carregamento inicial
@@ -811,6 +835,8 @@ const CalculadoraAdvogado = () => {
     const [criandoCatRapida, setCriandoCatRapida] = useState(false);
     const [nomeCatRapida, setNomeCatRapida] = useState("");
     const [salvandoCalculo, setSalvandoCalculo] = useState(false);
+    const [salvandoFicha, setSalvandoFicha] = useState(false);
+    const [renovandoCaso, setRenovandoCaso] = useState(false);
 
     // Estado completo do processo pericial
     const [contratosForm, setContratosForm] = useState<ContratoFormState[]>(() => [criarContratoFormEmBranco(1)]);
@@ -818,8 +844,12 @@ const CalculadoraAdvogado = () => {
     const [tarifas, setTarifas] = useState<TarifaItem[]>([]);
     const [deducoes, setDeducoes] = useState<DeducaoItem[]>([]);
 
-    // Modal Olinda
+    // Modal Olinda e Modal DJEN
     const [olindaAlvoIdx, setOlindaAlvoIdx] = useState<number | null>(null);
+    const [djenContexto, setDjenContexto] = useState<ContextoInicialDjen | null>(null);
+    const [verificandoDjen, setVerificandoDjen] = useState(false);
+    const verificandoDjenRef = useRef(false);
+    const calculosRef = useRef<CalculoSalvo[]>([]);
 
     const [erro, setErro] = useState<string | null>(null);
     const [carregando, setCarregando] = useState(false);
@@ -848,6 +878,99 @@ const CalculadoraAdvogado = () => {
             setCarregandoBanco(false);
         }
     }, []);
+
+    useEffect(() => {
+        calculosRef.current = calculos;
+    }, [calculos]);
+
+    /**
+     * Consulta o DJEN para os processos salvos e anexa as publicações novas ao histórico de cada um.
+     * Automática: só processos sem verificação há INTERVALO_VERIFICACAO_DJEN_HORAS. Manual: todos.
+     */
+    const verificarPublicacoesSalvas = useCallback(
+        async (manual: boolean) => {
+            if (verificandoDjenRef.current) return;
+            verificandoDjenRef.current = true;
+            setVerificandoDjen(true);
+            try {
+                if (manual) {
+                    // Inclui processos salvos em outro computador desde o login.
+                    const frescos = await listarCalculos();
+                    calculosRef.current = frescos;
+                    setCalculos(frescos);
+                }
+
+                const resultado = await verificarPublicacoesDjen({
+                    calculos: calculosRef.current,
+                    atualizar: atualizarCalculo,
+                    obterAtual: (id) => calculosRef.current.find((c) => c.id === id),
+                    intervaloHoras: manual ? 0 : INTERVALO_VERIFICACAO_DJEN_HORAS,
+                });
+
+                if (resultado.atualizados.length > 0) {
+                    const porId = new Map(resultado.atualizados.map((c) => [c.id, c]));
+                    setCalculos((prev) => prev.map((c) => porId.get(c.id) ?? c));
+                }
+
+                if (resultado.totalNovas > 0) {
+                    const nomes = resultado.processosComNovidade.map((p) => p.clienteNome);
+                    toast.success(
+                        resultado.totalNovas === 1
+                            ? "1 publicação nova no DJEN"
+                            : `${resultado.totalNovas} publicações novas no DJEN`,
+                        {
+                            id: "djen-verificacao",
+                            description: nomes.slice(0, 3).join(", ") + (nomes.length > 3 ? ` e mais ${nomes.length - 3}` : ""),
+                            action: {
+                                label: "Ver processos",
+                                onClick: () => navigate(`${BASE_ROTA}/processos`),
+                            },
+                        },
+                    );
+                } else if (manual) {
+                    toast.info(
+                        resultado.verificados === 0
+                            ? "Nenhum processo salvo com número CNJ para verificar."
+                            : `Nenhuma publicação nova em ${resultado.verificados} ${resultado.verificados === 1 ? "processo verificado" : "processos verificados"}.`,
+                        { id: "djen-verificacao" },
+                    );
+                }
+
+                if (resultado.interrompidoPorLimite && manual) {
+                    toast.warning(
+                        `A API do DJEN limitou as consultas; ${resultado.adiados} ${resultado.adiados === 1 ? "processo fica" : "processos ficam"} para a próxima verificação.`,
+                    );
+                }
+                if (resultado.erros.length > 0 && manual) {
+                    toast.error(
+                        `${resultado.erros.length} ${resultado.erros.length === 1 ? "processo não pôde ser verificado" : "processos não puderam ser verificados"}: ${resultado.erros[0].mensagem}`,
+                    );
+                }
+            } catch (e) {
+                if (e instanceof RevisionalApiError && e.status === 401) {
+                    setSessao(null);
+                } else if (manual) {
+                    toast.error(e instanceof Error ? e.message : "Não foi possível verificar o DJEN agora.");
+                }
+            } finally {
+                verificandoDjenRef.current = false;
+                setVerificandoDjen(false);
+            }
+        },
+        [navigate],
+    );
+
+    // Enquanto o sistema estiver aberto, confere a cada 15 min se algum processo passou do intervalo
+    // de verificação; sem processos vencidos, nenhuma consulta é feita. O cron diário cobre o resto.
+    useEffect(() => {
+        if (!sessao) return;
+        const primeira = window.setTimeout(() => void verificarPublicacoesSalvas(false), 15_000);
+        const periodica = window.setInterval(() => void verificarPublicacoesSalvas(false), 15 * 60_000);
+        return () => {
+            window.clearTimeout(primeira);
+            window.clearInterval(periodica);
+        };
+    }, [sessao, verificarPublicacoesSalvas]);
 
     useEffect(() => {
         let ativo = true;
@@ -879,6 +1002,19 @@ const CalculadoraAdvogado = () => {
             carregarDadosEscritorio();
         }
     }, [sessao, carregarDadosEscritorio]);
+
+    const { calculosCarteira, processosSalvos } = useMemo(() => {
+        const carteira: CalculoSalvo[] = [];
+        const processos: CalculoSalvo[] = [];
+        for (const c of calculos) {
+            if (isCalculoPendente(c)) {
+                processos.push(c);
+            } else {
+                carteira.push(c);
+            }
+        }
+        return { calculosCarteira: carteira, processosSalvos: processos };
+    }, [calculos]);
 
     const contagemPorCategoria = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -929,6 +1065,11 @@ const CalculadoraAdvogado = () => {
         setDeducoes(processo.deducoes);
         setErro(null);
 
+        if (isCalculoPendente(c)) {
+            setRes(null);
+            return;
+        }
+
         try {
             const { onlineByContrato, seriesEconomicas } = await prepararDadosBacenProcesso(processo);
             const resultado = calcularProcessoRevisional(processo, seriesEconomicas, onlineByContrato);
@@ -959,6 +1100,10 @@ const CalculadoraAdvogado = () => {
         navigate(`${BASE_ROTA}/caso/${encodeURIComponent(c.id)}`, {
             state: { origemHistorico: origem },
         });
+    };
+
+    const abrirProcessoSalvo = (c: CalculoSalvo) => {
+        navigate(`${BASE_ROTA}/processos/${encodeURIComponent(c.id)}`);
     };
 
     const duplicarCasoDoHistorico = (c: CalculoSalvo) => {
@@ -1051,7 +1196,9 @@ const CalculadoraAdvogado = () => {
 
         setSalvandoCalculo(true);
         try {
-            const payload = processoParaPayload(res.resultado, res.input, ficha);
+            const existente =
+                !comoNovo && calculoAtivoId ? calculos.find((item) => item.id === calculoAtivoId) : undefined;
+            const payload = processoParaPayload(res.resultado, res.input, ficha, existente);
             if (!comoNovo && calculoAtivoId) {
                 const atualizado = await atualizarCalculo(calculoAtivoId, payload);
                 setCalculos((prev) => [atualizado, ...prev.filter((item) => item.id !== atualizado.id)]);
@@ -1071,6 +1218,139 @@ const CalculadoraAdvogado = () => {
             toast.error(e instanceof Error ? e.message : "Não foi possível salvar o cálculo.");
         } finally {
             setSalvandoCalculo(false);
+        }
+    };
+
+    const salvarFichaSemCalculo = async () => {
+        if (!ficha.clienteNome.trim()) {
+            toast.error("Informe o nome do cliente para salvar na carteira.");
+            clienteInputRef.current?.focus();
+            clienteInputRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+            return;
+        }
+
+        setSalvandoFicha(true);
+        try {
+            const primeiro = contratosForm[0];
+            const fichaCompleta: FichaCliente = {
+                ...ficha,
+                banco: ficha.banco.trim() || primeiro?.instituicao?.trim() || "",
+                documentoContrato: ficha.documentoContrato.trim() || primeiro?.numeroContrato?.trim() || "",
+            };
+            const existente = calculoAtivoId
+                ? calculos.find((item) => item.id === calculoAtivoId) ?? null
+                : null;
+            const origemDjenExistente = (
+                existente?.dados_completos as { origemDjen?: Record<string, unknown> } | undefined
+            )?.origemDjen;
+
+            const payload = fichaSemCalculoParaPayload(fichaCompleta, {
+                modalidadeId: primeiro?.modalidadeId,
+                mesContrato: primeiro?.dataContrato?.slice(0, 7),
+                origemDjen: origemDjenExistente,
+                // Mantém o valor da causa citado na publicação do DJEN ao regravar a ficha pendente.
+                valorEstimadoAcao:
+                    existente && isCalculoPendente(existente)
+                        ? Number(existente.valor_total_acao) || undefined
+                        : undefined,
+            });
+
+            if (existente && isCalculoPendente(existente)) {
+                const atualizado = await atualizarCalculo(existente.id, payload);
+                setCalculos((prev) => [atualizado, ...prev.filter((item) => item.id !== atualizado.id)]);
+                toast.success(`Ficha de "${atualizado.cliente_nome}" atualizada em Processos.`);
+            } else if (existente) {
+                const atualizado = await atualizarCalculo(existente.id, {
+                    categoria_id: fichaCompleta.categoriaId || null,
+                    cliente_nome: payload.cliente_nome,
+                    processo_global: payload.processo_global,
+                    banco: payload.banco,
+                    documento_contrato: payload.documento_contrato,
+                    observacoes: payload.observacoes,
+                });
+                setCalculos((prev) => [atualizado, ...prev.filter((item) => item.id !== atualizado.id)]);
+                toast.success(`Ficha de "${atualizado.cliente_nome}" atualizada na carteira.`);
+            } else {
+                const criado = await criarCalculo(payload);
+                casoSincronizadoRef.current = criado.id;
+                setCalculoAtivoId(criado.id);
+                setCalculos((prev) => [criado, ...prev]);
+                navigate(`${BASE_ROTA}/caso/${encodeURIComponent(criado.id)}`, { replace: true });
+                toast.success(`Ficha de "${criado.cliente_nome}" salva em Processos (aguardando contrato).`);
+            }
+        } catch (e) {
+            if (e instanceof RevisionalApiError && e.status === 401) {
+                setSessao(null);
+            }
+            toast.error(e instanceof Error ? e.message : "Não foi possível salvar a ficha.");
+        } finally {
+            setSalvandoFicha(false);
+        }
+    };
+
+    const salvarPublicacaoDjenNaCarteira = async (item: DjenComunicacao) => {
+        try {
+            const existingByCnj = item.numeroProcessoDigitos
+                ? calculos.find(
+                      (c) =>
+                          normalizarNumeroProcessoDjen(c.processo_global || "") ===
+                          item.numeroProcessoDigitos,
+                  )
+                : undefined;
+
+            if (existingByCnj) {
+                if (isCalculoPendente(existingByCnj)) {
+                    const patch = anexarMovimentacaoDjenAoProcesso(existingByCnj, item);
+                    const atualizado = await atualizarCalculo(existingByCnj.id, patch);
+                    setCalculos((prev) => [
+                        atualizado,
+                        ...prev.filter((row) => row.id !== atualizado.id),
+                    ]);
+                    toast.success(`Publicação anexada ao processo de "${atualizado.cliente_nome}".`, {
+                        id: "djen-carteira-save",
+                        action: {
+                            label: "Ver Processo",
+                            onClick: () => {
+                                setDjenContexto(null);
+                                navigate(`${BASE_ROTA}/processos/${encodeURIComponent(atualizado.id)}`);
+                            },
+                        },
+                    });
+                    return;
+                }
+
+                const obsResumo =
+                    item.texto.length > 420 ? `${item.texto.slice(0, 420).trim()}...` : item.texto;
+                await vincularDjenAoCaso({
+                    calculoId: existingByCnj.id,
+                    processoGlobal: item.numeroProcessoMascara,
+                    observacaoAdicional: `[DJEN ${item.dataDisponibilizacaoBr} · ${item.siglaTribunal} · ${item.nomeOrgao}]: ${obsResumo}`,
+                    comunicacao: item,
+                });
+                toast.success(`Publicação vinculada ao caso existente de "${existingByCnj.cliente_nome}".`, {
+                    id: "djen-carteira-save",
+                });
+                return;
+            }
+
+            const payload = criarPayloadCarteiraDeDjen(item, categorias);
+            const criado = await criarCalculo(payload);
+            setCalculos((prev) => [criado, ...prev]);
+            toast.success(`Processo de "${criado.cliente_nome}" salvo em Processos.`, {
+                id: "djen-carteira-save",
+                action: {
+                    label: "Ver Processo",
+                    onClick: () => {
+                        setDjenContexto(null);
+                        navigate(`${BASE_ROTA}/processos/${encodeURIComponent(criado.id)}`);
+                    },
+                },
+            });
+        } catch (e) {
+            if (e instanceof RevisionalApiError && e.status === 401) {
+                setSessao(null);
+            }
+            throw e;
         }
     };
 
@@ -1096,6 +1376,169 @@ const CalculadoraAdvogado = () => {
         limparFormulario();
     };
 
+    const renovarCasoNaCalculadora = async () => {
+        const dataHoje = hojeISO();
+        const contratosInput = contratosForm.map(formParaContratoInput);
+        const novosParametros: ParametrosDecisao = {
+            ...parametros,
+            dataBaseAtualizacao: dataHoje,
+        };
+        const inputAtualizado: ProcessoRevisionalInput = {
+            parametros: novosParametros,
+            contratos: contratosInput,
+            tarifas,
+            deducoes,
+        };
+
+        setRenovandoCaso(true);
+        setErro(null);
+        try {
+            const valorAnterior = res?.resultado.resumo.valorTotalAcao ?? 0;
+            const { onlineByContrato, seriesEconomicas } = await prepararDadosBacenProcesso(inputAtualizado);
+            const novoResultado = calcularProcessoRevisional(inputAtualizado, seriesEconomicas, onlineByContrato);
+
+            setFormInstanceKey((k) => k + 1);
+            setParametros(novosParametros);
+            setRes({ resultado: novoResultado, input: inputAtualizado });
+
+            if (calculoAtivoId && ficha.clienteNome.trim()) {
+                const existente = calculos.find((item) => item.id === calculoAtivoId);
+                const payload = processoParaPayload(novoResultado, inputAtualizado, ficha, existente);
+                const atualizado = await atualizarCalculo(calculoAtivoId, payload);
+                setCalculos((prev) => [atualizado, ...prev.filter((item) => item.id !== atualizado.id)]);
+            }
+
+            const catAtual = categorias.find((c) => c.id === ficha.categoriaId) ?? null;
+            baixarLaudoPdf(novoResultado, {
+                clienteNome: ficha.clienteNome || "Cliente",
+                processoGlobal: ficha.processoGlobal,
+                categoriaNome: catAtual?.nome,
+                observacoes: ficha.observacoes,
+                incluirGraficos: true,
+            });
+
+            const valorNovo = novoResultado.resumo.valorTotalAcao;
+            toast.success(
+                valorAnterior > 0
+                    ? `Cálculo renovado para hoje: ${brl(valorAnterior)} → ${brl(valorNovo)} (PDF atualizado).`
+                    : `Cálculo atualizado para hoje (${brl(valorNovo)}) e PDF baixado.`,
+            );
+        } catch (e) {
+            if (e instanceof RevisionalApiError && e.status === 401) {
+                setSessao(null);
+            }
+            toast.error(e instanceof Error ? e.message : "Não foi possível renovar o cálculo agora.");
+        } finally {
+            setRenovandoCaso(false);
+        }
+    };
+
+    const aplicarResultadoClaude = async (
+        extracao: ClaudeExtracaoRevisional,
+        opcoes: { salvarAutomaticamente: boolean; fonte: "claude_api" | "parser_local" },
+    ) => {
+        const contratosAtuaisInput = contratosForm.map(formParaContratoInput);
+        const {
+            ficha: nextFichaBase,
+            processo: nextProcesso,
+            categoriaSugeridaNome,
+        } = aplicarExtracaoClaudeAoEstado(extracao, {
+            ficha,
+            processo: {
+                parametros,
+                contratos: contratosAtuaisInput,
+                tarifas,
+                deducoes,
+            },
+            categorias,
+        });
+
+        const nextFicha = { ...nextFichaBase };
+        if (categoriaSugeridaNome) {
+            try {
+                const maxOrdem = categorias.reduce((acc, c) => Math.max(acc, c.ordem), 0);
+                const novaCat = await criarCategoria(categoriaSugeridaNome, "gold", maxOrdem + 1);
+                setCategorias((prev) => [...prev, novaCat]);
+                nextFicha.categoriaId = novaCat.id;
+            } catch {
+                /* mantém sem categoria se falhar */
+            }
+        }
+
+        const virouNovoCaso = extracao.modoOperacao === "novo_caso";
+        if (virouNovoCaso && calculoAtivoId) {
+            casoSincronizadoRef.current = null;
+            setCalculoAtivoId(null);
+        }
+
+        setFormInstanceKey((k) => k + 1);
+        setFicha(nextFicha);
+        setContratosForm(nextProcesso.contratos.map(contratoInputParaForm));
+        setParametros(nextProcesso.parametros);
+        setTarifas(nextProcesso.tarifas);
+        setDeducoes(nextProcesso.deducoes);
+        setErro(null);
+
+        const primeiro = nextProcesso.contratos[0];
+        const mod = primeiro ? MODALIDADES.find((m) => m.id === primeiro.modalidadeId) : undefined;
+        const msgVal = primeiro
+            ? validar({
+                  mod,
+                  mes: primeiro.dataContrato.slice(0, 7),
+                  valor: primeiro.valorFinanciado,
+                  parcela: primeiro.valorParcela,
+                  parcelas: primeiro.parcelas,
+                  pagas: primeiro.pagas,
+              })
+            : "Contrato não informado.";
+
+        if (msgVal) {
+            setRes(null);
+            toast.info(
+                `Campos preenchidos pelo Claude (${opcoes.fonte === "claude_api" ? "API" : "comando"}). ${msgVal}`,
+            );
+            return;
+        }
+
+        setCarregando(true);
+        try {
+            const { onlineByContrato, seriesEconomicas } = await prepararDadosBacenProcesso(nextProcesso);
+            const resultado = calcularProcessoRevisional(nextProcesso, seriesEconomicas, onlineByContrato);
+            setRes({ resultado, input: nextProcesso });
+
+            if (opcoes.salvarAutomaticamente && nextFicha.clienteNome.trim()) {
+                const existente =
+                    !virouNovoCaso && calculoAtivoId
+                        ? calculos.find((item) => item.id === calculoAtivoId)
+                        : undefined;
+                const payload = processoParaPayload(resultado, nextProcesso, nextFicha, existente);
+                if (!virouNovoCaso && calculoAtivoId) {
+                    const atualizado = await atualizarCalculo(calculoAtivoId, payload);
+                    setCalculos((prev) => [atualizado, ...prev.filter((item) => item.id !== atualizado.id)]);
+                    toast.success(`Caso de "${atualizado.cliente_nome}" atualizado com Claude e salvo.`);
+                } else {
+                    const criado = await criarCalculo(payload);
+                    casoSincronizadoRef.current = criado.id;
+                    setCalculoAtivoId(criado.id);
+                    setCalculos((prev) => [criado, ...prev]);
+                    navigate(`${BASE_ROTA}/caso/${encodeURIComponent(criado.id)}`, { replace: true });
+                    toast.success(`Contrato de "${criado.cliente_nome}" calculado com Claude e salvo.`);
+                }
+            } else {
+                toast.success("Contrato preenchido e cálculo concluído com Claude.");
+            }
+        } catch (e) {
+            if (e instanceof RevisionalApiError && e.status === 401) {
+                setSessao(null);
+            }
+            const msg = e instanceof Error ? e.message : "Não foi possível calcular após preencher.";
+            setErro(msg);
+            toast.error(msg);
+        } finally {
+            setCarregando(false);
+        }
+    };
+
     const olindaContratoAtual = olindaAlvoIdx !== null ? contratosForm[olindaAlvoIdx] : null;
 
     const aplicarTaxaOlinda = (sel: TaxaOlindaSelecao) => {
@@ -1119,6 +1562,105 @@ const CalculadoraAdvogado = () => {
         setContratosForm((prev) =>
             prev.map((ct, i) => (i === olindaAlvoIdx ? { ...ct, instituicao: nomeBanco } : ct)),
         );
+    };
+
+    const vincularDjenAoCaso = async (opts: {
+        calculoId: string | null;
+        processoGlobal?: string;
+        observacaoAdicional?: string;
+        comunicacao?: DjenComunicacao;
+    }) => {
+        const alvoId = opts.calculoId;
+        const procNovo = opts.processoGlobal?.trim();
+        const obsAdd = opts.observacaoAdicional?.trim();
+
+        if (alvoId) {
+            const existente = calculos.find((c) => c.id === alvoId);
+            if (existente && isCalculoPendente(existente) && opts.comunicacao) {
+                const patch = anexarMovimentacaoDjenAoProcesso(existente, opts.comunicacao);
+                const atualizado = await atualizarCalculo(alvoId, patch);
+                setCalculos((prev) => prev.map((item) => (item.id === atualizado.id ? atualizado : item)));
+            } else if (existente) {
+                const obsAtual = existente.observacoes?.trim() ?? "";
+                const obsFinal = obsAdd
+                    ? obsAtual
+                        ? obsAtual.includes(obsAdd)
+                            ? obsAtual
+                            : `${obsAtual}\n${obsAdd}`
+                        : obsAdd
+                    : obsAtual;
+                const patch: { processo_global?: string; observacoes?: string } = {};
+                if (procNovo && !existente.processo_global?.trim()) {
+                    patch.processo_global = procNovo;
+                }
+                if (obsAdd) {
+                    patch.observacoes = obsFinal;
+                }
+                const atualizado = await atualizarCalculo(alvoId, patch);
+                setCalculos((prev) => prev.map((item) => (item.id === atualizado.id ? atualizado : item)));
+            }
+        }
+
+        if (!alvoId || alvoId === calculoAtivoId) {
+            setFicha((prev) => {
+                const obsAtual = prev.observacoes.trim();
+                const obsFinal = obsAdd
+                    ? obsAtual
+                        ? obsAtual.includes(obsAdd)
+                            ? obsAtual
+                            : `${obsAtual}\n${obsAdd}`
+                        : obsAdd
+                    : obsAtual;
+                return {
+                    ...prev,
+                    processoGlobal: procNovo && !prev.processoGlobal?.trim() ? procNovo : prev.processoGlobal,
+                    observacoes: obsFinal,
+                };
+            });
+        }
+    };
+
+    const usarPublicacaoDjenNaCalculadora = (dados: {
+        clienteNome: string;
+        processoGlobal: string;
+        banco: string;
+        documentoContrato?: string;
+        categoriaId?: string | null;
+        modalidadeId?: string;
+        observacao?: string;
+    }) => {
+        limparCamposEmMemoria();
+        setFicha({
+            ...FICHA_VAZIA,
+            clienteNome: dados.clienteNome,
+            processoGlobal: dados.processoGlobal,
+            banco: dados.banco,
+            documentoContrato: dados.documentoContrato ?? "",
+            categoriaId: dados.categoriaId ?? null,
+            observacoes: dados.observacao ?? "",
+        });
+        const modMatch = dados.modalidadeId
+            ? MODALIDADES.find((m) => m.id === dados.modalidadeId)
+            : undefined;
+        if (dados.banco || dados.documentoContrato || modMatch) {
+            setContratosForm((prev) =>
+                prev.map((ct, idx) =>
+                    idx === 0
+                        ? {
+                              ...ct,
+                              instituicao: dados.banco || ct.instituicao,
+                              numeroContrato: dados.documentoContrato || ct.numeroContrato,
+                              pessoa: modMatch ? modMatch.pessoa : ct.pessoa,
+                              modalidadeId: modMatch ? modMatch.id : ct.modalidadeId,
+                          }
+                        : ct,
+                ),
+            );
+        }
+        if (aba !== "calculadora") {
+            navigate(BASE_ROTA);
+        }
+        toast.success("Dados do processo no DJEN preenchidos na calculadora.");
     };
 
     if (verificandoSessao) {
@@ -1223,7 +1765,19 @@ const CalculadoraAdvogado = () => {
                                 )}
                             >
                                 <FolderClock className="size-4" />
-                                Histórico ({calculos.length})
+                                Carteira ({calculosCarteira.length})
+                            </Link>
+                            <Link
+                                to={`${BASE_ROTA}/processos`}
+                                className={cn(
+                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
+                                    aba === "processos"
+                                        ? "border-gold-light text-paper"
+                                        : "border-transparent text-paper/70 hover:text-paper",
+                                )}
+                            >
+                                <Gavel className="size-4" />
+                                Processos ({processosSalvos.length})
                             </Link>
                             <Link
                                 to={`${BASE_ROTA}/categorias`}
@@ -1239,16 +1793,27 @@ const CalculadoraAdvogado = () => {
                             </Link>
                         </nav>
 
-                        {aba === "calculadora" && (calculoAtivoId || res || ficha.clienteNome) && (
+                        <div className="flex flex-wrap items-center gap-3">
                             <button
                                 type="button"
-                                onClick={limparFormulario}
-                                className="inline-flex h-8 items-center gap-1.5 text-xs font-semibold text-gold-light hover:underline"
+                                onClick={() => setDjenContexto({ modoInicial: "oab" })}
+                                className="inline-flex h-8 items-center gap-1.5 border border-gold-light/50 bg-gold-light/15 px-2.5 text-xs font-semibold text-gold-light hover:bg-gold-light hover:text-ink"
                             >
-                                <FilePlus2 className="size-3.5" />
-                                Novo cálculo em branco
+                                <Gavel className="size-3.5" />
+                                Radar DJEN (OAB 61.107)
                             </button>
-                        )}
+
+                            {aba === "calculadora" && (calculoAtivoId || res || ficha.clienteNome) && (
+                                <button
+                                    type="button"
+                                    onClick={limparFormulario}
+                                    className="inline-flex h-8 items-center gap-1.5 text-xs font-semibold text-gold-light hover:underline"
+                                >
+                                    <FilePlus2 className="size-3.5" />
+                                    Novo cálculo em branco
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </header>
@@ -1272,10 +1837,23 @@ const CalculadoraAdvogado = () => {
                 onPreencherBanco={preencherBancoOlinda}
             />
 
+            <ModalConsultaDjen
+                aberto={djenContexto !== null}
+                contexto={djenContexto}
+                calculos={calculos}
+                categorias={categorias}
+                onFechar={() => setDjenContexto(null)}
+                onAbrirCaso={abrirCasoDoHistorico}
+                onAbrirProcessoSalvo={abrirProcessoSalvo}
+                onUsarNaCalculadora={usarPublicacaoDjenNaCalculadora}
+                onVincularCnjObservacao={vincularDjenAoCaso}
+                onSalvarNaCarteira={salvarPublicacaoDjenNaCarteira}
+            />
+
             {aba === "painel" && (
                 <main className="container py-10 lg:py-14">
                     <PainelEstatisticas
-                        calculos={calculos}
+                        calculos={calculosCarteira}
                         categorias={categorias}
                         carregando={carregandoBanco}
                         onRecarregar={carregarDadosEscritorio}
@@ -1291,7 +1869,7 @@ const CalculadoraAdvogado = () => {
             {aba === "historico" && (
                 <main className="container py-10 lg:py-14">
                     <HistoricoCalculos
-                        calculos={calculos}
+                        calculos={calculosCarteira}
                         categorias={categorias}
                         calculoAtivoId={calculoAtivoId}
                         carregando={carregandoBanco}
@@ -1308,6 +1886,49 @@ const CalculadoraAdvogado = () => {
                             }
                         }}
                         onGerenciarCategorias={() => navigate(`${BASE_ROTA}/categorias`)}
+                        onAbrirDjen={(c) =>
+                            setDjenContexto({
+                                modoInicial: "processo",
+                                calculoId: c.id,
+                                clienteNome: c.cliente_nome,
+                                processoGlobal: c.processo_global,
+                            })
+                        }
+                        onAbrirRadarDjen={() => setDjenContexto({ modoInicial: "oab" })}
+                    />
+                </main>
+            )}
+
+            {aba === "processos" && (
+                <main className="container py-10 lg:py-14">
+                    <ProcessosSalvosDjen
+                        processos={processosSalvos}
+                        categorias={categorias}
+                        processoAtivoId={rotaProcessoId}
+                        verificandoDjen={verificandoDjen}
+                        intervaloVerificacaoHoras={INTERVALO_VERIFICACAO_DJEN_HORAS}
+                        onVerificarDjen={() => void verificarPublicacoesSalvas(true)}
+                        onAbrirProcesso={abrirProcessoSalvo}
+                        onVoltarLista={() => navigate(`${BASE_ROTA}/processos`)}
+                        onAtualizado={(atualizado) =>
+                            setCalculos((prev) => prev.map((item) => (item.id === atualizado.id ? atualizado : item)))
+                        }
+                        onExcluido={(id) => {
+                            setCalculos((prev) => prev.filter((item) => item.id !== id));
+                            if (calculoAtivoId === id) {
+                                limparCamposEmMemoria();
+                            }
+                        }}
+                        onAbrirRadarDjen={() => setDjenContexto({ modoInicial: "oab" })}
+                        onConsultarDjenProcesso={(c) =>
+                            setDjenContexto({
+                                modoInicial: "processo",
+                                calculoId: c.id,
+                                clienteNome: c.cliente_nome,
+                                processoGlobal: c.processo_global,
+                            })
+                        }
+                        onLevarParaCalculadora={abrirCasoDoHistorico}
                     />
                 </main>
             )}
@@ -1347,20 +1968,43 @@ const CalculadoraAdvogado = () => {
                         </div>
                     )}
 
-                    <form onSubmit={calcular} noValidate className="space-y-6 lg:col-span-5">
-                        <div>
-                            <h1 className="subdisplay text-[1.75rem] text-ink">Cálculo revisional pericial</h1>
-                            <p className="mt-2 text-sm text-muted-foreground">
-                                Múltiplos contratos, tabela por banco (BCB Olinda), tarifas, correção monetária e laudo PDF.
+                    <form onSubmit={calcular} noValidate className="space-y-5 lg:col-span-5">
+                        <div className="border-b border-ink/15 pb-4">
+                            <span className="rubric text-gold-deep">Suite Pericial Bancária</span>
+                            <h1 className="subdisplay mt-1.5 text-[1.75rem] text-ink">
+                                Cálculo revisional completo
+                            </h1>
+                            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                                Múltiplos contratos, taxas BACEN/Olinda, tarifas em dobro, atualização monetária e laudo
+                                PDF A4.
                             </p>
                         </div>
 
-                        {/* Ficha global do caso */}
-                        <section className="space-y-5 border border-ink/25 bg-card p-5">
-                            <div className="flex items-baseline justify-between gap-3 border-b border-ink/20 pb-2.5">
-                                <h2 className="rubric text-ink">Identificação do caso</h2>
+                        <AssistenteClaudeRevisional
+                            sessaoAccessToken={sessao.accessToken}
+                            calculoAtivoId={calculoAtivoId}
+                            carregandoExterno={carregando || salvandoCalculo || renovandoCaso}
+                            estadoAtual={{
+                                ficha,
+                                processo: {
+                                    parametros,
+                                    contratos: contratosForm.map(formParaContratoInput),
+                                    tarifas,
+                                    deducoes,
+                                },
+                                categorias,
+                            }}
+                            onAplicarResultadoClaude={aplicarResultadoClaude}
+                        />
+
+                        {/* 01 · Ficha global do caso */}
+                        <section className="sheet-on-paper space-y-5 border border-ink/20 p-5 sm:p-6">
+                            <div className="flex items-baseline justify-between gap-3 border-b border-ink/15 pb-2.5">
+                                <h2 className="rubric text-ink">01 · Identificação do caso</h2>
                                 {calculoAtivoId && (
-                                    <span className="text-xs font-semibold text-gold-deep">Editando salvo</span>
+                                    <span className="bg-gold-light/40 px-2 py-0.5 text-[11px] font-semibold text-ink">
+                                        Editando salvo
+                                    </span>
                                 )}
                             </div>
 
@@ -1375,71 +2019,90 @@ const CalculadoraAdvogado = () => {
                                     onChange={(e) => setFicha({ ...ficha, clienteNome: e.target.value })}
                                     maxLength={160}
                                     placeholder="Ex.: José Carlos Ferreira"
-                                    className="field"
+                                    className="field py-2"
                                 />
                             </div>
 
-                            <div>
-                                <label htmlFor="adv-processo" className={labelClass}>
-                                    Nº do processo (global)
-                                </label>
-                                <input
-                                    id="adv-processo"
-                                    value={ficha.processoGlobal ?? ""}
-                                    onChange={(e) => setFicha({ ...ficha, processoGlobal: e.target.value })}
-                                    maxLength={80}
-                                    placeholder="Ex.: 0002720-86.2026.8.17.1130 (opcional)"
-                                    className="field tabular-nums"
-                                />
-                            </div>
-
-                            <div>
-                                <div className="flex items-baseline justify-between gap-2">
-                                    <label htmlFor="adv-cat" className={labelClass}>
-                                        Categoria
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setCriandoCatRapida((v) => !v)}
-                                        className="inline-flex items-center gap-1 text-xs font-semibold text-ink/75 hover:text-ink"
-                                    >
-                                        <Plus className="size-3" />
-                                        Nova categoria
-                                    </button>
-                                </div>
-                                <select
-                                    id="adv-cat"
-                                    value={ficha.categoriaId ?? ""}
-                                    onChange={(e) => setFicha({ ...ficha, categoriaId: e.target.value || null })}
-                                    className="field cursor-pointer [&>option]:text-ink"
-                                >
-                                    <option value="">Sem categoria</option>
-                                    {categorias.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.nome}
-                                        </option>
-                                    ))}
-                                </select>
-
-                                {criandoCatRapida && (
-                                    <div className="mt-3 flex items-center gap-2">
-                                        <input
-                                            value={nomeCatRapida}
-                                            onChange={(e) => setNomeCatRapida(e.target.value)}
-                                            placeholder="Nome da nova categoria"
-                                            maxLength={60}
-                                            className="field py-1.5 text-sm"
-                                        />
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div>
+                                    <div className="flex items-baseline justify-between gap-2">
+                                        <label htmlFor="adv-processo" className={labelClass}>
+                                            Nº do processo (CNJ)
+                                        </label>
                                         <button
                                             type="button"
-                                            onClick={criarCategoriaInline}
-                                            className="inline-flex h-9 shrink-0 items-center bg-ink px-3 text-xs font-semibold text-paper hover:bg-ink-soft"
+                                            onClick={() =>
+                                                setDjenContexto({
+                                                    modoInicial: "processo",
+                                                    calculoId: calculoAtivoId,
+                                                    clienteNome: ficha.clienteNome,
+                                                    processoGlobal: ficha.processoGlobal ?? "",
+                                                })
+                                            }
+                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gold-deep hover:text-ink"
                                         >
-                                            Criar
+                                            <Gavel className="size-3" />
+                                            Consultar DJEN
                                         </button>
                                     </div>
-                                )}
+                                    <input
+                                        id="adv-processo"
+                                        value={ficha.processoGlobal ?? ""}
+                                        onChange={(e) => setFicha({ ...ficha, processoGlobal: e.target.value })}
+                                        maxLength={80}
+                                        placeholder="0002720-86.2026.8.17.1130"
+                                        className="field py-2 text-sm tabular-nums"
+                                    />
+                                </div>
+
+                                <div>
+                                    <div className="flex items-baseline justify-between gap-2">
+                                        <label htmlFor="adv-cat" className={labelClass}>
+                                            Fase / Categoria
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCriandoCatRapida((v) => !v)}
+                                            className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-ink/75 hover:text-ink"
+                                        >
+                                            <Plus className="size-3" />
+                                            Nova
+                                        </button>
+                                    </div>
+                                    <select
+                                        id="adv-cat"
+                                        value={ficha.categoriaId ?? ""}
+                                        onChange={(e) => setFicha({ ...ficha, categoriaId: e.target.value || null })}
+                                        className="field cursor-pointer py-2 text-sm [&>option]:text-ink"
+                                    >
+                                        <option value="">Sem categoria</option>
+                                        {categorias.map((c) => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.nome}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
+
+                            {criandoCatRapida && (
+                                <div className="flex items-center gap-2 border border-ink/15 bg-secondary/40 p-2.5">
+                                    <input
+                                        value={nomeCatRapida}
+                                        onChange={(e) => setNomeCatRapida(e.target.value)}
+                                        placeholder="Nome da nova fase/categoria"
+                                        maxLength={60}
+                                        className="field py-1 text-sm"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={criarCategoriaInline}
+                                        className="inline-flex h-8 shrink-0 items-center bg-ink px-3 text-xs font-semibold text-paper hover:bg-ink-soft"
+                                    >
+                                        Criar
+                                    </button>
+                                </div>
+                            )}
 
                             <div>
                                 <label htmlFor="adv-obs" className={labelClass}>
@@ -1452,8 +2115,27 @@ const CalculadoraAdvogado = () => {
                                     onChange={(e) => setFicha({ ...ficha, observacoes: e.target.value })}
                                     maxLength={4000}
                                     placeholder="Seguro prestamista, tarifa de cadastro, vara, prazos..."
-                                    className="field resize-y text-sm"
+                                    className="field resize-y py-2 text-sm"
                                 />
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/12 pt-3">
+                                <span className="text-[11px] leading-snug text-muted-foreground">
+                                    Sem valores do contrato ainda? Salve a ficha na aba Processos antes de calcular.
+                                </span>
+                                <button
+                                    type="button"
+                                    disabled={salvandoFicha || salvandoCalculo}
+                                    onClick={salvarFichaSemCalculo}
+                                    className="inline-flex h-8 shrink-0 items-center gap-1.5 border border-[#126A35]/50 bg-[#126A35]/10 px-3 text-xs font-semibold text-[#126A35] hover:bg-[#126A35] hover:text-paper disabled:opacity-60"
+                                >
+                                    {salvandoFicha ? (
+                                        <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                        <BookmarkPlus className="size-3.5" />
+                                    )}
+                                    {calculoAtivoId ? "Atualizar Ficha" : "Salvar em Processos"}
+                                </button>
                             </div>
                         </section>
 
@@ -1526,26 +2208,99 @@ const CalculadoraAdvogado = () => {
                                 categoria={categoriaSelecionada}
                                 calculoAtivoId={calculoAtivoId}
                                 salvando={salvandoCalculo}
+                                renovando={renovandoCaso}
                                 onSalvar={salvarNoBanco}
+                                onRenovarHoje={renovarCasoNaCalculadora}
                             />
                         ) : (
-                            <div className="grid items-center gap-8 bg-ink p-8 text-paper sm:grid-cols-[minmax(0,1fr)_14rem] lg:sticky lg:top-8">
-                                <div>
-                                    <p className="subdisplay text-2xl">O laudo aparece aqui.</p>
-                                    <p className="mt-3 max-w-[56ch] leading-relaxed text-paper/80">
-                                        Adicione um ou mais contratos, consulte a taxa média ou a taxa por banco no BCB
-                                        Olinda, inclua tarifas/seguros e gere o demonstrativo atualizado pronto para
-                                        PDF. Você também pode abrir os{" "}
+                            <div className="sheet-on-paper border border-ink/20 lg:sticky lg:top-8">
+                                <div className="grid items-center gap-6 bg-ink px-6 py-7 text-paper sm:grid-cols-[minmax(0,1fr)_10.5rem]">
+                                    <div>
+                                        <span className="rubric text-gold-light">Folha de Rosto Pericial</span>
+                                        <h2 className="subdisplay mt-2 text-2xl text-paper">
+                                            O laudo completo aparece aqui.
+                                        </h2>
+                                        <p className="mt-2.5 max-w-[52ch] text-sm leading-relaxed text-paper/80">
+                                            Solte o PDF/foto da CCB no painel do Claude ou preencha os dados ao lado para
+                                            gerar o comparativo BACEN, os gráficos e o Laudo PDF em A4.
+                                        </p>
+                                    </div>
+                                    <HeroArt variant="calculo" className="mx-auto max-w-[10.5rem]" />
+                                </div>
+
+                                <div className="grid divide-y divide-ink/15 border-b border-ink/15 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                                    <div className="p-4">
+                                        <span className="rubric text-gold-deep">01 · Contrato</span>
+                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                            Informe capital, parcelas e taxa ou anexe o contrato direto no Claude.
+                                        </p>
+                                    </div>
+                                    <div className="p-4">
+                                        <span className="rubric text-gold-deep">02 · BACEN / Olinda</span>
+                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                            Consulta automática às médias SGS e taxas por instituição financeira.
+                                        </p>
+                                    </div>
+                                    <div className="p-4">
+                                        <span className="rubric text-gold-deep">03 · Laudo &amp; Inicial</span>
+                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                            Resumo pronto para petição, CSV das parcelas e PDF A4 com gráficos.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="p-5">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <h3 className="rubric text-ink">Últimos casos salvos</h3>
                                         <Link
                                             to={`${BASE_ROTA}/historico`}
-                                            className="font-semibold text-gold-light underline underline-offset-4"
+                                            className="inline-flex items-center gap-1 text-xs font-semibold text-gold-deep hover:text-ink hover:underline"
                                         >
-                                            {calculos.length} cálculos salvos
+                                            Ver pauta completa ({calculosCarteira.length})
+                                            <ArrowRight className="size-3.5" />
                                         </Link>
-                                        .
-                                    </p>
+                                    </div>
+
+                                    {calculosCarteira.length === 0 ? (
+                                        <p className="mt-3 text-xs text-muted-foreground">
+                                            Nenhum cálculo salvo ainda. Calcule um contrato e salve para acessá-lo rápido
+                                            por aqui.
+                                        </p>
+                                    ) : (
+                                        <ul className="mt-3 divide-y divide-ink/12 border border-ink/15 bg-background/50">
+                                            {calculosCarteira.slice(0, 4).map((c) => {
+                                                const pendente = isCalculoPendente(c);
+                                                const val = Number(c.valor_total_acao) || Number(c.diferenca_total) || 0;
+                                                return (
+                                                    <li key={c.id}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => abrirCasoDoHistorico(c)}
+                                                            className="flex w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left transition-colors hover:bg-ink/[0.03]"
+                                                        >
+                                                            <div className="min-w-0">
+                                                                <p className="truncate text-sm font-semibold text-ink">
+                                                                    {c.cliente_nome}
+                                                                </p>
+                                                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                                                    {c.banco || "Banco não informado"} ·{" "}
+                                                                    {mNome(c.mes_contrato)} ·{" "}
+                                                                    {pendente ? "Aguardando contrato" : `${num(c.razao_am, 2)}x`}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex shrink-0 items-center gap-2.5 tabular-nums">
+                                                                <span className="text-sm font-bold text-ink">
+                                                                    {pendente && val === 0 ? "Pendente" : brl(val)}
+                                                                </span>
+                                                                <FolderOpen className="size-3.5 text-ink/50" />
+                                                            </div>
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
                                 </div>
-                                <HeroArt variant="calculo" className="max-w-[14rem]" />
                             </div>
                         )}
                     </div>

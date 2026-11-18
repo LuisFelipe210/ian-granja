@@ -428,6 +428,33 @@
             color: var(--ink);
         }
 
+        .code-box {
+            margin: 0.65rem 0;
+            padding: 0.85rem 1rem;
+            background: var(--ink-deep);
+            color: #eef1f7;
+            border: 1px solid rgba(6, 19, 54, 0.25);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre;
+            break-inside: avoid;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.82em;
+            background: var(--secondary);
+            padding: 0.08rem 0.3rem;
+        }
+
+        .code-box code {
+            background: transparent;
+            padding: 0;
+            font-size: inherit;
+        }
+
         /* Quadro destaque de leitura */
         .highlight-box {
             border: 2px solid var(--ink);
@@ -540,6 +567,7 @@
                 <a href="#calculadora-pericial">Calculadora Pericial</a>
                 <a href="#laudo-graficos">Laudos e Gráficos</a>
                 <a href="#painel-kanban">Painel e Kanban</a>
+                <a href="#integracao-claude">Claude e MCP</a>
             </nav>
             <button type="button" class="btn-print" onclick="window.print()">
                 Imprimir / Salvar em PDF (A4)
@@ -664,6 +692,19 @@
                                     </td>
                                 </tr>
                                 <tr>
+                                    <td><strong>API Pública do DJEN — CNJ</strong><br />(Diário de Justiça Eletrônico Nacional)</td>
+                                    <td>
+                                        Busca publicações, intimações, decisões e sentenças pelo número CNJ do processo
+                                        ou pela <strong>OAB/PE 61.107</strong> em todos os tribunais integrados ao PJe.
+                                    </td>
+                                    <td>
+                                        <ul class="clean">
+                                            <li><strong>Radar DJEN:</strong> cruza automaticamente as intimações recentes com os clientes cadastrados no Kanban.</li>
+                                            <li>Permite salvar o teor da publicação nas observações do caso, vincular o nº CNJ ao cliente ou pré-preencher um novo cálculo direto da intimação.</li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                                <tr>
                                     <td><strong>Envio de E-mail do Contato</strong></td>
                                     <td>
                                         Recebe as mensagens preenchidas pelos visitantes na página de Contato do site.
@@ -727,7 +768,9 @@
                         Para entrar, acesse <span class="tag-rota">/ferramentas/calculadora-revisional</span> e faça login
                         com o e-mail e senha autorizados do escritório. O menu superior dá acesso a 4 abas:
                         <strong>Calculadora</strong>, <strong>Painel</strong>, <strong>Histórico</strong> e
-                        <strong>Categorias</strong>.
+                        <strong>Categorias</strong>. No topo do formulário há também a faixa
+                        <strong>Leitura Automática &amp; Comando Claude</strong> para preencher tudo por PDF, foto ou
+                        comando de texto (detalhes na seção 07).
                     </p>
 
                     <div class="steps">
@@ -881,8 +924,165 @@
                             <h3 class="card-title">Modo Quadro (Kanban)</h3>
                             <ul class="clean">
                                 <li><strong>Arraste e solte:</strong> mova a ficha do cliente de uma coluna para outra com o mouse ou troque a fase pelo seletor no próprio cartão.</li>
-                                <li><strong>Visão sob medida:</strong> alterne entre cartões <em>Detalhados</em> (mostram taxas, progresso de parcelas pagas e observações) ou <em>Compactos</em>, recolha colunas em tira vertical e oculte fases vazias.</li>
-                                <li><strong>Ações no cartão:</strong> clique na observação para ler o texto inteiro e ver valores do contrato, baixe o Laudo PDF direto, duplique para simular outro cenário ou abra o caso completo.</li>
+                                <li><strong>Renovar para hoje (1 clique):</strong> tanto na Tabela quanto no cartão do Kanban, o botão de atualização busca os índices mais recentes do Banco Central até hoje, recalcula o proveito econômico, salva no banco e já baixa o novo Laudo PDF.</li>
+                                <li><strong>Visão sob medida:</strong> alterne entre cartões <em>Detalhados</em> ou <em>Compactos</em>, recolha colunas em tira vertical e oculte fases vazias.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 7. Claude e Conector MCP -->
+                <section id="integracao-claude" class="section">
+                    <p class="section-rubric">07 · Inteligência Artificial (Claude), Leitura de Contratos e Conector MCP</p>
+                    <h2>Como conectar o Claude ao sistema e automatizar cálculos</h2>
+                    <p>
+                        O sistema trabalha integrado ao <strong>Claude</strong> (Anthropic) em duas frentes complementares,
+                        além da renovação automática em 1 clique dentro da própria plataforma:
+                    </p>
+
+                    <div class="grid-3">
+                        <div class="card card-accent">
+                            <h3 class="card-title">1. Conector MCP no Claude Pro</h3>
+                            <p>
+                                Conecta o aplicativo <strong>Claude Desktop</strong> ou <strong>Claude Web</strong> direto
+                                ao banco do escritório. O advogado anexa o PDF ou foto do contrato no próprio chat do Claude
+                                e pede para calcular, cadastrar ou consultar a carteira — usando a assinatura Claude Pro,
+                                <strong>sem gastar créditos extras de API</strong>.
+                            </p>
+                        </div>
+                        <div class="card card-gold">
+                            <h3 class="card-title">2. Leitura dentro da Calculadora</h3>
+                            <p>
+                                Na faixa <strong>Leitura Automática &amp; Comando Claude</strong> da calculadora, é possível
+                                soltar o PDF/foto da CCB ou digitar comandos em português (ex.:
+                                <em>“Atualiza para hoje e inclui alvará de R$ 5.000”</em>). Comandos de texto rodam
+                                gratuitamente; leitura de PDF/foto dentro do site usa uma chave opcional da API Anthropic.
+                            </p>
+                        </div>
+                        <div class="card card-emerald">
+                            <h3 class="card-title">3. Renovação em 1 Clique</h3>
+                            <p>
+                                Na Tabela, no Kanban e na Calculadora, o botão <strong>Renovar / Atualizar para hoje</strong>
+                                busca os índices mais recentes do Banco Central (INPC/IPCA/IGP-M/SELIC), recalcula o proveito
+                                econômico, salva o novo valor e gera o Laudo PDF atualizado sem precisar digitar nada.
+                            </p>
+                        </div>
+                    </div>
+
+                    <h3>Tutorial: como ativar o Conector MCP no seu computador / Claude</h3>
+
+                    <div class="steps">
+                        <div class="step-box">
+                            <span class="step-num">A</span>
+                            <div>
+                                <h4>Opção 1 · Claude Web ou Desktop (Conector Remoto URL)</h4>
+                                <p>
+                                    Ideal se você usa o site <strong>claude.ai</strong> (Claude Pro / Max / Team):<br />
+                                    1. Acesse <strong>Configurações (Settings) → Connectors → Add Custom Connector</strong>.<br />
+                                    2. Cole a URL do servidor do escritório informada pelo administrador:<br />
+                                    <code>https://www.iangranja.adv.br/api/mcp?token=SEU_TOKEN</code><br />
+                                    3. Salve e ative o conector em qualquer conversa nova.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="step-box">
+                            <span class="step-num">B</span>
+                            <div>
+                                <h4>Opção 2 · Aplicativo Claude Desktop (Mac ou Windows)</h4>
+                                <p>
+                                    1. Tenha o <strong>Node.js</strong> instalado no computador.<br />
+                                    2. No Claude Desktop, abra <strong>Settings → Developer → Edit Config</strong> (abre o arquivo <code>claude_desktop_config.json</code>).<br />
+                                    3. Cole o bloco JSON abaixo, reinicie o aplicativo (<code>Cmd+Q</code> / sair e abrir de novo) e confira o ícone de ferramentas na barra do chat.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <pre class="code-box"><code>{
+  "mcpServers": {
+    "ian-granja-revisional": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.iangranja.adv.br/api/mcp?token=SEU_TOKEN_DO_ESCRITORIO"
+      ]
+    }
+  }
+}</code></pre>
+
+                    <div class="serif-note">
+                        <strong>Nota técnica para publicação na Vercel:</strong> para que o endpoint remoto
+                        <code>/api/mcp</code> funcione no domínio oficial, defina as variáveis de ambiente
+                        <code>SUPABASE_SERVICE_ROLE_KEY</code> e <code>MCP_AUTH_TOKEN</code> (token secreto escolhido
+                        pelo escritório) nas configurações do projeto na Vercel. Para leitura de PDF/foto diretamente pela
+                        tela do site, adicione também <code>ANTHROPIC_API_KEY</code> (ou informe no botão <strong>API</strong>
+                        da própria calculadora).
+                    </div>
+
+                    <h3>O que o Claude consegue fazer sozinho pelo MCP</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Ferramenta MCP</th>
+                                    <th>Ação automática no sistema</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>calcular_e_cadastrar_caso_revisional</strong></td>
+                                    <td>Extrai os dados da CCB/contrato anexado, consulta BACEN SGS / Olinda, inclui seguros e tarifas em dobro, salva o cliente na fase do Kanban e devolve o resumo pronto para a inicial.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>renovar_e_atualizar_caso</strong></td>
+                                    <td>Localiza um caso por nome ou CNJ, atualiza a data-base de correção para hoje, inclui novos contratos, tarifas, alvarás ou nº CNJ, recalcula e grava o novo valor.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>mover_cartao_kanban</strong></td>
+                                    <td>Move o cartão do cliente entre fases (ex.: <em>Triagem → Busca e Apreensão → Ajuizado → Acordo</em>) e registra observações.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>consultar_carteira_clientes</strong></td>
+                                    <td>Filtra clientes salvos por banco, razão de abuso mínima (ex.: <code>≥ 1,8x</code>), grau de abuso, fase do Kanban ou valor da ação.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>consultar_taxas_bacen_olinda</strong></td>
+                                    <td>Consulta ao vivo a taxa média SGS e o ranking por banco na API Olinda para qualquer modalidade e data.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>listar_fases_e_modalidades</strong></td>
+                                    <td>Lista as colunas do Kanban com contagem/volume financeiro e todas as modalidades oficiais aceitas pelo motor.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>consultar_publicacoes_djen</strong></td>
+                                    <td>Consulta ao vivo as publicações no DJEN/CNJ por processo CNJ, cliente ou OAB/PE 61.107 e cruza automaticamente com os clientes salvos no Kanban.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="highlight-box">
+                        <div class="highlight-head">Exemplos de comandos prontos para copiar e testar no Claude</div>
+                        <div class="highlight-body">
+                            <ul class="clean">
+                                <li>
+                                    <strong>Anexando PDF/foto de contrato no Claude:</strong><br />
+                                    <em>“Claude, lê esse contrato do Santander, faz o cálculo revisional pela média do BACEN com seguro prestamista em dobro, cadastra o cliente na fase Busca e Apreensão e me dá o resumo para a inicial.”</em>
+                                </li>
+                                <li>
+                                    <strong>Atualizar caso antigo e incluir alvará/CNJ:</strong><br />
+                                    <em>“Atualiza o cálculo de José Carlos para a data de hoje, inclui um alvará de R$ 5.000 e preenche o processo CNJ 0002720-86.2026.8.17.1130.”</em>
+                                </li>
+                                <li>
+                                    <strong>Mover Kanban e consultar carteira:</strong><br />
+                                    <em>“Muda a cliente Maria Silva para a fase Ajuizado.”</em><br />
+                                    <em>“Quais clientes do Banco Pan têm abuso acima de 1,8x?”</em>
+                                </li>
+                                <li>
+                                    <strong>Consultar intimações no DJEN (CNJ):</strong><br />
+                                    <em>“Consulta no DJEN as publicações da minha OAB 61107/PE nos últimos 15 dias e me mostra quais pertencem a clientes da carteira.”</em>
+                                </li>
                             </ul>
                         </div>
                     </div>

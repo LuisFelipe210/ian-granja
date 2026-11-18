@@ -5,8 +5,17 @@
     {
       "path": "/api/keep-alive",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/djen-sync",
+      "schedule": "0 10 * * *"
     }
   ],
+  "functions": {
+    "api/djen-sync.ts": {
+      "maxDuration": 60
+    }
+  },
   "headers": [
     {
       "source": "/ferramentas/(.*)",

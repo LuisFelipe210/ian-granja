@@ -75,39 +75,35 @@ export const FormContratoRevisional = ({
     };
 
     return (
-        <section className="space-y-6 border border-ink/25 bg-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/20 pb-3">
+        <section className="sheet-on-paper space-y-6 border border-ink/20 p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/15 pb-3">
                 <div>
-                    <span className="rubric text-gold-deep">Contrato {index + 1}</span>
-                    <h3 className="subdisplay text-xl text-ink">{form.descricao || `Contrato ${index + 1}`}</h3>
+                    <span className="rubric text-gold-deep">02 · Contrato {index + 1}</span>
+                    <h3 className="subdisplay mt-0.5 text-xl text-ink">
+                        {form.descricao || `Contrato ${index + 1}`}
+                    </h3>
                 </div>
-                {totalContratos > 1 && (
-                    <button
-                        type="button"
-                        onClick={onRemover}
-                        className="inline-flex h-8 items-center gap-1 border border-ink/25 px-2.5 text-xs font-semibold text-destructive hover:border-destructive"
-                    >
-                        <Trash2 className="size-3.5" />
-                        Remover contrato
-                    </button>
-                )}
+                <div className="flex items-center gap-2">
+                    {form.instituicao.trim() && (
+                        <span className="border border-ink/15 bg-secondary/70 px-2.5 py-1 text-[11px] font-semibold text-ink">
+                            {form.instituicao.trim()}
+                        </span>
+                    )}
+                    {totalContratos > 1 && (
+                        <button
+                            type="button"
+                            onClick={onRemover}
+                            className="inline-flex h-8 items-center gap-1 border border-ink/25 px-2.5 text-xs font-semibold text-destructive hover:border-destructive"
+                        >
+                            <Trash2 className="size-3.5" />
+                            Remover
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Metadados do contrato */}
-            <div className="grid gap-5 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                    <label htmlFor={`${idP}-desc`} className={labelClass}>
-                        Descrição do contrato
-                    </label>
-                    <input
-                        id={`${idP}-desc`}
-                        value={form.descricao}
-                        onChange={(e) => patch({ descricao: e.target.value })}
-                        placeholder="Ex.: Financiamento Honda Civic, Empréstimo Consignado..."
-                        className="field"
-                    />
-                </div>
-
+            <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label htmlFor={`${idP}-banco`} className={labelClass}>
                         Instituição financeira
@@ -118,7 +114,7 @@ export const FormContratoRevisional = ({
                         value={form.instituicao}
                         onChange={(e) => patch({ instituicao: e.target.value })}
                         placeholder="Digite ou escolha..."
-                        className="field"
+                        className="field py-2 text-sm"
                     />
                     <datalist id={`${idP}-bancos-list`}>
                         {BANCOS_USUAIS.map((b) => (
@@ -136,112 +132,134 @@ export const FormContratoRevisional = ({
                         value={form.numeroContrato}
                         onChange={(e) => patch({ numeroContrato: e.target.value })}
                         placeholder="Opcional"
-                        className="field"
+                        className="field py-2 text-sm"
+                    />
+                </div>
+
+                <div className="sm:col-span-2">
+                    <label htmlFor={`${idP}-desc`} className={labelClass}>
+                        Descrição do contrato
+                    </label>
+                    <input
+                        id={`${idP}-desc`}
+                        value={form.descricao}
+                        onChange={(e) => patch({ descricao: e.target.value })}
+                        placeholder="Ex.: Financiamento Honda Civic, Empréstimo Consignado..."
+                        className="field py-2 text-sm"
                     />
                 </div>
             </div>
 
-            <fieldset className="space-y-3">
-                <legend className={labelClass}>Contratante</legend>
-                <PessoaToggle
-                    value={form.pessoa}
-                    onChange={(p) => {
-                        const primeira = MODALIDADES.find((m) => m.pessoa === p);
-                        patch({ pessoa: p, modalidadeId: primeira?.id ?? "", bancoOlinda: null });
-                    }}
-                />
-            </fieldset>
-
-            <fieldset className="space-y-2">
-                <legend className={labelClass}>Modalidade</legend>
-                <ModalidadeSelect
-                    id={`${idP}-mod`}
-                    pessoa={form.pessoa}
-                    value={form.modalidadeId || null}
-                    onChange={(m) => patch({ modalidadeId: m?.id ?? "", bancoOlinda: null })}
-                    tecnico
-                />
-            </fieldset>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                    <label htmlFor={`${idP}-data`} className={labelClass}>
-                        Data da contratação
-                    </label>
-                    <input
-                        id={`${idP}-data`}
-                        type="date"
-                        value={form.dataContrato}
-                        max={new Date().toISOString().slice(0, 10)}
-                        onChange={(e) => handleDataContrato(e.target.value)}
-                        className="field tabular-nums"
+            <div className="space-y-4">
+                <fieldset className="space-y-2.5">
+                    <legend className={labelClass}>Contratante</legend>
+                    <PessoaToggle
+                        value={form.pessoa}
+                        onChange={(p) => {
+                            const primeira = MODALIDADES.find((m) => m.pessoa === p);
+                            patch({ pessoa: p, modalidadeId: primeira?.id ?? "", bancoOlinda: null });
+                        }}
                     />
-                </div>
-                <div>
-                    <label htmlFor={`${idP}-venc1`} className={labelClass}>
-                        1º vencimento
-                    </label>
-                    <input
-                        id={`${idP}-venc1`}
-                        type="date"
-                        value={form.primeiroVencimento}
-                        onChange={(e) => patch({ primeiroVencimento: e.target.value })}
-                        className="field tabular-nums"
+                </fieldset>
+
+                <fieldset className="space-y-2">
+                    <legend className={labelClass}>Modalidade BACEN</legend>
+                    <ModalidadeSelect
+                        id={`${idP}-mod`}
+                        pessoa={form.pessoa}
+                        value={form.modalidadeId || null}
+                        onChange={(m) => patch({ modalidadeId: m?.id ?? "", bancoOlinda: null })}
+                        tecnico
                     />
-                </div>
+                </fieldset>
             </div>
 
-            <div className="grid grid-cols-2 gap-x-5 gap-y-6">
-                <Campo
-                    id={`${idP}-tm`}
-                    label="Taxa do contrato"
-                    tipo="taxa"
-                    sufixo="% a.m."
-                    value={form.taxaM}
-                    onChange={(v) => patch({ taxaM: v })}
-                    placeholder="2,99"
-                />
-                <Campo
-                    id={`${idP}-ta`}
-                    label="Taxa do contrato"
-                    tipo="taxa"
-                    sufixo="% a.a."
-                    value={form.taxaA}
-                    onChange={(v) => patch({ taxaA: v })}
-                    placeholder="42,48"
-                />
-                <Campo
-                    id={`${idP}-valor`}
-                    label="Valor financiado"
-                    tipo="moeda"
-                    value={form.valorF}
-                    onChange={(v) => patch({ valorF: v })}
-                    placeholder="0,00"
-                />
-                <Campo
-                    id={`${idP}-parcela`}
-                    label="Valor da parcela"
-                    tipo="moeda"
-                    value={form.parcela}
-                    onChange={(v) => patch({ parcela: v })}
-                    placeholder="0,00"
-                />
-                <Campo
-                    id={`${idP}-n`}
-                    label="Nº de parcelas"
-                    tipo="inteiro"
-                    value={form.parcelas}
-                    onChange={(v) => patch({ parcelas: v, gradePersonalizada: null })}
-                    placeholder="48"
-                />
-                <Campo
-                    id={`${idP}-pagas`}
-                    label="Parcelas pagas"
-                    tipo="inteiro"
-                    value={form.pagas}
-                    onChange={(v) => patch({ pagas: v, gradePersonalizada: null })}
-                    placeholder="0"
-                />
+            {/* Bloco numérico-financeiro agrupado */}
+            <div className="space-y-5 border border-ink/15 bg-secondary/35 p-4">
+                <div className="flex items-center justify-between border-b border-ink/15 pb-2">
+                    <span className="rubric text-ink/75">Dados numéricos da contratação</span>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label htmlFor={`${idP}-data`} className={labelClass}>
+                            Data da contratação
+                        </label>
+                        <input
+                            id={`${idP}-data`}
+                            type="date"
+                            value={form.dataContrato}
+                            max={new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => handleDataContrato(e.target.value)}
+                            className="field py-2 text-sm tabular-nums"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor={`${idP}-venc1`} className={labelClass}>
+                            1º vencimento
+                        </label>
+                        <input
+                            id={`${idP}-venc1`}
+                            type="date"
+                            value={form.primeiroVencimento}
+                            onChange={(e) => patch({ primeiroVencimento: e.target.value })}
+                            className="field py-2 text-sm tabular-nums"
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-5 gap-y-5">
+                    <Campo
+                        id={`${idP}-valor`}
+                        label="Valor financiado"
+                        tipo="moeda"
+                        value={form.valorF}
+                        onChange={(v) => patch({ valorF: v })}
+                        placeholder="0,00"
+                    />
+                    <Campo
+                        id={`${idP}-parcela`}
+                        label="Valor da parcela"
+                        tipo="moeda"
+                        value={form.parcela}
+                        onChange={(v) => patch({ parcela: v })}
+                        placeholder="0,00"
+                    />
+                    <Campo
+                        id={`${idP}-n`}
+                        label="Nº de parcelas"
+                        tipo="inteiro"
+                        value={form.parcelas}
+                        onChange={(v) => patch({ parcelas: v, gradePersonalizada: null })}
+                        placeholder="48"
+                    />
+                    <Campo
+                        id={`${idP}-pagas`}
+                        label="Parcelas pagas"
+                        tipo="inteiro"
+                        value={form.pagas}
+                        onChange={(v) => patch({ pagas: v, gradePersonalizada: null })}
+                        placeholder="0"
+                    />
+                    <Campo
+                        id={`${idP}-tm`}
+                        label="Taxa do contrato"
+                        tipo="taxa"
+                        sufixo="% a.m."
+                        value={form.taxaM}
+                        onChange={(v) => patch({ taxaM: v })}
+                        placeholder="2,99"
+                    />
+                    <Campo
+                        id={`${idP}-ta`}
+                        label="Taxa do contrato"
+                        tipo="taxa"
+                        sufixo="% a.a."
+                        value={form.taxaA}
+                        onChange={(v) => patch({ taxaA: v })}
+                        placeholder="42,48"
+                    />
+                </div>
             </div>
 
             {/* Fonte da Taxa Revisional + Botão Olinda */}

@@ -13,6 +13,7 @@ import {
     FileText,
     FolderKanban,
     FolderOpen,
+    Gavel,
     GripVertical,
     List,
     Loader2,
@@ -29,13 +30,19 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { brl, mNome, num, type Nivel } from "@/lib/juros";
-import { calcularProcessoRevisional, prepararDadosBacenProcesso } from "@/lib/juros/revisional-pro";
+import {
+    calcularProcessoRevisional,
+    hojeISO,
+    prepararDadosBacenProcesso,
+} from "@/lib/juros/revisional-pro";
 import { baixarLaudoPdf } from "@/lib/juros/laudo-pdf";
 import { normalizarRotuloBanco } from "@/lib/juros/graficos-dados";
 import {
     atualizarCalculo,
     calculoParaProcesso,
     excluirCalculo,
+    isCalculoPendente,
+    renovarCalculoSalvo,
     type CalculoSalvo,
     type Categoria,
 } from "@/lib/revisional-db";
@@ -157,6 +164,8 @@ interface HistoricoCalculosProps {
     onAtualizado: (c: CalculoSalvo) => void;
     onExcluido: (id: string) => void;
     onGerenciarCategorias: () => void;
+    onAbrirDjen?: (c: CalculoSalvo) => void;
+    onAbrirRadarDjen?: () => void;
 }
 
 const ORDENACOES_VALIDAS = new Set<CampoOrdenacao>(["recentes", "valor_desc", "abuso_desc", "nome_asc", "banco_asc"]);
@@ -172,6 +181,8 @@ export const HistoricoCalculos = ({
     onAtualizado,
     onExcluido,
     onGerenciarCategorias,
+    onAbrirDjen,
+    onAbrirRadarDjen,
 }: HistoricoCalculosProps) => {
     const [searchParams, setSearchParams] = useSearchParams();
     const topoListaRef = useRef<HTMLDivElement>(null);
@@ -204,6 +215,7 @@ export const HistoricoCalculos = ({
     const [confirmarExclusaoId, setConfirmarExclusaoId] = useState<string | null>(null);
     const [operandoId, setOperandoId] = useState<string | null>(null);
     const [baixandoPdfId, setBaixandoPdfId] = useState<string | null>(null);
+    const [renovandoId, setRenovandoId] = useState<string | null>(null);
     const [gruposFechados, setGruposFechados] = useState<Record<string, boolean>>({});
 
     // Controles específicos do Quadro Kanban
@@ -470,6 +482,13 @@ export const HistoricoCalculos = ({
     };
 
     const baixarPdfDireto = async (c: CalculoSalvo) => {
+        if (isCalculoPendente(c)) {
+            toast.info(
+                `"${c.cliente_nome}" ainda está aguardando os dados do contrato. Abra o caso para calcular e gerar o Laudo PDF.`,
+                { action: { label: "Abrir caso", onClick: () => onAbrir(c) } },
+            );
+            return;
+        }
         setBaixandoPdfId(c.id);
         try {
             const { ficha, processo } = calculoParaProcesso(c);
@@ -488,6 +507,38 @@ export const HistoricoCalculos = ({
             toast.error(e instanceof Error ? e.message : "Não foi possível gerar o PDF.");
         } finally {
             setBaixandoPdfId(null);
+        }
+    };
+
+    const renovarCasoParaHoje = async (c: CalculoSalvo) => {
+        if (isCalculoPendente(c)) {
+            toast.info(
+                `"${c.cliente_nome}" foi salvo sem dados financeiros do contrato. Abra o caso na calculadora para preencher e calcular.`,
+                { action: { label: "Abrir caso", onClick: () => onAbrir(c) } },
+            );
+            return;
+        }
+        setRenovandoId(c.id);
+        try {
+            const { atualizado, resultado, ficha, valorAnterior, valorNovo } = await renovarCalculoSalvo(c, {
+                novaDataBase: hojeISO(),
+            });
+            onAtualizado(atualizado);
+            const cat = atualizado.categoria_id ? mapaCategorias[atualizado.categoria_id] : null;
+            baixarLaudoPdf(resultado, {
+                clienteNome: ficha.clienteNome || atualizado.cliente_nome,
+                processoGlobal: ficha.processoGlobal,
+                categoriaNome: cat?.nome,
+                observacoes: ficha.observacoes,
+                incluirGraficos: true,
+            });
+            toast.success(
+                `Cálculo de "${atualizado.cliente_nome}" renovado para hoje (${brl(valorAnterior)} → ${brl(valorNovo)}) e Laudo PDF atualizado.`,
+            );
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Não foi possível renovar o cálculo agora.");
+        } finally {
+            setRenovandoId(null);
         }
     };
 
@@ -511,7 +562,7 @@ export const HistoricoCalculos = ({
             <table className="w-full min-w-[56rem] border-collapse text-left text-sm tabular-nums">
                 <thead className="border-b border-ink/25 bg-secondary/80 text-[11px] uppercase tracking-wider text-muted-foreground">
                     <tr>
-                        <th className="py-2.5 pl-3.5 pr-2 font-semibold">
+                        <th className="whitespace-nowrap py-2.5 pl-3.5 pr-2 font-semibold">
                             <button
                                 type="button"
                                 onClick={() => alternarOrdenacao("nome_asc")}
@@ -521,7 +572,7 @@ export const HistoricoCalculos = ({
                                 <ArrowDownUp className="size-3 opacity-60" />
                             </button>
                         </th>
-                        <th className="px-3 py-2.5 font-semibold">
+                        <th className="whitespace-nowrap px-3 py-2.5 font-semibold">
                             <button
                                 type="button"
                                 onClick={() => alternarOrdenacao("banco_asc")}
@@ -531,8 +582,10 @@ export const HistoricoCalculos = ({
                                 <ArrowDownUp className="size-3 opacity-60" />
                             </button>
                         </th>
-                        {!ocultarColunaCategoria && <th className="px-3 py-2.5 font-semibold">Fase / Categoria</th>}
-                        <th className="px-3 py-2.5 font-semibold">
+                        {!ocultarColunaCategoria && (
+                            <th className="whitespace-nowrap px-3 py-2.5 font-semibold">Fase / Categoria</th>
+                        )}
+                        <th className="whitespace-nowrap px-3 py-2.5 font-semibold">
                             <button
                                 type="button"
                                 onClick={() => alternarOrdenacao("abuso_desc")}
@@ -542,7 +595,7 @@ export const HistoricoCalculos = ({
                                 <ArrowDownUp className="size-3 opacity-60" />
                             </button>
                         </th>
-                        <th className="px-3 py-2.5 text-right font-semibold">
+                        <th className="whitespace-nowrap px-3 py-2.5 text-right font-semibold">
                             <button
                                 type="button"
                                 onClick={() => alternarOrdenacao("valor_desc")}
@@ -552,7 +605,7 @@ export const HistoricoCalculos = ({
                                 <ArrowDownUp className="size-3 opacity-60" />
                             </button>
                         </th>
-                        <th className="py-2.5 pl-3 pr-4 text-right font-semibold">Ações</th>
+                        <th className="whitespace-nowrap py-2.5 pl-3 pr-4 text-right font-semibold">Ações</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-ink/12">
@@ -560,6 +613,7 @@ export const HistoricoCalculos = ({
                         const ativo = calculoAtivoId === c.id;
                         const expandido = expandidoId === c.id;
                         const confirmando = confirmarExclusaoId === c.id;
+                        const pendente = isCalculoPendente(c);
                         const bancoRotulo = c.banco?.trim() ? normalizarRotuloBanco(c.banco) : "Não informado";
                         const valAcao = valorAcaoCaso(c);
 
@@ -568,12 +622,12 @@ export const HistoricoCalculos = ({
                                 <tr
                                     className={cn(
                                         "transition-colors hover:bg-ink/[0.025]",
-                                        BORDA_NIVEL[c.nivel],
+                                        pendente ? "border-l-[3px] border-l-[#475273]" : BORDA_NIVEL[c.nivel],
                                         ativo && "bg-gold-light/20",
                                     )}
                                 >
                                     {/* Coluna 1: Cliente + Processo */}
-                                    <td className="py-3 pl-3 pr-2 align-middle">
+                                    <td className="max-w-[15rem] py-3 pl-3 pr-2 align-middle sm:max-w-[18rem] lg:max-w-[21rem]">
                                         <div className="flex items-start gap-2">
                                             <button
                                                 type="button"
@@ -588,17 +642,18 @@ export const HistoricoCalculos = ({
                                                     <ChevronRight className="size-3.5" />
                                                 )}
                                             </button>
-                                            <div className="min-w-0">
-                                                <div className="flex flex-wrap items-center gap-1.5">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                                     <button
                                                         type="button"
                                                         onClick={() => onAbrir(c)}
-                                                        className="truncate font-semibold text-ink hover:underline text-left"
+                                                        title={c.cliente_nome}
+                                                        className="max-w-[13rem] truncate text-left font-semibold text-ink hover:underline sm:max-w-[16rem] lg:max-w-[19rem]"
                                                     >
                                                         {c.cliente_nome}
                                                     </button>
                                                     {c.qtd_contratos > 1 && (
-                                                        <span className="bg-ink/10 px-1.5 py-0.2 text-[10px] font-bold text-ink">
+                                                        <span className="shrink-0 bg-ink/10 px-1.5 py-0.2 text-[10px] font-bold text-ink">
                                                             {c.qtd_contratos} contr.
                                                         </span>
                                                     )}
@@ -609,12 +664,12 @@ export const HistoricoCalculos = ({
                                                         />
                                                     )}
                                                     {ativo && (
-                                                        <span className="bg-gold-light px-1.5 py-0.2 text-[10px] font-bold text-ink">
+                                                        <span className="shrink-0 bg-gold-light px-1.5 py-0.2 text-[10px] font-bold text-ink">
                                                             Aberto
                                                         </span>
                                                     )}
                                                 </div>
-                                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                                     {c.processo_global ? (
                                                         <span className="font-medium text-ink/80">
                                                             {c.processo_global}
@@ -630,11 +685,16 @@ export const HistoricoCalculos = ({
                                     </td>
 
                                     {/* Coluna 2: Banco + Modalidade */}
-                                    <td className="px-3 py-3 align-middle">
-                                        <p className="font-semibold text-ink">{bancoRotulo}</p>
-                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                    <td className="max-w-[11rem] px-3 py-3 align-middle sm:max-w-[13rem]">
+                                        <p title={bancoRotulo} className="truncate font-semibold text-ink">
+                                            {bancoRotulo}
+                                        </p>
+                                        <p
+                                            title={`${c.modalidade_nome} (${c.pessoa.toUpperCase()})`}
+                                            className="mt-0.5 truncate text-xs text-muted-foreground"
+                                        >
                                             {c.modalidade_nome} ({c.pessoa.toUpperCase()}) · {mNome(c.mes_contrato)} ·{" "}
-                                            {c.pagas}/{c.parcelas} pagas
+                                            {pendente ? "Aguardando" : `${c.pagas}/${c.parcelas} pagas`}
                                         </p>
                                     </td>
 
@@ -659,36 +719,57 @@ export const HistoricoCalculos = ({
                                     )}
 
                                     {/* Coluna 4: Taxa / Nível de Abuso */}
-                                    <td className="px-3 py-3 align-middle">
-                                        <div className="flex items-center gap-1.5">
-                                            <span
-                                                className={cn(
-                                                    "inline-block whitespace-nowrap px-2 py-0.5 text-[11px] font-bold",
-                                                    COR_NIVEL[c.nivel],
-                                                )}
-                                            >
-                                                {num(c.razao_am, 2)}x · {rotuloCurtoCaso(c)}
-                                            </span>
-                                        </div>
-                                        <p className="mt-0.5 whitespace-nowrap text-xs text-muted-foreground">
-                                            {num(c.contrato_am)}% vs {num(c.media_am)}% a.m.
-                                        </p>
+                                    <td className="whitespace-nowrap px-3 py-3 align-middle">
+                                        {pendente ? (
+                                            <>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="inline-block whitespace-nowrap bg-secondary px-2 py-0.5 text-[11px] font-semibold text-ink/85">
+                                                        Aguardando contrato
+                                                    </span>
+                                                </div>
+                                                <p className="mt-0.5 whitespace-nowrap text-xs text-muted-foreground">
+                                                    Clique em Abrir p/ calcular
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span
+                                                        className={cn(
+                                                            "inline-block whitespace-nowrap px-2 py-0.5 text-[11px] font-bold",
+                                                            COR_NIVEL[c.nivel],
+                                                        )}
+                                                    >
+                                                        {num(c.razao_am, 2)}x · {rotuloCurtoCaso(c)}
+                                                    </span>
+                                                </div>
+                                                <p className="mt-0.5 whitespace-nowrap text-xs text-muted-foreground">
+                                                    {num(c.contrato_am)}% vs {num(c.media_am)}% a.m.
+                                                </p>
+                                            </>
+                                        )}
                                     </td>
 
                                     {/* Coluna 5: Valor da Ação */}
-                                    <td className="px-3 py-3 text-right align-middle">
-                                        <p className="font-bold text-ink">{brl(valAcao)}</p>
+                                    <td className="whitespace-nowrap px-3 py-3 text-right align-middle">
+                                        <p className="font-bold text-ink">
+                                            {pendente && valAcao === 0 ? "Pendente" : brl(valAcao)}
+                                        </p>
                                         <p className="mt-0.5 whitespace-nowrap text-xs text-muted-foreground">
-                                            {c.pago_a_mais > 0
-                                                ? `Já pago: ${brl(c.pago_a_mais)}`
-                                                : valAcao === 0
-                                                  ? "Taxa regular"
-                                                  : `Financ.: ${brl(c.valor_financiado)}`}
+                                            {pendente
+                                                ? valAcao > 0
+                                                    ? "Valor citado no processo"
+                                                    : "Contrato não lançado"
+                                                : c.pago_a_mais > 0
+                                                  ? `Já pago: ${brl(c.pago_a_mais)}`
+                                                  : valAcao === 0
+                                                    ? "Taxa regular"
+                                                    : `Financ.: ${brl(c.valor_financiado)}`}
                                         </p>
                                     </td>
 
                                     {/* Coluna 6: Ações alinhadas e fixas */}
-                                    <td className="py-3 pl-3 pr-4 text-right align-middle">
+                                    <td className="whitespace-nowrap py-3 pl-3 pr-4 text-right align-middle">
                                         {confirmando ? (
                                             <div className="inline-flex items-center justify-end gap-1.5">
                                                 <button
@@ -717,9 +798,34 @@ export const HistoricoCalculos = ({
                                                     <FolderOpen className="size-3.5" />
                                                     Abrir
                                                 </button>
+                                                {onAbrirDjen && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onAbrirDjen(c)}
+                                                        title="Consultar publicações no DJEN (CNJ)"
+                                                        aria-label={`Consultar DJEN de ${c.cliente_nome}`}
+                                                        className="inline-flex size-8 items-center justify-center border border-ink/25 text-ink/80 hover:border-ink hover:bg-ink hover:text-paper"
+                                                    >
+                                                        <Gavel className="size-3.5" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
-                                                    disabled={baixandoPdfId === c.id}
+                                                    disabled={renovandoId === c.id || baixandoPdfId === c.id}
+                                                    onClick={() => renovarCasoParaHoje(c)}
+                                                    title="Renovar / Atualizar para hoje (busca índices BACEN, recalcula e baixa PDF)"
+                                                    aria-label={`Renovar / Atualizar para hoje o cálculo de ${c.cliente_nome}`}
+                                                    className="inline-flex size-8 items-center justify-center border border-ink/25 bg-background text-ink hover:border-ink hover:bg-ink hover:text-paper disabled:opacity-60"
+                                                >
+                                                    {renovandoId === c.id ? (
+                                                        <Loader2 className="size-3.5 animate-spin" />
+                                                    ) : (
+                                                        <RefreshCw className="size-3.5" />
+                                                    )}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={baixandoPdfId === c.id || renovandoId === c.id}
                                                     onClick={() => baixarPdfDireto(c)}
                                                     title="Baixar Laudo PDF diretamente"
                                                     aria-label={`Baixar Laudo PDF de ${c.cliente_nome}`}
@@ -758,12 +864,21 @@ export const HistoricoCalculos = ({
                                 {expandido && (
                                     <tr className="bg-background/70">
                                         <td colSpan={ocultarColunaCategoria ? 5 : 6} className="px-6 py-4">
+                                            {c.cliente_nome.length > 36 && (
+                                                <p className="mb-3 text-xs font-semibold text-ink">
+                                                    <span className="font-normal text-muted-foreground">
+                                                        Nome completo / Parte:{" "}
+                                                    </span>
+                                                    {c.cliente_nome}
+                                                </p>
+                                            )}
                                             <div className="grid gap-4 text-xs sm:grid-cols-4">
                                                 <div>
                                                     <span className="text-muted-foreground">Financiado / Parcelas</span>
                                                     <p className="mt-0.5 font-semibold text-ink">
-                                                        {brl(c.valor_financiado)} ({c.parcelas}x de{" "}
-                                                        {brl(c.valor_parcela)})
+                                                        {pendente
+                                                            ? "Aguardando preenchimento do contrato"
+                                                            : `${brl(c.valor_financiado)} (${c.parcelas}x de ${brl(c.valor_parcela)})`}
                                                     </p>
                                                 </div>
                                                 <div>
@@ -867,6 +982,16 @@ export const HistoricoCalculos = ({
                             </button>
                         </div>
 
+                        {onAbrirRadarDjen && (
+                            <button
+                                type="button"
+                                onClick={onAbrirRadarDjen}
+                                className="inline-flex h-9 items-center gap-1.5 border border-gold bg-gold-light/40 px-3 text-xs font-semibold text-ink hover:bg-gold-light"
+                            >
+                                <Gavel className="size-3.5" />
+                                Radar DJEN
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={onGerenciarCategorias}
@@ -1443,6 +1568,7 @@ export const HistoricoCalculos = ({
                                                 const confirmando = confirmarExclusaoId === c.id;
                                                 const cardExpandido = cartaoExpandidoId === c.id;
                                                 const compacto = densidadeQuadro === "compacto";
+                                                const pendente = isCalculoPendente(c);
                                                 const valAcao = valorAcaoCaso(c);
                                                 const bancoRot = c.banco?.trim()
                                                     ? normalizarRotuloBanco(c.banco)
@@ -1467,7 +1593,9 @@ export const HistoricoCalculos = ({
                                                         }}
                                                         className={cn(
                                                             "group relative border border-ink/20 bg-card shadow-[0_2px_8px_-2px_hsl(var(--ink-deep)/0.14)] transition-all hover:border-ink/45 hover:shadow-[0_6px_16px_-6px_hsl(var(--ink-deep)/0.22)]",
-                                                            BORDA_NIVEL[c.nivel],
+                                                            pendente
+                                                                ? "border-l-[3px] border-l-[#475273]"
+                                                                : BORDA_NIVEL[c.nivel],
                                                             ativo && "border-gold bg-gold-light/15 ring-1 ring-gold",
                                                             arrastandoId === c.id && "opacity-45",
                                                             compacto ? "p-2.5" : "p-3.5",
@@ -1499,14 +1627,20 @@ export const HistoricoCalculos = ({
                                                                 )}
                                                             </div>
 
-                                                            <span
-                                                                className={cn(
-                                                                    "shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-                                                                    COR_NIVEL[c.nivel],
-                                                                )}
-                                                            >
-                                                                {num(c.razao_am, 2)}x · {rotuloCurtoCaso(c)}
-                                                            </span>
+                                                            {pendente ? (
+                                                                <span className="shrink-0 whitespace-nowrap bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-ink/85">
+                                                                    Ficha DJEN · Aguardando contrato
+                                                                </span>
+                                                            ) : (
+                                                                <span
+                                                                    className={cn(
+                                                                        "shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                                                                        COR_NIVEL[c.nivel],
+                                                                    )}
+                                                                >
+                                                                    {num(c.razao_am, 2)}x · {rotuloCurtoCaso(c)}
+                                                                </span>
+                                                            )}
                                                         </div>
 
                                                         {/* 2. Identificação do Cliente e Instituição */}
@@ -1514,8 +1648,9 @@ export const HistoricoCalculos = ({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => onAbrir(c)}
+                                                                title={c.cliente_nome}
                                                                 className={cn(
-                                                                    "text-left font-bold leading-snug text-ink transition-colors hover:text-gold-deep hover:underline",
+                                                                    "min-w-0 flex-1 line-clamp-2 break-words text-left font-bold leading-snug text-ink transition-colors hover:text-gold-deep hover:underline",
                                                                     compacto ? "text-sm" : "text-[15px]",
                                                                 )}
                                                             >
@@ -1548,7 +1683,12 @@ export const HistoricoCalculos = ({
                                                         </div>
 
                                                         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-                                                            <span className="font-semibold text-ink/85">{bancoRot}</span>
+                                                            <span
+                                                                title={bancoRot}
+                                                                className="inline-block max-w-[11rem] truncate font-semibold text-ink/85"
+                                                            >
+                                                                {bancoRot}
+                                                            </span>
                                                             <span aria-hidden>·</span>
                                                             <span className="truncate">{c.modalidade_nome}</span>
                                                             <span className="border border-ink/15 px-1 py-px text-[10px] font-semibold uppercase text-ink/75">
@@ -1573,37 +1713,44 @@ export const HistoricoCalculos = ({
                                                         </div>
 
                                                         {/* 3. Bloco Técnico-Financeiro (modo detalhado) */}
-                                                        {!compacto && (
-                                                            <div className="mt-2.5 grid grid-cols-2 gap-2 border border-ink/12 bg-secondary/45 px-2.5 py-2 text-[11px] tabular-nums">
-                                                                <div>
-                                                                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">
-                                                                        Taxa vs. média
-                                                                    </span>
-                                                                    <p className="mt-0.5 font-semibold text-ink">
-                                                                        {num(c.contrato_am)}%{" "}
-                                                                        <span className="font-normal text-muted-foreground">
-                                                                            vs {num(c.media_am)}%
-                                                                        </span>
-                                                                    </p>
+                                                        {!compacto &&
+                                                            (pendente ? (
+                                                                <div className="mt-2.5 border border-dashed border-ink/20 bg-secondary/35 px-2.5 py-2 text-[11px] text-muted-foreground">
+                                                                    Contrato ainda não lançado · clique em{" "}
+                                                                    <strong className="text-ink">Abrir</strong> para
+                                                                    calcular o proveito.
                                                                 </div>
-                                                                <div>
-                                                                    <div className="flex items-baseline justify-between gap-1">
-                                                                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                                                                            Parcelas
+                                                            ) : (
+                                                                <div className="mt-2.5 grid grid-cols-2 gap-2 border border-ink/12 bg-secondary/45 px-2.5 py-2 text-[11px] tabular-nums">
+                                                                    <div>
+                                                                        <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                                            Taxa vs. média
                                                                         </span>
-                                                                        <span className="font-semibold text-ink">
-                                                                            {c.pagas}/{c.parcelas}
-                                                                        </span>
+                                                                        <p className="mt-0.5 font-semibold text-ink">
+                                                                            {num(c.contrato_am)}%{" "}
+                                                                            <span className="font-normal text-muted-foreground">
+                                                                                vs {num(c.media_am)}%
+                                                                            </span>
+                                                                        </p>
                                                                     </div>
-                                                                    <div className="mt-1.5 h-1.5 w-full overflow-hidden bg-ink/12">
-                                                                        <div
-                                                                            className="h-full bg-ink/70"
-                                                                            style={{ width: `${pctPagas.toFixed(0)}%` }}
-                                                                        />
+                                                                    <div>
+                                                                        <div className="flex items-baseline justify-between gap-1">
+                                                                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                                                Parcelas
+                                                                            </span>
+                                                                            <span className="font-semibold text-ink">
+                                                                                {c.pagas}/{c.parcelas}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="mt-1.5 h-1.5 w-full overflow-hidden bg-ink/12">
+                                                                            <div
+                                                                                className="h-full bg-ink/70"
+                                                                                style={{ width: `${pctPagas.toFixed(0)}%` }}
+                                                                            />
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
+                                                            ))}
 
                                                         {/* 4. Observações e Gaveta Rápida no Cartão */}
                                                         {!compacto && c.observacoes?.trim() && !cardExpandido && (
@@ -1640,7 +1787,7 @@ export const HistoricoCalculos = ({
                                                                             Financiado
                                                                         </dt>
                                                                         <dd className="font-semibold text-ink">
-                                                                            {brl(c.valor_financiado)}
+                                                                            {pendente ? "Aguardando" : brl(c.valor_financiado)}
                                                                         </dd>
                                                                     </div>
                                                                     <div>
@@ -1648,7 +1795,9 @@ export const HistoricoCalculos = ({
                                                                             Parcela
                                                                         </dt>
                                                                         <dd className="font-semibold text-ink">
-                                                                            {c.parcelas}x de {brl(c.valor_parcela)}
+                                                                            {pendente
+                                                                                ? "Aguardando"
+                                                                                : `${c.parcelas}x de ${brl(c.valor_parcela)}`}
                                                                         </dd>
                                                                     </div>
                                                                     <div>
@@ -1656,7 +1805,7 @@ export const HistoricoCalculos = ({
                                                                             Saldo recalculado
                                                                         </dt>
                                                                         <dd className="font-semibold text-ink">
-                                                                            {brl(c.saldo_recalculado)}
+                                                                            {pendente ? "—" : brl(c.saldo_recalculado)}
                                                                         </dd>
                                                                     </div>
                                                                     <div>
@@ -1724,21 +1873,50 @@ export const HistoricoCalculos = ({
                                                                             Proveito da ação
                                                                         </span>
                                                                         <span className="block truncate text-sm font-extrabold text-ink">
-                                                                            {brl(valAcao)}
+                                                                            {pendente && valAcao === 0 ? "Pendente" : brl(valAcao)}
                                                                         </span>
                                                                         <span className="block truncate text-[10px] text-muted-foreground">
-                                                                            {c.pago_a_mais > 0
-                                                                                ? `Já pago: ${brl(c.pago_a_mais)}`
-                                                                                : valAcao === 0
-                                                                                  ? "Taxa regular"
-                                                                                  : `Financ.: ${brl(c.valor_financiado)}`}
+                                                                            {pendente
+                                                                                ? valAcao > 0
+                                                                                    ? "Valor citado no texto"
+                                                                                    : "Aguardando contrato"
+                                                                                : c.pago_a_mais > 0
+                                                                                  ? `Já pago: ${brl(c.pago_a_mais)}`
+                                                                                  : valAcao === 0
+                                                                                    ? "Taxa regular"
+                                                                                    : `Financ.: ${brl(c.valor_financiado)}`}
                                                                         </span>
                                                                     </div>
 
                                                                     <div className="inline-flex shrink-0 items-center gap-1">
+                                                                        {onAbrirDjen && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => onAbrirDjen(c)}
+                                                                                title="Consultar publicações no DJEN (CNJ)"
+                                                                                aria-label={`Consultar DJEN de ${c.cliente_nome}`}
+                                                                                className="inline-flex size-7 items-center justify-center border border-ink/25 text-ink/80 hover:border-ink hover:bg-ink hover:text-paper"
+                                                                            >
+                                                                                <Gavel className="size-3" />
+                                                                            </button>
+                                                                        )}
                                                                         <button
                                                                             type="button"
-                                                                            disabled={baixandoPdfId === c.id}
+                                                                            disabled={renovandoId === c.id || baixandoPdfId === c.id}
+                                                                            onClick={() => renovarCasoParaHoje(c)}
+                                                                            title="Renovar / Atualizar para hoje (índices BACEN + Laudo PDF)"
+                                                                            aria-label={`Renovar / Atualizar para hoje o cálculo de ${c.cliente_nome}`}
+                                                                            className="inline-flex size-7 items-center justify-center border border-ink/25 bg-background text-ink hover:border-ink hover:bg-ink hover:text-paper disabled:opacity-60"
+                                                                        >
+                                                                            {renovandoId === c.id ? (
+                                                                                <Loader2 className="size-3 animate-spin" />
+                                                                            ) : (
+                                                                                <RefreshCw className="size-3" />
+                                                                            )}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={baixandoPdfId === c.id || renovandoId === c.id}
                                                                             onClick={() => baixarPdfDireto(c)}
                                                                             title="Baixar Laudo PDF diretamente"
                                                                             aria-label={`Baixar Laudo PDF de ${c.cliente_nome}`}

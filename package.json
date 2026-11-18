@@ -5,11 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "node --experimental-strip-types scripts/dev-local.ts",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:seed": "node --experimental-strip-types scripts/seed-local.ts",
     "build": "vite build && node scripts/generate-seo.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
-    "test": "node --experimental-strip-types --test tests/juros.test.ts tests/send-contact.test.ts tests/revisional-db.test.ts tests/revisional-pro.test.ts",
+    "test": "node --experimental-strip-types --test tests/juros.test.ts tests/send-contact.test.ts tests/revisional-db.test.ts tests/revisional-pro.test.ts tests/claude-mcp-revisional.test.ts",
+    "mcp": "node --experimental-strip-types scripts/mcp-revisional.ts",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -63,14 +63,27 @@ export const SecoesPericiaisExtras = ({
         ]);
     };
 
+    const dataBaseBr = parametros.dataBaseAtualizacao
+        ? parametros.dataBaseAtualizacao.split("-").reverse().join("/")
+        : "Hoje";
+    const resumoIndice =
+        parametros.tipoJuros === "SELIC"
+            ? "SELIC"
+            : parametros.indiceCorrecao === "INPC_IPCA"
+              ? "INPC+IPCA"
+              : parametros.indiceCorrecao;
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-3.5">
             {/* 1. Seguros Prestamistas e Tarifas Abusivas */}
-            <details open={tarifas.length > 0} className="border border-ink/25 bg-card">
-                <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-ink">
+            <details open={tarifas.length > 0} className="sheet-on-paper border border-ink/20">
+                <summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-3.5 text-sm font-semibold text-ink hover:bg-ink/[0.02]">
                     <span className="inline-flex items-center gap-2">
                         <ShieldAlert className="size-4 text-gold-deep" />
-                        Seguros prestamistas e tarifas ({tarifas.length})
+                        <span>03 · Seguros prestamistas e tarifas</span>
+                    </span>
+                    <span className="bg-secondary px-2 py-0.5 text-[11px] font-bold tabular-nums text-ink">
+                        {tarifas.length}
                     </span>
                 </summary>
                 <div className="space-y-4 border-t border-ink/15 p-5">
@@ -191,11 +204,15 @@ export const SecoesPericiaisExtras = ({
             </details>
 
             {/* 2. Parâmetros da Decisão (Correção, Juros, Dobro, Multa, Honorários e Deduções) */}
-            <details className="border border-ink/25 bg-card">
-                <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-ink">
+            <details open={deducoes.length > 0} className="sheet-on-paper border border-ink/20">
+                <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-5 py-3.5 text-sm font-semibold text-ink hover:bg-ink/[0.02]">
                     <span className="inline-flex items-center gap-2">
                         <Scale className="size-4 text-gold-deep" />
-                        Correção monetária, juros, honorários e deduções
+                        <span>04 · Correção, juros, honorários e alvarás</span>
+                    </span>
+                    <span className="bg-secondary px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                        {resumoIndice} · até {dataBaseBr}
+                        {deducoes.length > 0 ? ` · ${deducoes.length} ded.` : ""}
                     </span>
                 </summary>
 
