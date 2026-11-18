@@ -5,12 +5,24 @@ import { practiceAreas } from "@/data/practiceAreas";
 
 const pages = seo.pages as Record<string, { title: string; description: string }>;
 
-/** Páginas de uso interno: título próprio, fora do Google e do sitemap. */
-const PRIVATE_PAGES: Record<string, { title: string; description: string }> = {
-    "/ferramentas/calculadora-revisional": {
-        title: `Calculadora revisional | ${seo.siteName}`,
-        description: "Ferramenta interna.",
-    },
+/** Páginas de uso interno (e suas sub-rotas): título próprio, fora do Google e do sitemap. */
+const resolvePrivatePage = (path: string): { title: string; description: string } | null => {
+    if (path === "/ferramentas/calculadora-revisional") {
+        return { title: `Calculadora revisional | ${seo.siteName}`, description: "Ferramenta interna." };
+    }
+    if (path === "/ferramentas/calculadora-revisional/painel") {
+        return { title: `Painel da carteira | Calculadora revisional`, description: "Ferramenta interna." };
+    }
+    if (path === "/ferramentas/calculadora-revisional/historico") {
+        return { title: `Histórico de clientes | Calculadora revisional`, description: "Ferramenta interna." };
+    }
+    if (path === "/ferramentas/calculadora-revisional/categorias") {
+        return { title: `Categorias | Calculadora revisional`, description: "Ferramenta interna." };
+    }
+    if (path.startsWith("/ferramentas/calculadora-revisional/")) {
+        return { title: `Ficha do cliente | Calculadora revisional`, description: "Ferramenta interna." };
+    }
+    return null;
 };
 
 const NOT_FOUND = {
@@ -51,7 +63,7 @@ export const SeoManager = () => {
     useEffect(() => {
         const path = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
         const page = pages[path];
-        const privatePage = PRIVATE_PAGES[path];
+        const privatePage = resolvePrivatePage(path);
         const { title, description } = page ?? privatePage ?? NOT_FOUND;
         const url = `${seo.siteUrl}${path === "/" ? "/" : path}`;
 

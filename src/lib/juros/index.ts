@@ -32,6 +32,9 @@ export interface Modalidade extends Fonte {
     alt?: Fonte & { nome: string };
     /** Aviso fixo sobre a série escolhida. */
     obs?: string;
+    /** Metadados para consulta por instituição na API Olinda do BCB. */
+    olindaSegmento?: "PESSOA FÍSICA" | "PESSOA JURÍDICA";
+    olindaModalidade?: string;
 }
 
 const VEICULOS_PF: Fonte = { am: 25471, aa: 20749 };
@@ -39,7 +42,15 @@ const VEICULOS_PJ: Fonte = { am: 25447, aa: 20728 };
 const NAO_CONSIGNADO: Fonte = { am: 25464, aa: 20742 };
 
 export const MODALIDADES: Modalidade[] = [
-    { id: "veiculo-pf", pessoa: "pf", nome: "Financiamento de veículo", resumo: "Carro ou moto financiado", ...VEICULOS_PF },
+    {
+        id: "veiculo-pf",
+        pessoa: "pf",
+        nome: "Financiamento de veículo",
+        resumo: "Carro ou moto financiado",
+        ...VEICULOS_PF,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Aquisição de veículos - Prefixado",
+    },
     {
         id: "sem-garantia",
         pessoa: "pf",
@@ -48,6 +59,8 @@ export const MODALIDADES: Modalidade[] = [
         am: 29977,
         aa: 29974,
         alt: { ...NAO_CONSIGNADO, nome: "crédito pessoal não consignado (total)" },
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal não consignado - Prefixado",
     },
     {
         id: "garantia-pf",
@@ -57,10 +70,69 @@ export const MODALIDADES: Modalidade[] = [
         am: 29976,
         aa: 29973,
         alt: { ...VEICULOS_PF, nome: "aquisição de veículos (PF)" },
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Aquisição de veículos - Prefixado",
     },
-    { id: "consig-publico", pessoa: "pf", nome: "Consignado de servidor", resumo: "Desconto na folha, setor público", am: 25467, aa: 20745 },
-    { id: "consig-privado", pessoa: "pf", nome: "Consignado CLT", resumo: "Desconto na folha, setor privado", am: 25466, aa: 20744 },
-    { id: "consig-inss", pessoa: "pf", nome: "Consignado do INSS", resumo: "Aposentados e pensionistas", am: 25468, aa: 20746 },
+    {
+        id: "consig-publico",
+        pessoa: "pf",
+        nome: "Consignado de servidor",
+        resumo: "Desconto na folha, setor público",
+        am: 25467,
+        aa: 20745,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal consignado público - Prefixado",
+    },
+    {
+        id: "consig-privado",
+        pessoa: "pf",
+        nome: "Consignado CLT",
+        resumo: "Desconto na folha, setor privado",
+        am: 25466,
+        aa: 20744,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal consignado privado - Prefixado",
+    },
+    {
+        id: "consig-inss",
+        pessoa: "pf",
+        nome: "Consignado do INSS",
+        resumo: "Aposentados e pensionistas",
+        am: 25468,
+        aa: 20746,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal consignado INSS - Prefixado",
+    },
+    {
+        id: "cartao-parcelado",
+        pessoa: "pf",
+        nome: "Cartão de crédito parcelado",
+        resumo: "Parcelamento de fatura ou compra com juros",
+        am: 25478,
+        aa: 22023,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Cartão de crédito - parcelado - Prefixado",
+    },
+    {
+        id: "cartao-rotativo",
+        pessoa: "pf",
+        nome: "Cartão de crédito rotativo",
+        resumo: "Saldo rotativo da fatura do cartão",
+        am: 25477,
+        aa: 22022,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Cartão de crédito - rotativo total - Prefixado",
+    },
+    {
+        id: "cheque-especial-pf",
+        pessoa: "pf",
+        nome: "Cheque especial",
+        resumo: "Limite da conta corrente (PF)",
+        am: 25463,
+        aa: 20741,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Cheque especial - Prefixado",
+    },
     { id: "veiculo-pj", pessoa: "pj", nome: "Financiamento de veículo", resumo: "Veículo da empresa", ...VEICULOS_PJ },
     {
         id: "garantia-pj",
@@ -69,6 +141,26 @@ export const MODALIDADES: Modalidade[] = [
         resumo: "Veículo da empresa dado em garantia",
         ...VEICULOS_PJ,
         obs: "O BACEN não divulga série de empréstimo com garantia real para PJ; usamos a série de aquisição de veículos (PJ).",
+    },
+    {
+        id: "capital-giro-pj",
+        pessoa: "pj",
+        nome: "Capital de giro",
+        resumo: "Empréstimo empresarial (prazo acima de 1 ano)",
+        am: 25442,
+        aa: 20723,
+        olindaSegmento: "PESSOA JURÍDICA",
+        olindaModalidade: "Capital de giro com prazo superior a 365 dias - Prefixado",
+    },
+    {
+        id: "cheque-especial-pj",
+        pessoa: "pj",
+        nome: "Cheque especial empresarial",
+        resumo: "Limite da conta empresarial (PJ)",
+        am: 25446,
+        aa: 20727,
+        olindaSegmento: "PESSOA JURÍDICA",
+        olindaModalidade: "Cheque especial - Prefixado",
     },
 ];
 
@@ -161,6 +253,68 @@ export const consultarBacen = async (mod: Modalidade, k: string) => {
     const cods = [mod.am, mod.aa, ...(mod.alt ? [mod.alt.am, mod.alt.aa] : [])];
     const ok = await Promise.all(cods.map((c) => consultarSerie(c, k)));
     return ok.some(Boolean);
+};
+
+const SGS_MESES_CACHE = new Map<number, Record<string, number>>();
+const SGS_JANELAS_CONSULTADAS = new Set<string>();
+
+/**
+ * Busca valores mensais ("AAAA-MM" -> %) de qualquer série do BACEN/SGS (ex.: 188 INPC, 433 IPCA, 189 IGP-M, 4390 SELIC),
+ * dividindo automaticamente em janelas de até 10 anos conforme exigido pela API do Banco Central.
+ */
+export const consultarSerieSgsMeses = async (
+    codigo: number,
+    iniAno: number,
+    fimAno: number,
+): Promise<Record<string, number>> => {
+    let mapa = SGS_MESES_CACHE.get(codigo);
+    if (!mapa) {
+        mapa = {};
+        SGS_MESES_CACHE.set(codigo, mapa);
+    }
+
+    const anoAtual = new Date().getFullYear();
+    const inicio = Math.max(PRIMEIRO_ANO, iniAno);
+    const fim = Math.min(anoAtual, Math.max(inicio, fimAno));
+
+    const janelas: [number, number][] = [];
+    for (let y = inicio; y <= fim; y += 10) {
+        const yFim = Math.min(fim, y + 9);
+        const key = `${codigo}:${y}:${yFim}`;
+        if (!SGS_JANELAS_CONSULTADAS.has(key)) {
+            janelas.push([y, yFim]);
+        }
+    }
+
+    await Promise.all(
+        janelas.map(async ([yIni, yFim]) => {
+            const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados?formato=json&dataInicial=01/01/${yIni}&dataFinal=31/12/${yFim}`;
+            const ctl = new AbortController();
+            const timer = setTimeout(() => ctl.abort(), 8000);
+            try {
+                const r = await fetch(url, { signal: ctl.signal });
+                if (!r.ok) return;
+                const raw: unknown = await r.json();
+                if (!Array.isArray(raw)) return;
+                for (const d of raw as { data: string; valor: string }[]) {
+                    const [, mm, aa] = d.data.split("/");
+                    const v = parseFloat(d.valor);
+                    if (aa && mm && !Number.isNaN(v)) {
+                        mapa![`${aa}-${mm}`] = v;
+                    }
+                }
+                if (raw.length > 0) {
+                    SGS_JANELAS_CONSULTADAS.add(`${codigo}:${yIni}:${yFim}`);
+                }
+            } catch {
+                /* fallback silencioso */
+            } finally {
+                clearTimeout(timer);
+            }
+        }),
+    );
+
+    return { ...mapa };
 };
 
 /* ------------------------------------------------------------------ taxas */

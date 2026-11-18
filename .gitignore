@@ -27,3 +27,5 @@ dist-ssr
 .env
 *.tsbuildinfo
 .claude
+supabase/.temp
+supabase/.branches
