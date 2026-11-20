@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { formatarNomeParte, resumirTeorPublicacao } from "../src/lib/juros/djen.ts";
 import { MODALIDADES } from "../src/lib/juros/index.ts";
 import {
     PARAMETROS_DECISAO_PADRAO,
@@ -11,6 +12,7 @@ import {
     aplicarExtracaoClaudeAoEstado,
     executarExtracaoClaudeServer,
     interpretarComandoLocalFallback,
+    normalizarTipoTarifa,
 } from "../src/lib/juros/claude-revisional.ts";
 import {
     anexarMovimentacaoDjenAoProcesso,
@@ -24,6 +26,7 @@ import {
     limparTextoDjen,
     marcarPublicacoesDjenComoVistas,
     normalizarNumeroProcessoDjen,
+    urlHttpSegura,
     verificarPublicacoesDjen,
 } from "../src/lib/juros/djen.ts";
 import {
@@ -431,7 +434,7 @@ describe("Servidor e ferramentas MCP do Claude", () => {
 
             const listRes = await handleMcpJsonRpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }, db);
             const tools = (listRes?.result as { tools: Array<{ name: string }> }).tools;
-            assert.equal(tools.length, 7);
+            assert.equal(tools.length, 10);
 
             // 2. Cadastrar caso Santander com seguro prestamista em dobro
             const cadRes = await handleMcpJsonRpc(
@@ -807,19 +810,27 @@ describe("Servidor e ferramentas MCP do Claude", () => {
             assert.equal(djenRawSigilo.items[1].clienteSugerido, "FABRICIO EVANGELISTA DE SOUZA");
             assert.equal(djenRawSigilo.items[1].bancoDetectado, "ESTADO DA BAHIA");
 
+            const tiposCarteira = [
+                { id: "tipo-ba", nome: "Busca e Apreensão", cor: "crimson" as const, ordem: 1, created_at: "" },
+                { id: "tipo-rev", nome: "Revisional", cor: "ink" as const, ordem: 2, created_at: "" },
+            ];
             const payloadCarteiraDjen = criarPayloadCarteiraDeDjen(
                 djenRawSigilo.items[0],
                 categoriasCarteira,
+                {},
+                tiposCarteira,
             );
             assert.equal(payloadCarteiraDjen.cliente_nome, "L. D. S. R.");
             assert.equal(payloadCarteiraDjen.banco, "BANCO SANTANDER (BRASIL) S.A.");
             assert.equal(payloadCarteiraDjen.documento_contrato, "SANT-884412");
             assert.equal(payloadCarteiraDjen.modalidade_id, "veiculo-pf");
             assert.equal(payloadCarteiraDjen.valor_total_acao, 45200);
+            // Fase = Ajuizado (todo processo do DJEN já está em juízo); categoria = tipo da ação pela classe.
             assert.equal(
                 payloadCarteiraDjen.categoria_id,
-                categoriasCarteira.find((c) => c.nome === "Busca e Apreensão")?.id ?? null,
+                categoriasCarteira.find((c) => c.nome === "Ajuizado")?.id ?? null,
             );
+            assert.equal(payloadCarteiraDjen.tipo_id, "tipo-ba");
             assert.equal(isCalculoPendente(payloadCarteiraDjen), true);
 
             const salvoPendente = await db.criarCalculo(payloadCarteiraDjen);
@@ -989,14 +1000,38 @@ describe("Autenticação dos endpoints MCP e Claude", () => {
         });
     });
 
-    it("/api/mcp com Bearer arbitrário repassa o token ao Supabase em vez da service role", async () => {
+    it("/api/mcp valida Bearer via whitelist e repassa o token ao Supabase em vez da service role", async () => {
         await comEnv(ENV_SERVIDOR_COM_SERVICE_ROLE, async () => {
             const espiao = criarFetchSupabaseEspiao();
+            const fetchComWhitelist = (async (input: string | URL | Request, init?: RequestInit) => {
+                const url = String(input);
+                if (url.includes("/rpc/is_escritorio_autorizado")) {
+                    const auth = new Headers(init?.headers).get("authorization") ?? "";
+                    return new Response(JSON.stringify(auth === "Bearer token-autorizado"), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    });
+                }
+                return espiao.fetchFn(input, init);
+            }) as typeof fetch;
+
+            const bloqueado = createMockHttpRes();
+            await handleMcpHttpRequest(
+                {
+                    method: "POST",
+                    headers: { host: "www.iangranja.adv.br", authorization: "Bearer invasor" },
+                    body: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+                },
+                bloqueado.res,
+                { fetchFn: fetchComWhitelist },
+            );
+            assert.equal(bloqueado.getStatus(), 401);
+
             const { res, getStatus } = createMockHttpRes();
             await handleMcpHttpRequest(
                 {
                     method: "POST",
-                    headers: { host: "www.iangranja.adv.br", authorization: "Bearer x" },
+                    headers: { host: "www.iangranja.adv.br", authorization: "Bearer token-autorizado" },
                     body: {
                         jsonrpc: "2.0",
                         id: 1,
@@ -1005,11 +1040,11 @@ describe("Autenticação dos endpoints MCP e Claude", () => {
                     },
                 },
                 res,
-                { fetchFn: espiao.fetchFn },
+                { fetchFn: fetchComWhitelist },
             );
             assert.equal(getStatus(), 200);
             assert.ok(espiao.chamadas.length > 0);
-            assert.ok(espiao.chamadas.every((c) => c.authorization === "Bearer x"));
+            assert.ok(espiao.chamadas.every((c) => c.authorization === "Bearer token-autorizado"));
         });
     });
 
@@ -1672,5 +1707,419 @@ describe("Verificação automática de publicações do DJEN", () => {
             assert.equal(corpo.totalNovas, 1);
             assert.equal(corpo.atualizados, undefined, "não devolve os registros completos");
         });
+    });
+});
+
+describe("Normalização do tipo de tarifa (qualquer formato vindo do contrato)", () => {
+    const casos: Array<[string, string]> = [
+        ["seguro_prestamista", "Seguro Prestamista"],
+        ["SEGURO-PRESTAMISTA", "Seguro Prestamista"],
+        ["avaliacao_bem", "Tarifa de Avaliação do Bem"],
+        ["Avaliação do bem", "Tarifa de Avaliação do Bem"],
+        ["registro_contrato", "Registro de Contrato"],
+        ["Registro/Gravame", "Registro de Contrato"],
+        ["taxa DETRAN", "Registro de Contrato"],
+        ["iof.financiado", "IOF Financiado"],
+        ["tarifa_tac", "Tarifa de Abertura de Crédito (TAC)"],
+        ["servicos_de_terceiros", "Serviços de Terceiros"],
+        ["Tarifa de Abertura de Crédito (TAC)", "Tarifa de Abertura de Crédito (TAC)"],
+        ["Super Proteção Financeira - Motos", "Seguro Prestamista"],
+        ["Proteção Vida", "Seguro de Vida"],
+        ["seguro_vida", "Seguro de Vida"],
+        ["Acidentes Pessoais Moto Assist", "Seguro de Acidentes Pessoais"],
+        ["Moto Assist", "Seguro de Acidentes Pessoais"],
+        ["seguro", "Seguro Prestamista"],
+    ];
+    for (const [entrada, esperado] of casos) {
+        it(`"${entrada}" vira "${esperado}"`, () => {
+            assert.equal(normalizarTipoTarifa(entrada).tipo, esperado);
+        });
+    }
+
+    it("tipo desconhecido continua como 'Outra' e guarda o texto original", () => {
+        assert.deepEqual(normalizarTipoTarifa("tarifa_cadastro"), { tipo: "Outra", descricaoCustom: "tarifa_cadastro" });
+    });
+});
+
+describe("Exibição de publicações do DJEN", () => {
+    it("passa nomes em CAIXA ALTA para a forma usual, mantendo iniciais e partículas", () => {
+        assert.equal(formatarNomeParte("ELMAR ROBERIO HERCULANO E SILVA"), "Elmar Roberio Herculano e Silva");
+        assert.equal(formatarNomeParte("MARIA DAS GRAÇAS NOGUEIRA"), "Maria das Graças Nogueira");
+        assert.equal(formatarNomeParte("K. A. D. A."), "K. A. D. A.");
+        assert.equal(formatarNomeParte("Já Formatado da Silva"), "Já Formatado da Silva");
+    });
+
+    it("começa o resumo no ato processual e trata processo sigiloso", () => {
+        assert.equal(
+            resumirTeorPublicacao("Tribunal X 5ª Vara CEP 56302-000 Processo nº 1 DECISÃO com força de Mandado"),
+            "DECISÃO com força de Mandado",
+        );
+        assert.match(resumirTeorPublicacao("Este documento faz parte de um processo sigiloso."), /sigiloso/);
+        assert.equal(resumirTeorPublicacao(""), "Publicação registrada sem texto resumido.");
+    });
+});
+
+describe("Fase e categoria (tipo da ação) no conector MCP", () => {
+    class MemoryDbComTipos extends MemoryRevisionalDb {
+        tipos: Categoria[] = [
+            { id: "tipo-ba", nome: "Busca e Apreensão", cor: "crimson", ordem: 1, created_at: "" },
+            { id: "tipo-rev", nome: "Revisional", cor: "ink", ordem: 2, created_at: "" },
+        ];
+        async listarTipos(): Promise<Categoria[]> {
+            return [...this.tipos];
+        }
+        async criarTipo(nome: string, cor: CategoriaCor = "ink"): Promise<Categoria> {
+            const novo: Categoria = { id: `tipo-${this.tipos.length + 1}`, nome, cor, ordem: 9, created_at: "" };
+            this.tipos.push(novo);
+            return novo;
+        }
+    }
+
+    const fases: Categoria[] = [
+        { id: "fase-triagem", nome: "Triagem", cor: "gold", ordem: 1, created_at: "" },
+        { id: "fase-ajuizado", nome: "Ajuizado", cor: "emerald", ordem: 3, created_at: "" },
+    ];
+
+    const cadastrar = async (db: MemoryDbComTipos, args: Record<string, unknown>) => {
+        const res = await handleMcpJsonRpc(
+            {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "tools/call",
+                params: {
+                    name: "calcular_e_cadastrar_caso_revisional",
+                    arguments: {
+                        clienteNome: "Teste Fase",
+                        banco: "Santander",
+                        contratos: [
+                            {
+                                modalidadeId: "veiculo-pf",
+                                dataContrato: "2025-11-10",
+                                valorFinanciado: 30000,
+                                valorParcela: 1200,
+                                parcelas: 48,
+                                pagas: 4,
+                                taxaMensal: 3.1,
+                            },
+                        ],
+                        ...args,
+                    },
+                },
+            },
+            db,
+        );
+        return JSON.parse((res?.result as { content: Array<{ text: string }> }).content[0].text) as {
+            id: string;
+            faseKanban: string;
+            categoriaAcao: string | null;
+        };
+    };
+
+    it("grava fase e categoria separadas quando as duas vêm", async () => {
+        const prevFetch = globalThis.fetch;
+        globalThis.fetch = criarMockBacenFetch();
+        try {
+            const db = new MemoryDbComTipos(fases);
+            const r = await cadastrar(db, { categoriaNome: "Ajuizado", tipoAcao: "Revisional" });
+            assert.equal(r.faseKanban, "Ajuizado");
+            assert.equal(r.categoriaAcao, "Revisional");
+            const salvo = db.calculos.find((c) => c.id === r.id);
+            assert.equal(salvo?.categoria_id, "fase-ajuizado");
+            assert.equal(salvo?.tipo_id, "tipo-rev");
+        } finally {
+            globalThis.fetch = prevFetch;
+        }
+    });
+
+    it("tipo de ação mandado como fase vira categoria e o caso entra em Triagem", async () => {
+        const prevFetch = globalThis.fetch;
+        globalThis.fetch = criarMockBacenFetch();
+        try {
+            const db = new MemoryDbComTipos(fases);
+            const r = await cadastrar(db, { categoriaNome: "Busca e Apreensão" });
+            assert.equal(r.faseKanban, "Triagem");
+            assert.equal(r.categoriaAcao, "Busca e Apreensão");
+            assert.equal(db.categorias.length, 2, "não recria a fase antiga");
+        } finally {
+            globalThis.fetch = prevFetch;
+        }
+    });
+});
+
+describe("Varredura do DJEN pela OAB do escritório", () => {
+    const agora = new Date("2026-11-19T12:00:00Z");
+    const semEspera = async () => {};
+    const CNJ_NOVO = "80005272820268050052";
+
+    it("cadastra processo novo da OAB com todas as publicações marcadas como novas e anexa as de processo salvo", async () => {
+        const { db, pendente } = await montarCarteiraParaSync();
+        const itensOab = [
+            itemDjenBruto(100, "2026-11-10"),
+            itemDjenBruto(200, "2026-11-19"),
+            itemDjenBruto(401, "2026-11-19", CNJ_NOVO),
+            itemDjenBruto(400, "2026-11-18", CNJ_NOVO),
+        ];
+        const urls: string[] = [];
+        const fetchFn = (async (input: string | URL | Request) => {
+            const url = String(input);
+            urls.push(url);
+            const cnj = new URL(url).searchParams.get("numeroProcesso");
+            const itens = cnj ? itensOab.filter((i) => i.numero_processo === cnj) : itensOab;
+            return new Response(JSON.stringify({ count: itens.length, items: itens }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            });
+        }) as typeof fetch;
+
+        const fases = [{ id: "fase-ajuizado", nome: "Ajuizado", cor: "emerald" as const, ordem: 3, created_at: "" }];
+        const resultado = await verificarPublicacoesDjen({
+            calculos: await db.listarCalculos(),
+            atualizar: (id, patch) => db.atualizarCalculo(id, patch),
+            fetchFn,
+            agora: () => agora,
+            esperar: semEspera,
+            varreduraOab: { numeroOab: "61107", ufOab: "PE", criar: (p) => db.criarCalculo(p), categorias: fases },
+        });
+
+        assert.ok(urls[0].includes("numeroOab=61107") && urls[0].includes("ufOab=PE"), "primeiro varre pela OAB");
+        assert.ok(urls[0].includes("dataDisponibilizacaoInicio=2026-11-16"));
+        assert.equal(resultado.criados.length, 1);
+
+        const novo = lerDadosProcessoDjen(resultado.criados[0]);
+        assert.equal(normalizarNumeroProcessoDjen(novo.processoGlobal), CNJ_NOVO);
+        assert.deepEqual(novo.movimentacoes.map((m) => m.id).sort(), [400, 401]);
+        assert.deepEqual([...novo.idsNovos].sort(), [400, 401]);
+        assert.equal(resultado.criados[0].categoria_id, "fase-ajuizado");
+        assert.equal(isCalculoPendente(resultado.criados[0]), true, "entra na aba Processos");
+
+        const salvo = lerDadosProcessoDjen(db.calculos.find((c) => c.id === pendente.id)!);
+        assert.deepEqual(salvo.movimentacoes.map((m) => m.id).sort(), [100, 200], "sem duplicar");
+        assert.deepEqual(salvo.idsNovos, [200]);
+        assert.equal(resultado.totalNovas, 3);
+
+        // Rodar de novo não recria nem duplica nada
+        const segunda = await verificarPublicacoesDjen({
+            calculos: db.calculos,
+            atualizar: (id, patch) => db.atualizarCalculo(id, patch),
+            fetchFn,
+            agora: () => agora,
+            esperar: semEspera,
+            intervaloHoras: 0,
+            varreduraOab: { numeroOab: "61107", ufOab: "PE", criar: (p) => db.criarCalculo(p), categorias: fases },
+        });
+        assert.equal(segunda.criados.length, 0);
+        assert.equal(segunda.totalNovas, 0);
+    });
+});
+
+describe("Varredura da OAB não duplica com duas verificações ao mesmo tempo", () => {
+    it("a segunda verificação, partindo da lista antiga em memória, relê o banco e não recria", async () => {
+        const { db } = await montarCarteiraParaSync();
+        const CNJ_NOVO = "80084675320268050146";
+        const itens = [itemDjenBruto(792135501, "2026-11-19", CNJ_NOVO)];
+        const fetchFn = (async () =>
+            new Response(JSON.stringify({ count: itens.length, items: itens }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })) as typeof fetch;
+        const listaAntiga = await db.listarCalculos(); // as duas telas carregaram antes da varredura
+        const varredura = {
+            numeroOab: "61107",
+            ufOab: "PE",
+            criar: (p: CalculoPayload) => db.criarCalculo(p),
+            listarAtuais: () => db.listarCalculos(),
+            existeProcesso: async (numero: string) => db.calculos.some((c) => c.processo_global === numero),
+        };
+        const rodar = () =>
+            verificarPublicacoesDjen({
+                calculos: listaAntiga,
+                atualizar: (id, patch) => db.atualizarCalculo(id, patch),
+                fetchFn,
+                agora: () => new Date("2026-11-19T04:48:45Z"),
+                esperar: async () => {},
+                intervaloHoras: 0,
+                varreduraOab: varredura,
+            });
+
+        const primeira = await rodar();
+        const segunda = await rodar();
+        assert.equal(primeira.criados.length, 1);
+        assert.equal(segunda.criados.length, 0, "a segunda tela não recria o mesmo processo");
+        assert.equal(
+            db.calculos.filter((c) => normalizarNumeroProcessoDjen(c.processo_global) === CNJ_NOVO).length,
+            1,
+        );
+    });
+});
+
+describe("Regressões P1 (segurança, parser, multi-contrato e MCP HTTP)", () => {
+    it("urlHttpSegura permite apenas http/https e bloqueia javascript: e data:", () => {
+        assert.equal(urlHttpSegura("https://pje.tjpe.jus.br/doc/1"), "https://pje.tjpe.jus.br/doc/1");
+        assert.equal(urlHttpSegura("http://example.com/a"), "http://example.com/a");
+        assert.equal(urlHttpSegura("javascript:alert(1)"), "");
+        assert.equal(urlHttpSegura("data:text/html,<script>alert(1)</script>"), "");
+        assert.equal(urlHttpSegura("   "), "");
+    });
+
+    it("parser local não confunde taxa anual (% a.a.) com taxa mensal (% a.m.)", () => {
+        const res = interpretarComandoLocalFallback("Contrato de R$ 20.000 em 48x com taxa de 35% a.a.");
+        assert.equal(res.contratos?.[0]?.taxaMensal, undefined);
+        const resMensal = interpretarComandoLocalFallback("Contrato de R$ 20.000 em 48x com taxa de 2,85% a.m.");
+        assert.equal(resMensal.contratos?.[0]?.taxaMensal, 2.85);
+    });
+
+    it("aplicarExtracaoClaudeAoEstado atualiza o 2º contrato correspondente sem sobrescrever o 1º", () => {
+        const estadoBase = {
+            ficha: {
+                clienteNome: "Carlos Silva",
+                banco: "Santander",
+                documentoContrato: "CCB-01",
+                categoriaId: null,
+                observacoes: "",
+            },
+            categorias: [],
+            processo: {
+                processoGlobal: "",
+                contratos: [
+                    {
+                        id: "c-1",
+                        descricao: "Contrato 1",
+                        instituicao: "Santander",
+                        numeroContrato: "CCB-01",
+                        pessoa: "pf" as const,
+                        modalidadeId: "veiculo-pf" as const,
+                        dataContrato: "2024-01-10",
+                        primeiroVencimento: "2024-02-10",
+                        valorFinanciado: 40000,
+                        valorParcela: 1500,
+                        parcelas: 48,
+                        pagas: 12,
+                        taxaMensal: 2.5,
+                        tipoJurosContrato: "AM" as const,
+                        metodo: "PRICE" as const,
+                        sistemaJuros: "COMPOSTO" as const,
+                        fonteTaxaRevisional: "media_sgs" as const,
+                        pagamentosExtras: [],
+                        gradePersonalizada: [],
+                    },
+                    {
+                        id: "c-2",
+                        descricao: "Contrato 2",
+                        instituicao: "Santander",
+                        numeroContrato: "CCB-02",
+                        pessoa: "pf" as const,
+                        modalidadeId: "pessoal-pf" as const,
+                        dataContrato: "2024-06-15",
+                        primeiroVencimento: "2024-07-15",
+                        valorFinanciado: 15000,
+                        valorParcela: 700,
+                        parcelas: 36,
+                        pagas: 6,
+                        taxaMensal: 3.9,
+                        tipoJurosContrato: "AM" as const,
+                        metodo: "PRICE" as const,
+                        sistemaJuros: "COMPOSTO" as const,
+                        fonteTaxaRevisional: "media_sgs" as const,
+                        pagamentosExtras: [],
+                        gradePersonalizada: [],
+                    },
+                ],
+                tarifas: [],
+                deducoes: [],
+                parametros: PARAMETROS_DECISAO_PADRAO(),
+            },
+        };
+
+        const atualizado = aplicarExtracaoClaudeAoEstado(
+            {
+                modoOperacao: "atualizar_caso_atual",
+                acaoSugerida: "calcular",
+                resumoExplicacao: "Atualizou contrato 2",
+                ficha: {},
+                contratos: [{ numeroContrato: "CCB-02", pagas: 10, taxaMensal: 4.1 }],
+                parametros: {},
+                tarifas: [],
+                deducoes: [],
+            },
+            estadoBase,
+        );
+
+        assert.equal(atualizado.processo.contratos.length, 2);
+        assert.equal(atualizado.processo.contratos[0].pagas, 12);
+        assert.equal(atualizado.processo.contratos[0].taxaMensal, 2.5);
+        assert.equal(atualizado.processo.contratos[1].pagas, 10);
+        assert.equal(atualizado.processo.contratos[1].taxaMensal, 4.1);
+    });
+
+    it("HTTP /api/mcp exige autenticação no GET, recusa ?token= na query string e limita lotes JSON-RPC", async () => {
+        const db = new MemoryRevisionalDb([]);
+        const prevToken = process.env.MCP_AUTH_TOKEN;
+        process.env.MCP_AUTH_TOKEN = "segredo-mcp-teste";
+        try {
+            // GET sem autenticação em host público => 401
+            {
+                const { res, getStatus } = createMockHttpRes();
+                await handleMcpHttpRequest(
+                    { method: "GET", headers: { host: "www.iangranja.adv.br" } },
+                    res,
+                );
+                assert.equal(getStatus(), 401);
+            }
+
+            // POST com ?token= na query string sem header => 401 (query string não é mais aceita)
+            {
+                const { res, getStatus } = createMockHttpRes();
+                await handleMcpHttpRequest(
+                    {
+                        method: "POST",
+                        headers: { host: "www.iangranja.adv.br" },
+                        query: { token: "segredo-mcp-teste" },
+                        body: { jsonrpc: "2.0", id: 1, method: "ping" },
+                    },
+                    res,
+                );
+                assert.equal(getStatus(), 401);
+            }
+
+            // Batch vazio [] => 400 / -32600
+            {
+                const { res, getStatus, getBody } = createMockHttpRes();
+                await handleMcpHttpRequest(
+                    {
+                        method: "POST",
+                        headers: { host: "www.iangranja.adv.br", authorization: "Bearer segredo-mcp-teste" },
+                        body: [],
+                    },
+                    res,
+                    { db },
+                );
+                assert.equal(getStatus(), 400);
+                assert.equal((getBody() as { error?: { code?: number } }).error?.code, -32600);
+            }
+
+            // Batch com > 20 chamadas => 400 / -32600
+            {
+                const { res, getStatus, getBody } = createMockHttpRes();
+                const batchGrande = Array.from({ length: 21 }, (_, i) => ({
+                    jsonrpc: "2.0",
+                    id: i + 1,
+                    method: "ping",
+                }));
+                await handleMcpHttpRequest(
+                    {
+                        method: "POST",
+                        headers: { host: "www.iangranja.adv.br", authorization: "Bearer segredo-mcp-teste" },
+                        body: batchGrande,
+                    },
+                    res,
+                    { db },
+                );
+                assert.equal(getStatus(), 400);
+                assert.equal((getBody() as { error?: { code?: number } }).error?.code, -32600);
+            }
+        } finally {
+            if (prevToken === undefined) delete process.env.MCP_AUTH_TOKEN;
+            else process.env.MCP_AUTH_TOKEN = prevToken;
+        }
     });
 });

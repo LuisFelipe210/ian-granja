@@ -57,6 +57,64 @@ describe("atualizarValorMonetario", () => {
         // 0.84% (set/24) + 0.93% (out/24) = 1.77% sobre 1000 = 17.70
         assert.ok(Math.abs(upd.juros - 17.7) < 1e-4);
     });
+
+    it("SELIC a partir da citação corrige monetariamente o período pré-citação e aplica SELIC só após a citação", () => {
+        const params = {
+            ...PARAMETROS_DECISAO_PADRAO(),
+            indiceCorrecao: "INPC_IPCA" as const,
+            tipoJuros: "SELIC" as const,
+            termoInicialJuros: "CITACAO" as const,
+            dataCitacao: "2024-09-10",
+            dataBaseAtualizacao: "2024-11-30",
+        };
+        // Evento em 2024-07: correção INPC em 2024-07 (0.26%) e 2024-08 (0.10%); SELIC em 2024-09 (0.84%) e 2024-10 (0.93%).
+        const upd = atualizarValorMonetario(1000, "2024-07-10", params, SERIES_MOCK);
+        assert.ok(upd.correcao > 3.5 && upd.correcao < 3.7, `Correção pré-citação inesperada: ${upd.correcao}`);
+        assert.ok(Math.abs(upd.percentualJuros - 1.77) < 1e-4, `SELIC pós-citação inesperada: ${upd.percentualJuros}`);
+        assert.ok(Math.abs(upd.total - (1000 + upd.correcao + upd.juros)) < 1e-6);
+    });
+
+    it("emite alerta quando séries econômicas necessárias estão vazias e neutraliza CSV Formula Injection", () => {
+        const res = calcularProcessoRevisional(
+            {
+                parametros: {
+                    ...PARAMETROS_DECISAO_PADRAO(),
+                    indiceCorrecao: "INPC_IPCA",
+                    tipoJuros: "LEI_14905",
+                    dataBaseAtualizacao: "2026-01-10",
+                },
+                contratos: [
+                    {
+                        id: "c-alerta",
+                        descricao: "Veículo",
+                        instituicao: "=CMD|' /C calc'!A0",
+                        numeroContrato: "CT-1",
+                        pessoa: "pf",
+                        modalidadeId: "veiculo-pf",
+                        dataContrato: "2025-06-10",
+                        primeiroVencimento: "2025-07-10",
+                        valorFinanciado: 40000,
+                        valorParcela: 1850,
+                        parcelas: 48,
+                        pagas: 3,
+                        fonteTaxaRevisional: "media_sgs",
+                        pagamentosExtras: [],
+                    },
+                ],
+                tarifas: [],
+                deducoes: [],
+            },
+            { inpc: {}, ipca: {}, igpm: {}, selic: {} },
+        );
+        assert.ok(
+            res.contratos[0].alertas.some((a) => a.includes("séries econômicas")),
+            `Esperava alerta de séries econômicas vazias, obteve: ${JSON.stringify(res.contratos[0].alertas)}`,
+        );
+
+        const csv = gerarCsvDemonstrativo(res, { clienteNome: "+1+1" });
+        assert.ok(csv.includes(`"'=CMD`), "CSV deveria prefixar célula iniciada por = com apóstrofo");
+        assert.ok(csv.includes(`"'+1+1"`), "CSV deveria prefixar célula iniciada por + com apóstrofo");
+    });
 });
 
 describe("motor pericial multi-contrato, tarifas, deduções e laudo", () => {
@@ -143,6 +201,101 @@ describe("motor pericial multi-contrato, tarifas, deduções e laudo", () => {
             },
         ],
     };
+
+    it("avisa quando há parcela marcada como paga que ainda não venceu na data-base", () => {
+        const input: ProcessoRevisionalInput = {
+            ...baseInput,
+            parametros: { ...baseInput.parametros, dataBaseAtualizacao: "2026-02-05" },
+            contratos: [
+                {
+                    ...baseInput.contratos[0],
+                    gradePersonalizada: undefined,
+                    primeiroVencimento: "2025-12-10",
+                    pagas: 4,
+                    pagamentosExtras: [],
+                },
+            ],
+            tarifas: [],
+            deducoes: [],
+        };
+        const res = calcularProcessoRevisional(input);
+        const rc = res.contratos[0];
+        // Vencimentos 10/12/2025 e 10/01/2026 já venceram em 05/02/2026; 10/02 e 10/03 não.
+        assert.equal(rc.parcelasVencidasNaDataBase, 2);
+        assert.deepEqual(
+            rc.linhas.filter((l) => l.paga && l.aVencerNaDataBase).map((l) => l.numero),
+            [3, 4],
+        );
+        assert.equal(rc.alertas.length, 1);
+        assert.match(rc.alertas[0], /nº 3, 4/);
+        assert.match(rc.alertas[0], /05\/02\/2026/);
+        assert.match(rc.alertas[0], /ajuste as parcelas pagas para 2/);
+
+        const html = gerarHtmlLaudoRevisional(res, { clienteNome: "Teste" } as never);
+        assert.ok(html.includes("Atenção:"));
+    });
+
+    it("não alerta parcela antecipada com desconto (amortização das últimas)", () => {
+        const c0 = baseInput.contratos[0];
+        const grade = Array.from({ length: c0.parcelas }, (_, i) => {
+            const numero = i + 1;
+            const ultima = numero === c0.parcelas;
+            return {
+                numero,
+                vencimento: `2027-${String((i % 12) + 1).padStart(2, "0")}-10`,
+                // Última quitada antes, com desconto: valor menor que a parcela.
+                valorPago: ultima ? c0.valorParcela * 0.6 : c0.valorParcela,
+                paga: ultima,
+            };
+        });
+        const res = calcularProcessoRevisional({
+            ...baseInput,
+            parametros: { ...baseInput.parametros, dataBaseAtualizacao: "2026-02-05" },
+            contratos: [{ ...c0, pagas: 1, gradePersonalizada: grade, pagamentosExtras: [] }],
+            tarifas: [],
+            deducoes: [],
+        });
+        const rc = res.contratos[0];
+        assert.deepEqual(rc.alertas, []);
+        assert.equal(rc.linhas.filter((l) => l.conferirVencimento).length, 0);
+    });
+
+    it("pago a mais e saldos seguem a grade (amortização das últimas parcelas)", () => {
+        const c0 = { ...baseInput.contratos[0], pagamentosExtras: [] };
+        const base = { ...baseInput, contratos: [{ ...c0, gradePersonalizada: undefined }], tarifas: [], deducoes: [] };
+        const padrao = calcularProcessoRevisional(base).contratos[0];
+
+        // Grade explícita igual à padrão: mesmos saldos e mesmo pago a mais.
+        const gradeIgual = padrao.linhas.map((l) => ({
+            numero: l.numero,
+            vencimento: l.vencimento,
+            valorPago: c0.valorParcela,
+            paga: l.paga,
+        }));
+        const igual = calcularProcessoRevisional({ ...base, contratos: [{ ...c0, gradePersonalizada: gradeIgual }] })
+            .contratos[0];
+        for (const campo of ["pagoAMais", "saldoHoje", "saldoHojeNaMedia", "saldoRecalculado"] as const) {
+            assert.ok(Math.abs(igual.analise[campo] - padrao.analise[campo]) < 0.01, campo);
+        }
+
+        // Últimas duas quitadas com desconto: contam como pagas, sem pago a mais, e reduzem o saldo.
+        const n = c0.parcelas;
+        const gradeAmort = gradeIgual.map((r) =>
+            r.numero > n - 2 ? { ...r, paga: true, valorPago: c0.valorParcela * 0.5 } : r,
+        );
+        const amort = calcularProcessoRevisional({
+            ...base,
+            contratos: [{ ...c0, pagas: c0.pagas + 2, gradePersonalizada: gradeAmort }],
+        }).contratos[0];
+        assert.ok(Math.abs(amort.analise.pagoAMais - padrao.analise.pagoAMais) < 0.01);
+        assert.ok(amort.analise.saldoHoje < padrao.analise.saldoHoje);
+        assert.ok(amort.analise.saldoRecalculado < padrao.analise.saldoRecalculado);
+    });
+
+    it("não gera alerta quando todas as parcelas pagas já venceram", () => {
+        const res = calcularProcessoRevisional(baseInput);
+        assert.deepEqual(res.contratos[0].alertas, []);
+    });
 
     it("consolida múltiplos contratos, grade editada, pagamentos extras, tarifas, dedução, multa e honorários", () => {
         const res = calcularProcessoRevisional(baseInput);
