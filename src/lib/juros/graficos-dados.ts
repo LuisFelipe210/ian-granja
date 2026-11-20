@@ -305,20 +305,28 @@ export function agregarEstatisticasCarteira(
         abusos: 0,
     };
 
-    const bancoMap = new Map<string, { casos: number; valorTotal: number; somaRazao: number; abusos: number }>();
-    const modMap = new Map<string, { casos: number; valorTotal: number; somaRazao: number }>();
+    const bancoMap = new Map<
+        string,
+        { casos: number; casosComRazao: number; valorTotal: number; somaRazao: number; abusos: number }
+    >();
+    const modMap = new Map<string, { casos: number; casosComRazao: number; valorTotal: number; somaRazao: number }>();
+    let casosComRazaoGeral = 0;
 
     for (const c of calculos) {
         const valAcao = Number(c.valor_total_acao) || Number(c.diferenca_total) || 0;
         const pagoMais = (Number(c.pago_a_mais) || 0) + (Number(c.total_tarifas) || 0);
         const financiado = Number(c.valor_financiado) || 0;
         const razao = Number(c.razao_am) || 0;
+        const temRazao = Number.isFinite(razao) && razao > 0;
         const niv: Nivel = c.nivel === "abuso" || c.nivel === "acima" ? c.nivel : "media";
 
         proveitoTotal += valAcao;
         pagoAMaisETarifasTotal += pagoMais;
         valorFinanciadoTotal += financiado;
-        somaRazoes += razao;
+        if (temRazao) {
+            somaRazoes += razao;
+            casosComRazaoGeral += 1;
+        }
 
         qtdPorNivel[niv] += 1;
         valorPorNivel[niv] += valAcao;
@@ -329,18 +337,30 @@ export function agregarEstatisticasCarteira(
         if (niv === "abuso") bucketCat.abusos += 1;
 
         const nomeBanco = normalizarRotuloBanco(c.banco || "");
-        const bPrev = bancoMap.get(nomeBanco) ?? { casos: 0, valorTotal: 0, somaRazao: 0, abusos: 0 };
+        const bPrev = bancoMap.get(nomeBanco) ?? {
+            casos: 0,
+            casosComRazao: 0,
+            valorTotal: 0,
+            somaRazao: 0,
+            abusos: 0,
+        };
         bPrev.casos += 1;
         bPrev.valorTotal += valAcao;
-        bPrev.somaRazao += razao;
+        if (temRazao) {
+            bPrev.somaRazao += razao;
+            bPrev.casosComRazao += 1;
+        }
         if (niv === "abuso") bPrev.abusos += 1;
         bancoMap.set(nomeBanco, bPrev);
 
         const nomeMod = `${c.modalidade_nome || "Modalidade"} (${(c.pessoa || "pf").toUpperCase()})`;
-        const mPrev = modMap.get(nomeMod) ?? { casos: 0, valorTotal: 0, somaRazao: 0 };
+        const mPrev = modMap.get(nomeMod) ?? { casos: 0, casosComRazao: 0, valorTotal: 0, somaRazao: 0 };
         mPrev.casos += 1;
         mPrev.valorTotal += valAcao;
-        mPrev.somaRazao += razao;
+        if (temRazao) {
+            mPrev.somaRazao += razao;
+            mPrev.casosComRazao += 1;
+        }
         modMap.set(nomeMod, mPrev);
     }
 
@@ -354,7 +374,7 @@ export function agregarEstatisticasCarteira(
             nome,
             casos: d.casos,
             valorTotal: d.valorTotal,
-            razaoMedia: d.casos > 0 ? d.somaRazao / d.casos : 0,
+            razaoMedia: d.casosComRazao > 0 ? d.somaRazao / d.casosComRazao : 0,
             abusos: d.abusos,
         }))
         .sort((a, b) => b.valorTotal - a.valorTotal || b.casos - a.casos);
@@ -364,7 +384,7 @@ export function agregarEstatisticasCarteira(
             nome,
             casos: d.casos,
             valorTotal: d.valorTotal,
-            razaoMedia: d.casos > 0 ? d.somaRazao / d.casos : 0,
+            razaoMedia: d.casosComRazao > 0 ? d.somaRazao / d.casosComRazao : 0,
         }))
         .sort((a, b) => b.valorTotal - a.valorTotal || b.casos - a.casos);
 
@@ -377,7 +397,7 @@ export function agregarEstatisticasCarteira(
         qtdPorNivel,
         valorPorNivel,
         percentualAbuso: totalCasos > 0 ? (qtdPorNivel.abuso / totalCasos) * 100 : 0,
-        razaoMediaGeral: totalCasos > 0 ? somaRazoes / totalCasos : 0,
+        razaoMediaGeral: casosComRazaoGeral > 0 ? somaRazoes / casosComRazaoGeral : 0,
         porCategoria,
         porBanco,
         porModalidade,

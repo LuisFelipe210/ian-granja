@@ -1,5 +1,6 @@
 import { LIMITE_ABUSIVO, brl, mNome, num } from "./index.ts";
 import { composicaoCustoContrato, serieSaldoDevedorContrato } from "./graficos-dados.ts";
+import { cidadeAssinatura, configEscritorioAtual, formatarOab } from "../config-escritorio.ts";
 import {
     INDICES_CORRECAO_OPCOES,
     TIPOS_JUROS_OPCOES,
@@ -64,7 +65,7 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
                     (l) => `
                 <tr>
                     <td>${l.numero}</td>
-                    <td>${escapeHtml(formatDataBR(l.vencimento))}</td>
+                    <td>${escapeHtml(formatDataBR(l.vencimento))}${l.conferirVencimento ? " *" : ""}</td>
                     <td class="num">${brl(l.valorDevido)}</td>
                     <td class="num">${brl(l.valorPago)}</td>
                     <td class="num">${brl(l.diferencaBaseRestituicao)}</td>
@@ -118,7 +119,7 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
                 <div class="meta-grid">
                     <div><span>Instituição:</span> <strong>${escapeHtml(c.instituicao || "Não informada")}</strong></div>
                     <div><span>Nº Contrato:</span> <strong>${escapeHtml(c.numeroContrato || "—")}</strong></div>
-                    <div><span>Modalidade:</span> <strong>${escapeHtml(a.entrada.mod.nome)} (${c.pessoa.toUpperCase()})</strong></div>
+                    <div><span>Modalidade:</span> <strong>${escapeHtml(a.entrada.mod.nome)} (${escapeHtml(String(c.pessoa).toUpperCase())})</strong></div>
                     <div><span>Data Contratação:</span> <strong>${escapeHtml(formatDataBR(c.dataContrato))}</strong></div>
                     <div><span>Valor Financiado:</span> <strong>${brl(c.valorFinanciado)}</strong></div>
                     <div><span>Parcelas:</span> <strong>${c.parcelas}x de ${brl(c.valorParcela)} (${c.pagas} pagas)</strong></div>
@@ -133,6 +134,10 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
                     <div><span>Economia nas Vincendas</span><strong>${brl(rc.economiaVincendas)}</strong></div>
                     <div><span>Saldo Recalculado (Abatendo Pagas)</span><strong>${brl(a.saldoRecalculado)}</strong></div>
                 </div>
+
+                ${(rc.alertas ?? [])
+                    .map((al) => `<div class="notes alerta"><strong>* Atenção:</strong> ${escapeHtml(al)}</div>`)
+                    .join("")}
 
                 ${
                     linhasHtml
@@ -253,6 +258,11 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
             </table>
         </section>`
             : "";
+
+    const escCfg = configEscritorioAtual();
+    const oabEsc = formatarOab(escCfg);
+    const cidadeEsc = cidadeAssinatura(escCfg);
+    const advogadoEsc = escCfg.nomeAdvogado || "Ian Granja";
 
     return `<!doctype html>
 <html lang="pt-BR">
@@ -396,6 +406,7 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
     background: #fafbfd;
     margin-top: 12px;
   }
+  .notes.alerta { border-left-color: #b42318; color: #b42318; margin-bottom: 8px; }
   .signature {
     margin-top: 28px;
     display: flex;
@@ -430,7 +441,7 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
     <header class="doc-header">
       <div class="brand">
         <h1>Ian Granja Advogados</h1>
-        <p>OAB/PE 61.107 · Av. Cardoso de Sá, 860, sala 5, Petrolina-PE · contato@iangranja.adv.br</p>
+        <p>${escapeHtml(oabEsc)} · Av. Cardoso de Sá, 860, sala 5, ${escapeHtml(cidadeEsc)} · contato@iangranja.adv.br</p>
       </div>
       <div class="doc-title">
         <h2>Laudo Técnico Revisional</h2>
@@ -468,8 +479,8 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
 
     <footer class="signature">
       <div class="signature-box">
-        <strong>Ian Granja</strong><br/>
-        Advogado · OAB/PE 61.107
+        <strong>${escapeHtml(advogadoEsc)}</strong><br/>
+        Advogado · ${escapeHtml(oabEsc)}
       </div>
     </footer>
   </main>
@@ -478,10 +489,18 @@ export function gerarHtmlLaudoRevisional(res: ResultadoProcessoRevisional, meta:
 }
 
 export function gerarCsvDemonstrativo(res: ResultadoProcessoRevisional, meta: LaudoMetadata): string {
-    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    // Neutraliza CSV/Formula Injection (Excel/LibreOffice) em células textuais iniciadas por =, +, -, @, \t ou \r.
+    const esc = (v: string | number) => {
+        let s = String(v);
+        if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) {
+            s = `'${s}`;
+        }
+        return `"${s.replace(/"/g, '""')}"`;
+    };
     const money = (v: number) => num(v, 2);
+    const oabCsv = formatarOab(configEscritorioAtual());
     const linhas: string[] = [
-        ["LAUDO TÉCNICO REVISIONAL", "Ian Granja Advogados (OAB/PE 61.107)"].map(esc).join(";"),
+        ["LAUDO TÉCNICO REVISIONAL", `Ian Granja Advogados (${oabCsv})`].map(esc).join(";"),
         ["Cliente", meta.clienteNome, "Processo", meta.processoGlobal || ""].map(esc).join(";"),
         ["Valor Total da Ação", money(res.resumo.valorTotalAcao), "Total a Restituir", money(res.resumo.totalRestituicaoAtualizado)].map(esc).join(";"),
         "",
@@ -507,6 +526,14 @@ export function gerarCsvDemonstrativo(res: ResultadoProcessoRevisional, meta: La
                     .join(";"),
             );
         }
+        if (rc.extras.length > 0) {
+            linhas.push("");
+            linhas.push(["PAGAMENTOS EXTRAS — CONTRATO " + (idx + 1)].map(esc).join(";"));
+            linhas.push(["Descrição", "Data", "Valor Base (R$)", "Correção (R$)", "Juros (R$)", "Total (R$)"].map(esc).join(";"));
+            for (const ex of rc.extras) {
+                linhas.push([ex.descricao, ex.data, money(ex.valorBase), money(ex.correcao), money(ex.juros), money(ex.total)].map(esc).join(";"));
+            }
+        }
         linhas.push("");
     });
 
@@ -529,6 +556,31 @@ export function gerarCsvDemonstrativo(res: ResultadoProcessoRevisional, meta: La
                     .join(";"),
             );
         }
+        linhas.push("");
+    }
+
+    if (res.deducoes.length > 0) {
+        linhas.push(["DEDUÇÕES / ALVARÁS"].map(esc).join(";"));
+        linhas.push(["Descrição", "Data", "Valor Base (R$)", "Correção (R$)", "Juros (R$)", "Total Deduzido (R$)"].map(esc).join(";"));
+        for (const d of res.deducoes) {
+            linhas.push([d.item.descricao, d.item.data, money(d.valorBase), money(d.correcao), money(d.juros), money(d.total)].map(esc).join(";"));
+        }
+        linhas.push("");
+    }
+
+    if (res.resumo.valorMultaGlobal > 0 || res.resumo.valorHonorarios > 0) {
+        linhas.push(["ACRESCIMOS FINAIS"].map(esc).join(";"));
+        linhas.push(["Base Líquida (R$)", "Multa Global (R$)", "Honorários (R$)", "Total a Restituir (R$)"].map(esc).join(";"));
+        linhas.push(
+            [
+                money(res.resumo.baseLiquidaCondenacao),
+                money(res.resumo.valorMultaGlobal),
+                money(res.resumo.valorHonorarios),
+                money(res.resumo.totalRestituicaoAtualizado),
+            ]
+                .map(esc)
+                .join(";"),
+        );
         linhas.push("");
     }
 
@@ -603,7 +655,11 @@ const CP1252_EXTRA: Record<number, number> = {
 };
 
 function normalizarTextoPdf(text: string): string {
-    return text.replace(/[\u00A0\u202F]/g, " ").replace(/\u2212/g, "-");
+    return text.replace(/[\u00A0\u202F\t]/g, " ").replace(/\u2212/g, "-");
+}
+
+function fmtPdfNum(n: number): string {
+    return Number.isFinite(n) ? n.toFixed(2) : "0.00";
 }
 
 function toWinAnsiBytes(text: string): number[] {
@@ -630,7 +686,7 @@ function encodePdfHex(text: string): string {
 }
 
 function charWidthUnits(ch: string, bold: boolean): number {
-    if ("ilI.,:;|!'[]() ".includes(ch)) return bold && ch !== " " ? 0.278 : 0.278;
+    if ("ilI.,:;|!'[]() ".includes(ch)) return bold && ch !== " " ? 0.3 : 0.278;
     if (ch === "j") return bold ? 0.278 : 0.222;
     if ("frt-/\\ºª".includes(ch)) return bold ? 0.36 : 0.333;
     if (ch >= "0" && ch <= "9") return 0.556;
@@ -659,8 +715,11 @@ function truncatePdfText(text: string, maxWidth: number, fontSize: number, bold:
     const ellW = measurePdfText(ellipsis, fontSize, bold);
     if (maxWidth <= ellW) return "";
     let out = "";
+    let accW = 0;
     for (const ch of text) {
-        if (measurePdfText(out + ch, fontSize, bold) + ellW > maxWidth) break;
+        const w = measurePdfText(ch, fontSize, bold);
+        if (accW + w + ellW > maxWidth) break;
+        accW += w;
         out += ch;
     }
     return out.trimEnd() + ellipsis;
@@ -786,15 +845,15 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
     };
 
     const fillRect = (x: number, y: number, w: number, h: number, rgb: string) => {
-        pushCmd(`${rgb} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);
+        pushCmd(`${rgb} rg ${fmtPdfNum(x)} ${fmtPdfNum(y)} ${fmtPdfNum(w)} ${fmtPdfNum(h)} re f`);
     };
 
     const strokeRect = (x: number, y: number, w: number, h: number, rgb: string, lw = 0.6) => {
-        pushCmd(`${rgb} RG ${lw.toFixed(2)} w ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re S`);
+        pushCmd(`${rgb} RG ${fmtPdfNum(lw)} w ${fmtPdfNum(x)} ${fmtPdfNum(y)} ${fmtPdfNum(w)} ${fmtPdfNum(h)} re S`);
     };
 
     const drawLine = (x1: number, y1: number, x2: number, y2: number, rgb: string, lw = 0.6) => {
-        pushCmd(`${rgb} RG ${lw.toFixed(2)} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
+        pushCmd(`${rgb} RG ${fmtPdfNum(lw)} w ${fmtPdfNum(x1)} ${fmtPdfNum(y1)} m ${fmtPdfNum(x2)} ${fmtPdfNum(y2)} l S`);
     };
 
     const drawText = (
@@ -814,15 +873,20 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
         } else if (align === "center") {
             tx = x - measurePdfText(text, size, bold) / 2;
         }
-        pushCmd(`BT /${font} ${size.toFixed(2)} Tf ${color} rg ${tx.toFixed(2)} ${y.toFixed(2)} Td ${encodePdfHex(text)} Tj ET`);
+        pushCmd(`BT /${font} ${fmtPdfNum(size)} Tf ${color} rg ${fmtPdfNum(tx)} ${fmtPdfNum(y)} Td ${encodePdfHex(text)} Tj ET`);
     };
+
+    const cfgEscPdf = configEscritorioAtual();
+    const oabPdf = formatarOab(cfgEscPdf);
+    const cidadePdf = cidadeAssinatura(cfgEscPdf);
+    const advogadoPdf = cfgEscPdf.nomeAdvogado || "Ian Granja";
 
     const newPage = () => {
         const next: string[] = [];
         pages.push(next);
         curPage = next;
         curY = TOP_Y;
-        drawText("IAN GRANJA ADVOGADOS · OAB/PE 61.107", ML, curY - 9, 7.5, {
+        drawText(`IAN GRANJA ADVOGADOS · ${oabPdf}`, ML, curY - 9, 7.5, {
             bold: true,
             color: PDF_COLORS.navy,
         });
@@ -1020,7 +1084,7 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
     // 1. Cabeçalho principal da página 1
     drawText("IAN GRANJA ADVOGADOS", ML, curY - 14, 15, { bold: true, color: PDF_COLORS.navy });
     drawText(
-        "OAB/PE 61.107 · Av. Cardoso de Sá, 860, sala 5, Petrolina-PE · contato@iangranja.adv.br",
+        `${oabPdf} · Av. Cardoso de Sá, 860, sala 5, ${cidadePdf} · contato@iangranja.adv.br`,
         ML,
         curY - 27,
         7.8,
@@ -1284,10 +1348,10 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
 
             // Barras empilhadas de Custo Total (Capital + Juros)
             const comp = composicaoCustoContrato(rc);
-            const maxCusto = Math.max(1, comp.totalContrato, comp.totalParadigma);
-            const wCap = (comp.principal / maxCusto) * barAreaW;
-            const wJurBanco = (comp.jurosContrato / maxCusto) * barAreaW;
-            const wJurJusto = (comp.jurosParadigma / maxCusto) * barAreaW;
+            const maxCusto = Math.max(1, comp.principal, comp.totalContrato, comp.totalParadigma);
+            const wCap = Math.min(barAreaW, (comp.principal / maxCusto) * barAreaW);
+            const wJurBanco = Math.min(barAreaW - wCap, (comp.jurosContrato / maxCusto) * barAreaW);
+            const wJurJusto = Math.min(barAreaW - wCap, (comp.jurosParadigma / maxCusto) * barAreaW);
 
             drawText("Total Cobrado", lx + 8, cTop - 66, 6.8, { bold: true, color: PDF_COLORS.navy });
             drawText(brl(comp.totalContrato), lx + pw - 8, cTop - 66, 6.8, {
@@ -1424,6 +1488,23 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
             curY = cBottom - 10;
         }
 
+        // Alertas de consistência (ex.: parcela marcada como paga que ainda não venceu)
+        for (const alerta of rc.alertas ?? []) {
+            const alLines = wrapPdfText(`* Atenção: ${alerta}`, CW - 20, 8.5, false);
+            const alLineH = 11.5;
+            const alH = 10 + alLines.length * alLineH + 4;
+            ensureSpace(alH + 10);
+            const alBottom = curY - alH;
+            fillRect(ML, alBottom, CW, alH, PDF_COLORS.cardSubtle);
+            fillRect(ML, alBottom, 3, alH, PDF_COLORS.destructive);
+            let aly = curY - 13;
+            for (const line of alLines) {
+                if (line) drawText(line, ML + 10, aly, 8.5, { color: PDF_COLORS.destructive });
+                aly -= alLineH;
+            }
+            curY = alBottom - 10;
+        }
+
         // Tabela de parcelas pagas
         const pagas = rc.linhas.filter((l) => l.paga);
         if (pagas.length > 0) {
@@ -1443,7 +1524,7 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
             ];
             const rowsParcelas: PdfCell[][] = pagas.map((l) => [
                 { text: String(l.numero) },
-                { text: formatDataBR(l.vencimento) },
+                { text: formatDataBR(l.vencimento) + (l.conferirVencimento ? " *" : "") },
                 { text: brl(l.valorDevido) },
                 { text: brl(l.valorPago) },
                 { text: brl(l.diferencaBaseRestituicao) },
@@ -1633,8 +1714,8 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
     const sigX2 = W - MR;
     const sigCenter = (sigX1 + sigX2) / 2;
     drawLine(sigX1, curY, sigX2, curY, PDF_COLORS.navy, 0.8);
-    drawText("Ian Granja", sigCenter, curY - 12, 9.5, { bold: true, color: PDF_COLORS.navy, align: "center" });
-    drawText("Advogado · OAB/PE 61.107", sigCenter, curY - 23, 8, {
+    drawText(advogadoPdf, sigCenter, curY - 12, 9.5, { bold: true, color: PDF_COLORS.navy, align: "center" });
+    drawText(`Advogado · ${oabPdf}`, sigCenter, curY - 23, 8, {
         color: PDF_COLORS.slate,
         align: "center",
     });
@@ -1644,7 +1725,7 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
     pages.forEach((cmds, idx) => {
         cmds.push(
             `${PDF_COLORS.border} RG 0.50 w ${ML.toFixed(2)} 38.00 m ${(W - MR).toFixed(2)} 38.00 l S`,
-            `BT /F1 7.50 Tf ${PDF_COLORS.slate} rg ${ML.toFixed(2)} 25.00 Td ${encodePdfHex("Ian Granja Advogados · OAB/PE 61.107 — Laudo Técnico Revisional")} Tj ET`,
+            `BT /F1 7.50 Tf ${PDF_COLORS.slate} rg ${ML.toFixed(2)} 25.00 Td ${encodePdfHex(`Ian Granja Advogados · ${oabPdf} — Laudo Técnico Revisional`)} Tj ET`,
         );
         const pagTxt = `Página ${idx + 1} de ${totalPages}`;
         const pagX = W - MR - measurePdfText(pagTxt, 7.5, false);
@@ -1666,7 +1747,7 @@ export function gerarBytesLaudoPdf(res: ResultadoProcessoRevisional, meta: Laudo
         "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n",
     );
     objects.push(
-        `5 0 obj\n<< /Title ${encodePdfHex(`Laudo Técnico Revisional — ${info.cliente}`)} /Author ${encodePdfHex("Ian Granja Advogados · OAB/PE 61.107")} /Creator ${encodePdfHex("Calculadora Revisional Ian Granja Advogados")} >>\nendobj\n`,
+        `5 0 obj\n<< /Title ${encodePdfHex(`Laudo Técnico Revisional — ${info.cliente}`)} /Author ${encodePdfHex(`Ian Granja Advogados · ${oabPdf}`)} /Creator ${encodePdfHex("Calculadora Revisional Ian Granja Advogados")} >>\nendobj\n`,
     );
 
     pages.forEach((cmds, idx) => {

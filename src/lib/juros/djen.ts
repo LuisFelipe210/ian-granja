@@ -1,4 +1,5 @@
 import { normalizarBancoInput } from "./claude-revisional.ts";
+import { configEscritorioAtual } from "../config-escritorio.ts";
 import { BANCOS_USUAIS, hojeISO, type ProcessoRevisionalInput } from "./revisional-pro.ts";
 import {
     fichaSemCalculoParaPayload,
@@ -103,6 +104,18 @@ export function formatarNumeroProcessoCnj(raw: string): string {
     return `${dig.slice(0, 7)}-${dig.slice(7, 9)}.${dig.slice(9, 13)}.${dig.slice(13, 14)}.${dig.slice(14, 16)}.${dig.slice(16, 20)}`;
 }
 
+/** Valida que uma URL externa usa apenas http(s), bloqueando javascript:/data:/vbscript:. */
+export function urlHttpSegura(raw?: string | null): string {
+    const s = String(raw ?? "").trim();
+    if (!s) return "";
+    try {
+        const u = new URL(s);
+        return u.protocol === "http:" || u.protocol === "https:" ? u.href : "";
+    } catch {
+        return "";
+    }
+}
+
 /** Remove tags HTML residuais e entidades comuns de publicações do DJEN preservando parágrafos. */
 export function limparTextoDjen(raw: string): string {
     if (!raw) return "";
@@ -111,19 +124,19 @@ export function limparTextoDjen(raw: string): string {
         .replace(/<\/\s*(?:p|div|li|tr|h[1-6])\s*>/gi, "\n")
         .replace(/<[^>]+>/g, " ")
         .replace(/&nbsp;/gi, " ")
-        .replace(/&amp;/gi, "&")
         .replace(/&lt;/gi, "<")
         .replace(/&gt;/gi, ">")
         .replace(/&quot;/gi, '"')
         .replace(/&#39;|&apos;/gi, "'")
         .replace(/&#(\d+);/g, (_, dec) => {
             const code = Number(dec);
-            return Number.isFinite(code) ? String.fromCharCode(code) : "";
+            return Number.isInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "";
         })
         .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
             const code = parseInt(hex, 16);
-            return Number.isFinite(code) ? String.fromCharCode(code) : "";
-        });
+            return Number.isInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "";
+        })
+        .replace(/&amp;/gi, "&");
 
     txt = txt
         .split(/\r?\n/)
@@ -139,7 +152,7 @@ const BANCOS_NORM_SET = new Set(BANCOS_USUAIS.map((b) => semAcentos(b)));
 const PREPOSICOES_INICIAIS = new Set(["de", "da", "do", "das", "dos", "e"]);
 
 const RX_INSTITUICAO_BANCARIA =
-    /\b(banco rci|rci brasil|banco toyota|banco volkswagen|banco honda|banco gm|banco yamaha|sicredi|sicoob|votorantim|banco|bco|financeira|coop(?:erativa)?\s+de\s+credito|caixa economica|santander|bradesco|itau|bv|cetelem|daycoval|safra|mercantil|banco inter|nubank|nu financeira|banco c6|banco pan|bmg|aymore)\b/;
+    /\b(banco rci|rci brasil|banco toyota|banco volkswagen|banco honda|banco gm|banco yamaha|sicredi|sicoob|votorantim|banco|bco|financeira|coop(?:erativa)?\s+de\s+credito|caixa economica|santander|bradesco|itau|bv|cetelem|daycoval|banco\s+safra|safra\s+(?:s\.?\s*a\.?|financeira|credito|leasing)|banco\s+mercantil|mercantil\s+do\s+brasil|banco inter|nubank|nu financeira|banco c6|banco pan|bmg|aymore)\b/;
 
 function iniciaisAdvogado(nomeCompleto: string): string[] {
     const tokens = semAcentos(nomeCompleto)
@@ -169,7 +182,7 @@ export function ehAdvogadoDoProcesso(nomeDestinatario: string, advogados: DjenAd
     if (!destNorm) return false;
 
     const nomesAdv = [
-        OAB_ESCRITORIO_PADRAO.nomeAdvogado,
+        configEscritorioAtual().nomeAdvogado,
         ...advogados.map((a) => a.nome).filter(Boolean),
     ];
 
@@ -352,7 +365,7 @@ function mapearItemDjen(raw: Record<string, unknown>): DjenComunicacao {
         numeroProcessoDigitos: digitos,
         numeroProcessoMascara,
         meio: String(raw.meiocompleto ?? raw.meio ?? "").trim(),
-        link: String(raw.link ?? "").trim(),
+        link: urlHttpSegura(String(raw.link ?? "")),
         numeroComunicacao:
             raw.numeroComunicacao != null && Number.isFinite(Number(raw.numeroComunicacao))
                 ? Number(raw.numeroComunicacao)
@@ -609,7 +622,10 @@ export interface DadosCarteiraExtraidosDjen {
     modalidadeId: string;
     mesContrato: string;
     valorEstimadoAcao: number;
+    /** Fase sugerida (processo vindo do DJEN já está em juízo: Ajuizado). */
     categoriaNomeSugerida: string;
+    /** Categoria (tipo da ação) sugerida pela classe/teor; vazio quando não dá para inferir. */
+    tipoNomeSugerido: string;
 }
 
 /**
@@ -619,20 +635,27 @@ export interface DadosCarteiraExtraidosDjen {
 export function extrairDadosCarteiraDeDjen(
     item: DjenComunicacao,
     categorias: Categoria[] = [],
+    tipos: Categoria[] = [],
 ): DadosCarteiraExtraidosDjen {
     const contexto = semAcentos(`${item.nomeClasse} ${item.texto.slice(0, 1200)}`);
 
-    let categoriaNomeSugerida = "Ajuizado";
+    // Fase: todo processo que aparece no DJEN já está ajuizado.
+    const categoriaNomeSugerida = "Ajuizado";
+    // Categoria (tipo da ação): pela classe e pelo começo do teor.
+    let tipoNomeSugerido = "";
     if (contexto.includes("busca e apreens") || contexto.includes("alienacao fiduciaria")) {
-        categoriaNomeSugerida = "Busca e Apreensão";
+        tipoNomeSugerido = "Busca e Apreensão";
     } else if (contexto.includes("superendividamento")) {
-        categoriaNomeSugerida = "Superendividamento";
+        tipoNomeSugerido = "Superendividamento";
     } else if (contexto.includes("revisional")) {
-        categoriaNomeSugerida = "Revisional";
+        tipoNomeSugerido = "Revisional";
     }
 
     const catAlvoNorm = semAcentos(categoriaNomeSugerida);
     const catMatch = categorias.find((c) => semAcentos(c.nome) === catAlvoNorm) ?? null;
+    const tipoMatch = tipoNomeSugerido
+        ? tipos.find((t) => semAcentos(t.nome) === semAcentos(tipoNomeSugerido)) ?? null
+        : null;
 
     const clienteNome = (
         item.clienteSugerido.trim() ||
@@ -681,12 +704,14 @@ export function extrairDadosCarteiraDeDjen(
             banco: item.bancoDetectado.trim().slice(0, 100),
             documentoContrato,
             categoriaId: catMatch?.id ?? null,
+            ...(tipos.length > 0 ? { tipoId: tipoMatch?.id ?? null } : {}),
             observacoes,
         },
         modalidadeId,
         mesContrato,
         valorEstimadoAcao,
         categoriaNomeSugerida,
+        tipoNomeSugerido,
     };
 }
 
@@ -703,6 +728,11 @@ export interface DjenMovimentacaoSalva {
     texto: string;
     link: string;
     numeroComunicacao: number | null;
+    /**
+     * ISO do momento em que a publicação entrou no sistema (salva pelo Radar ou trazida pela
+     * verificação automática). Publicações gravadas antes deste campo podem não ter o valor.
+     */
+    recebidaEm?: string;
 }
 
 export interface DjenOrigemSalva {
@@ -749,8 +779,12 @@ export interface ProcessoDjenSalvoView {
     idsNovos: number[];
 }
 
-function comunicacaoParaMovimentacao(item: DjenComunicacao): DjenMovimentacaoSalva {
+function comunicacaoParaMovimentacao(
+    item: DjenComunicacao,
+    recebidaEm: string = new Date().toISOString(),
+): DjenMovimentacaoSalva {
     return {
+        recebidaEm,
         id: item.id,
         dataDisponibilizacao: item.dataDisponibilizacao,
         dataDisponibilizacaoBr:
@@ -773,8 +807,9 @@ export function criarPayloadCarteiraDeDjen(
     item: DjenComunicacao,
     categorias: Categoria[] = [],
     overrides: Partial<FichaCliente> = {},
+    tipos: Categoria[] = [],
 ): CalculoPayload {
-    const extraido = extrairDadosCarteiraDeDjen(item, categorias);
+    const extraido = extrairDadosCarteiraDeDjen(item, categorias, tipos);
     const movInicial = comunicacaoParaMovimentacao(item);
     const origemDjen: DjenOrigemSalva = {
         id: item.id,
@@ -905,9 +940,23 @@ export function lerDadosProcessoDjen(c: CalculoSalvo): ProcessoDjenSalvoView {
             ? origem.movimentacoes
             : extrairMovimentacoesLegadasObservacoes(c, origem);
 
-    const movimentacoes = [...movsBrutas].sort((a, b) =>
-        (b.dataDisponibilizacao || "").localeCompare(a.dataDisponibilizacao || ""),
-    );
+    // Publicações gravadas antes de `recebidaEm` existir: usa o melhor registro disponível de
+    // quando entraram — a verificação que as trouxe (ainda marcadas como novas) ou o cadastro
+    // do processo (a publicação que originou o processo). Sem registro confiável, fica vazio.
+    const idsNovosSet = new Set((origem?.idsNovos ?? []).map(Number));
+    const idOrigem = Number(origem?.id) || 0;
+    const movimentacoes = [...movsBrutas]
+        .map((m) => {
+            if (m.recebidaEm) return m;
+            const recebidaEm =
+                idsNovosSet.has(Number(m.id)) && origem?.ultimaSincronizacao
+                    ? origem.ultimaSincronizacao
+                    : (idOrigem > 0 && Number(m.id) === idOrigem) || movsBrutas.length === 1
+                      ? c.created_at
+                      : undefined;
+            return recebidaEm ? { ...m, recebidaEm } : m;
+        })
+        .sort((a, b) => (b.dataDisponibilizacao || "").localeCompare(a.dataDisponibilizacao || ""));
 
     const maisRecente = movimentacoes[0];
     const dataUltima =
@@ -946,16 +995,20 @@ export function lerDadosProcessoDjen(c: CalculoSalvo): ProcessoDjenSalvoView {
 export function anexarMovimentacaoDjenAoProcesso(
     c: CalculoSalvo,
     item: DjenComunicacao,
+    recebidaEm: string = new Date().toISOString(),
 ): Partial<CalculoPayload> {
     const view = lerDadosProcessoDjen(c);
     const dcRaw = (c.dados_completos ?? {}) as Record<string, unknown>;
     const origemPrev = (dcRaw.origemDjen ?? {}) as DjenOrigemSalva;
-    const novaMov = comunicacaoParaMovimentacao(item);
+    const novaMov = comunicacaoParaMovimentacao(item, recebidaEm);
 
     const jaExiste =
         novaMov.id > 0 && view.movimentacoes.some((m) => Number(m.id) === Number(novaMov.id));
+    // Reanexar a mesma publicação atualiza o conteúdo, mas não a hora em que ela chegou.
     const movimentacoesAtualizadas = jaExiste
-        ? view.movimentacoes.map((m) => (Number(m.id) === Number(novaMov.id) ? novaMov : m))
+        ? view.movimentacoes.map((m) =>
+              Number(m.id) === Number(novaMov.id) ? { ...novaMov, recebidaEm: m.recebidaEm ?? novaMov.recebidaEm } : m,
+          )
         : [novaMov, ...view.movimentacoes];
 
     const destinatarios =
@@ -1096,6 +1149,9 @@ const JANELA_INICIAL_DIAS = 30;
 const PAUSA_ENTRE_CONSULTAS_MS = 1200;
 /** Máximo de páginas de 100 itens por processo e por verificação. */
 const MAX_PAGINAS_POR_PROCESSO = 3;
+/** Varredura pela OAB do escritório: janela de dias olhada para trás e máximo de páginas de 100 itens. */
+const JANELA_VARREDURA_OAB_DIAS = 3;
+const MAX_PAGINAS_VARREDURA_OAB = 5;
 
 export interface ResultadoVerificacaoDjen {
     verificados: number;
@@ -1106,6 +1162,29 @@ export interface ResultadoVerificacaoDjen {
     adiados: number;
     interrompidoPorLimite: boolean;
     atualizados: CalculoSalvo[];
+    /** Processos novos cadastrados pela varredura da OAB (publicações de processos que ainda não estavam salvos). */
+    criados: CalculoSalvo[];
+}
+
+/**
+ * Varredura pela OAB do escritório: traz as publicações recentes em nome do advogado, inclusive de
+ * processos que ainda não estão salvos (esses viram processos novos em Processos, marcados como novos).
+ */
+export interface VarreduraOabDjen {
+    numeroOab: string;
+    ufOab: string;
+    criar: (payload: CalculoPayload) => Promise<CalculoSalvo>;
+    /** Fases (para a fase sugerida "Ajuizado") e categorias (tipo da ação sugerido pela classe). */
+    categorias?: Categoria[];
+    tipos?: Categoria[];
+    diasJanela?: number;
+    /**
+     * Lista atualizada direto do banco, lida logo antes da varredura. Outra tela aberta (ou o cron)
+     * pode ter acabado de cadastrar os mesmos processos: partir da lista em memória duplicaria.
+     */
+    listarAtuais?: () => Promise<CalculoSalvo[]>;
+    /** Checagem final, logo antes de criar: já existe registro com este número de processo? */
+    existeProcesso?: (processoGlobal: string) => Promise<boolean>;
 }
 
 export interface OpcoesVerificacaoDjen {
@@ -1121,10 +1200,18 @@ export interface OpcoesVerificacaoDjen {
     /** Tempo máximo da rodada; o que sobrar fica para a próxima (funções serverless têm limite). */
     orcamentoMs?: number;
     esperar?: (ms: number) => Promise<void>;
+    /** Se informado, também varre o DJEN pela OAB e cadastra os processos novos. */
+    varreduraOab?: VarreduraOabDjen;
 }
 
 function isoDiasAntes(dataIso: string, dias: number): string {
-    const base = new Date(`${dataIso.slice(0, 10)}T12:00:00Z`);
+    const clean = (dataIso || "").trim().slice(0, 10);
+    const base = /^\d{4}-\d{2}-\d{2}$/.test(clean) ? new Date(`${clean}T12:00:00Z`) : new Date();
+    if (Number.isNaN(base.getTime())) {
+        const fallback = new Date();
+        fallback.setUTCDate(fallback.getUTCDate() - dias);
+        return fallback.toISOString().slice(0, 10);
+    }
     base.setUTCDate(base.getUTCDate() - dias);
     return base.toISOString().slice(0, 10);
 }
@@ -1164,7 +1251,7 @@ export function aplicarVerificacaoDjen(
     let atual = c;
     let patch: Partial<CalculoPayload> = {};
     for (const item of novas) {
-        const parcial = anexarMovimentacaoDjenAoProcesso(atual, item);
+        const parcial = anexarMovimentacaoDjenAoProcesso(atual, item, verificadoEm);
         atual = { ...atual, ...parcial } as CalculoSalvo;
         patch = { ...patch, ...parcial };
     }
@@ -1226,26 +1313,153 @@ export async function verificarPublicacoesDjen(opts: OpcoesVerificacaoDjen): Pro
         adiados: 0,
         interrompidoPorLimite: false,
         atualizados: [],
+        criados: [],
     };
+
+    /** Registros já regravados nesta rodada: a verificação por processo parte deles, não da cópia antiga. */
+    const regravados = new Map<string, CalculoSalvo>();
+
+    if (opts.varreduraOab) {
+        const v = opts.varreduraOab;
+        const hoje = agora().toISOString().slice(0, 10);
+        try {
+            const itensOab: DjenComunicacao[] = [];
+            for (let pagina = 1; pagina <= MAX_PAGINAS_VARREDURA_OAB; pagina++) {
+                if (agora().getTime() - inicioRodada > orcamento) break;
+                const res = await consultarDjen(
+                    {
+                        numeroOab: v.numeroOab,
+                        ufOab: v.ufOab,
+                        dataDisponibilizacaoInicio: isoDiasAntes(hoje, v.diasJanela ?? JANELA_VARREDURA_OAB_DIAS),
+                        dataDisponibilizacaoFim: hoje,
+                        pagina,
+                        itensPorPagina: 100,
+                    },
+                    opts.fetchFn,
+                );
+                itensOab.push(...res.items);
+                if (res.items.length < 100) break;
+                await esperar(pausa);
+            }
+
+            const porCnj = new Map<string, DjenComunicacao[]>();
+            for (const item of itensOab) {
+                if (!(item.id > 0) || item.numeroProcessoDigitos.length !== 20) continue;
+                const lista = porCnj.get(item.numeroProcessoDigitos) ?? [];
+                if (!lista.some((x) => x.id === item.id)) lista.push(item);
+                porCnj.set(item.numeroProcessoDigitos, lista);
+            }
+
+            const salvosPorCnj = new Map<string, CalculoSalvo>();
+            const listaBase = v.listarAtuais ? await v.listarAtuais() : opts.calculos;
+            for (const c of listaBase) {
+                const cnj = normalizarNumeroProcessoDjen(c.processo_global || "");
+                if (cnj.length === 20 && !salvosPorCnj.has(cnj)) salvosPorCnj.set(cnj, c);
+            }
+
+            for (const [cnj, lista] of porCnj) {
+                lista.sort((a, b) => a.dataDisponibilizacao.localeCompare(b.dataDisponibilizacao));
+                const agoraIso = agora().toISOString();
+                const existente = salvosPorCnj.get(cnj);
+
+                if (existente) {
+                    // Caso da Carteira já calculado: a publicação fica para quem abrir pelo Radar.
+                    if (!isCalculoPendente(existente)) continue;
+                    const base = opts.obterAtual?.(existente.id) ?? existente;
+                    const { patch, novas } = aplicarVerificacaoDjen(base, lista, agoraIso);
+                    if (novas === 0) continue;
+                    const atualizado = await opts.atualizar(existente.id, patch);
+                    regravados.set(atualizado.id, atualizado);
+                    resultado.atualizados.push(atualizado);
+                    resultado.totalNovas += novas;
+                    resultado.processosComNovidade.push({ id: existente.id, clienteNome: existente.cliente_nome, novas });
+                    continue;
+                }
+
+                // Processo que ainda não estava salvo: cadastra com todas as publicações, marcadas como novas.
+                const [primeira, ...resto] = lista;
+                if (v.existeProcesso && (await v.existeProcesso(primeira.numeroProcessoMascara.trim()))) {
+                    continue; // outra verificação acabou de cadastrar este processo
+                }
+                const payload = criarPayloadCarteiraDeDjen(primeira, v.categorias ?? [], {}, v.tipos ?? []);
+                let rascunho = {
+                    ...payload,
+                    id: "novo",
+                    created_at: agoraIso,
+                    updated_at: agoraIso,
+                    created_by_email: "",
+                } as CalculoSalvo;
+                for (const item of resto) {
+                    rascunho = { ...rascunho, ...anexarMovimentacaoDjenAoProcesso(rascunho, item, agoraIso) } as CalculoSalvo;
+                }
+                const dc = (rascunho.dados_completos ?? {}) as Record<string, unknown>;
+                const origem = (dc.origemDjen ?? {}) as DjenOrigemSalva;
+                const {
+                    id: _id,
+                    created_at: _criadoEm,
+                    updated_at: _atualizadoEm,
+                    created_by_email: _autor,
+                    ...semMetadados
+                } = rascunho;
+                const criado = await v.criar({
+                    ...(semMetadados as CalculoPayload),
+                    dados_completos: {
+                        ...dc,
+                        origemDjen: {
+                            ...origem,
+                            ultimaSincronizacao: agoraIso,
+                            idsNovos: lista.map((x) => x.id),
+                        },
+                    } as unknown as Partial<ProcessoRevisionalInput>,
+                });
+                salvosPorCnj.set(cnj, criado);
+                resultado.criados.push(criado);
+                resultado.totalNovas += lista.length;
+                resultado.processosComNovidade.push({ id: criado.id, clienteNome: criado.cliente_nome, novas: lista.length });
+            }
+        } catch (err) {
+            const mensagem = err instanceof Error ? err.message : String(err);
+            if (/limite temporário de requisições/i.test(mensagem)) {
+                resultado.interrompidoPorLimite = true;
+            } else {
+                resultado.erros.push({
+                    id: "varredura-oab",
+                    clienteNome: `OAB/${v.ufOab} ${v.numeroOab}`,
+                    mensagem,
+                });
+            }
+        }
+    }
+
+    if (resultado.interrompidoPorLimite) {
+        resultado.adiados = fila.length;
+        return resultado;
+    }
 
     for (let i = 0; i < fila.length; i++) {
         if (agora().getTime() - inicioRodada > orcamento) {
             resultado.adiados = fila.length - i;
             break;
         }
+        const alvo = fila[i];
+        // Já atualizado nesta mesma rodada pela varredura da OAB: evita consulta e gravação duplicadas.
+        if (regravados.has(alvo.id)) {
+            resultado.verificados += 1;
+            continue;
+        }
         if (i > 0 && pausa > 0) await esperar(pausa);
 
-        const alvo = fila[i];
-        const view = lerDadosProcessoDjen(alvo);
-        const hoje = agora().toISOString().slice(0, 10);
-        const referencia =
-            view.ultimaSincronizacao.slice(0, 10) ||
-            view.dataUltimaPublicacao ||
-            isoDiasAntes(hoje, JANELA_INICIAL_DIAS);
-
         try {
+            const view = lerDadosProcessoDjen(alvo);
+            const hoje = agora().toISOString().slice(0, 10);
+            const referencia =
+                view.ultimaSincronizacao.slice(0, 10) ||
+                view.dataUltimaPublicacao ||
+                isoDiasAntes(hoje, JANELA_INICIAL_DIAS);
+
             const itens: DjenComunicacao[] = [];
             for (let pagina = 1; pagina <= MAX_PAGINAS_POR_PROCESSO; pagina++) {
+                if (pagina > 1 && agora().getTime() - inicioRodada > orcamento) break;
                 const res = await consultarDjen(
                     {
                         numeroProcesso: alvo.processo_global,
@@ -1282,4 +1496,67 @@ export async function verificarPublicacoesDjen(opts: OpcoesVerificacaoDjen): Pro
     }
 
     return resultado;
+}
+
+/**
+ * Hora em que a publicação entrou no sistema, com data absoluta no fuso do navegador:
+ * "18/11 às 19:30" · "17/11/2025 às 09:10" (outro ano). Sem "hoje"/"ontem": ao lado da data da
+ * publicação, o relativo era lido como se fosse a data da publicação.
+ */
+export function formatarRecebidaEm(iso: string | undefined, agora: Date = new Date()): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const doisDig = (n: number) => String(n).padStart(2, "0");
+    const hora = `${doisDig(d.getHours())}:${doisDig(d.getMinutes())}`;
+    const data = `${doisDig(d.getDate())}/${doisDig(d.getMonth() + 1)}`;
+    return d.getFullYear() === agora.getFullYear() ? `${data} às ${hora}` : `${data}/${d.getFullYear()} às ${hora}`;
+}
+
+/**
+ * O DJEN entrega o teor com o cabeçalho do tribunal na frente (vara, endereço, CEP...).
+ * Para listas, o resumo começa no ato processual quando ele aparece no texto.
+ */
+const MARCO_ATO_PROCESSUAL =
+    /\b(DECIS[ÃA]O|DESPACHO|SENTEN[ÇC]A|AC[ÓO]RD[ÃA]O|ATO ORDINAT[ÓO]RIO|INTIMA[ÇC][ÃA]O|Vistos|Fica\(m\)|Ficam? (?:as? )?partes?)/i;
+
+export function resumirTeorPublicacao(texto: string): string {
+    const limpo = (texto ?? "").replace(/\s+/g, " ").trim();
+    if (!limpo) return "Publicação registrada sem texto resumido.";
+    if (/processo sigiloso/i.test(limpo)) return "Documento sigiloso: o teor só abre no PJe do tribunal.";
+    const idx = limpo.search(MARCO_ATO_PROCESSUAL);
+    return idx > 0 ? limpo.slice(idx) : limpo;
+}
+
+const PARTICULAS_NOME = new Set(["e", "da", "de", "do", "das", "dos", "di", "du"]);
+
+/**
+ * Nomes de partes chegam do DJEN em CAIXA ALTA. Para exibir, passa para a forma usual
+ * ("ELMAR ROBERIO HERCULANO E SILVA" → "Elmar Roberio Herculano e Silva"), mantendo
+ * iniciais ("K. A. D. A.") e siglas societárias (S.A., S/A, ME, EPP). Nome que já tem
+ * minúsculas fica como está.
+ */
+export function formatarNomeParte(nome: string): string {
+    const bruto = (nome ?? "").trim();
+    if (!bruto || /[a-zà-ú]/.test(bruto)) return bruto;
+    return bruto
+        .split(/\s+/)
+        .map((palavra, i) => {
+            if (/^([A-ZÀ-Ú]\.)+$/.test(palavra) || /^(S\.?\/?A\.?|ME|EPP|EIRELI)$/.test(palavra)) return palavra;
+            const minuscula = palavra.toLocaleLowerCase("pt-BR");
+            if (i > 0 && PARTICULAS_NOME.has(minuscula)) return minuscula;
+            return minuscula.replace(/(^|[-'])(\p{L})/gu, (_, sep: string, letra: string) => sep + letra.toLocaleUpperCase("pt-BR"));
+        })
+        .join(" ");
+}
+
+/**
+ * A classe processual vem do DJEN com a caixa misturada ("APELAçãO CíVEL", "CUMPRIMENTO DE SENTENçA").
+ * Para exibir, usa a forma de frase: "Apelação cível", "Cumprimento de sentença".
+ */
+export function formatarClasseProcessual(classe: string): string {
+    const bruto = (classe ?? "").replace(/\s+/g, " ").trim();
+    if (!bruto) return "";
+    const minuscula = bruto.toLocaleLowerCase("pt-BR");
+    return minuscula.charAt(0).toLocaleUpperCase("pt-BR") + minuscula.slice(1);
 }
