@@ -57,6 +57,10 @@
     "/calculadora-juros-abusivos": {
       "title": "Calculadora de Juros Abusivos | Ian Granja Advogados",
       "description": "Compare a taxa do seu financiamento ou empréstimo com a média do Banco Central no mês em que você assinou. Grátis, sem cadastro. Petrolina-PE."
+    },
+    "/privacidade": {
+      "title": "Política de privacidade | Ian Granja Advogados",
+      "description": "Como o escritório Ian Granja Advogados trata os seus dados pessoais: o que recebe, para que usa, com quem compartilha e como exercer os seus direitos pela LGPD."
     }
   }
 }

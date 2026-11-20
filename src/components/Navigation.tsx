@@ -21,6 +21,7 @@ export const Navigation = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const mobileMenuRef = useRef<HTMLDivElement>(null);
     const { pathname } = useLocation();
     const reduce = useReducedMotion();
 
@@ -38,6 +39,9 @@ export const Navigation = () => {
     useEffect(() => {
         if (!isMenuOpen) return;
         document.body.style.overflow = "hidden";
+        const frame = requestAnimationFrame(() => {
+            mobileMenuRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+        });
         const mq = window.matchMedia("(min-width: 1024px)");
         const onMedia = (e: MediaQueryListEvent) => {
             if (e.matches) setIsMenuOpen(false);
@@ -51,6 +55,7 @@ export const Navigation = () => {
         mq.addEventListener("change", onMedia);
         window.addEventListener("keydown", onKey);
         return () => {
+            cancelAnimationFrame(frame);
             document.body.style.overflow = "";
             mq.removeEventListener("change", onMedia);
             window.removeEventListener("keydown", onKey);
@@ -59,6 +64,21 @@ export const Navigation = () => {
 
     return (
         <>
+            <a
+                href="#conteudo"
+                onClick={(e) => {
+                    const main = document.querySelector<HTMLElement>("main");
+                    if (main) {
+                        e.preventDefault();
+                        if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+                        main.focus();
+                        main.scrollIntoView();
+                    }
+                }}
+                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:bg-gold-light focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink"
+            >
+                Pular para o conteúdo
+            </a>
             <header
                 className={cn(
                     "fixed inset-x-0 top-0 z-50 border-b bg-ink text-paper transition-colors duration-300",
@@ -114,7 +134,11 @@ export const Navigation = () => {
             <AnimatePresence>
                 {isMenuOpen && (
                     <motion.div
+                        ref={mobileMenuRef}
                         id="menu-mobile"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Menu de navegação"
                         initial={reduce ? false : { clipPath: "inset(0 0 100% 0)" }}
                         animate={{ clipPath: "inset(0 0 0% 0)" }}
                         exit={reduce ? { opacity: 0 } : { clipPath: "inset(0 0 100% 0)" }}

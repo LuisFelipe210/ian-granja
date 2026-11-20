@@ -12,6 +12,7 @@ const Atuacao = lazy(() => import("./pages/Atuacao"));
 const AtuacaoDetalhes = lazy(() => import("./pages/AtuacaoDetalhes"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const Contato = lazy(() => import("./pages/Contato"));
+const Privacidade = lazy(() => import("./pages/Privacidade"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const CalculadoraJuros = lazy(() => import("./pages/CalculadoraJuros"));
 const CalculadoraAdvogado = lazy(() => import("./pages/CalculadoraAdvogado"));
@@ -30,6 +31,7 @@ const App = () => (
                     <Route path="/atuacao/:slug" element={<AtuacaoDetalhes />} />
                     <Route path="/faq" element={<FAQ />} />
                     <Route path="/contato" element={<Contato />} />
+                    <Route path="/privacidade" element={<Privacidade />} />
                     <Route path="/calculadora-juros-abusivos" element={<CalculadoraJuros />} />
                     {/* Uso interno do advogado: fora do menu e do sitemap, com noindex e sub-rotas próprias. */}
                     <Route path="/ferramentas/calculadora-revisional/*" element={<CalculadoraAdvogado />} />

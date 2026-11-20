@@ -6,23 +6,34 @@ import { practiceAreas } from "@/data/practiceAreas";
 const pages = seo.pages as Record<string, { title: string; description: string }>;
 
 /** Páginas de uso interno (e suas sub-rotas): título próprio, fora do Google e do sitemap. */
+const BASE_SISTEMA = "/ferramentas/calculadora-revisional";
+
+/** Título da aba do navegador para cada tela do sistema interno (mesmos nomes do menu lateral). */
+const TITULOS_SISTEMA: Array<[prefixo: string, titulo: string]> = [
+    ["/agenda", "Agenda"],
+    ["/processos", "Processos DJEN"],
+    ["/historico", "Carteira"],
+    ["/crm", "CRM"],
+    ["/painel", "Painel analítico"],
+    ["/clientes", "Clientes"],
+    ["/documentos", "Documentos"],
+    ["/configuracoes", "Configurações"],
+    ["/categorias", "Configurações"],
+    ["/caso/", "Ficha do cliente"],
+    ["/calculo", "Calculadora"],
+];
+
 const resolvePrivatePage = (path: string): { title: string; description: string } | null => {
-    if (path === "/ferramentas/calculadora-revisional") {
-        return { title: `Calculadora revisional | ${seo.siteName}`, description: "Ferramenta interna." };
-    }
-    if (path === "/ferramentas/calculadora-revisional/painel") {
-        return { title: `Painel da carteira | Calculadora revisional`, description: "Ferramenta interna." };
-    }
-    if (path === "/ferramentas/calculadora-revisional/historico") {
-        return { title: `Histórico de clientes | Calculadora revisional`, description: "Ferramenta interna." };
-    }
-    if (path === "/ferramentas/calculadora-revisional/categorias") {
-        return { title: `Categorias | Calculadora revisional`, description: "Ferramenta interna." };
-    }
-    if (path.startsWith("/ferramentas/calculadora-revisional/")) {
-        return { title: `Ficha do cliente | Calculadora revisional`, description: "Ferramenta interna." };
-    }
-    return null;
+    if (path !== BASE_SISTEMA && !path.startsWith(`${BASE_SISTEMA}/`)) return null;
+    const subRota = path.slice(BASE_SISTEMA.length);
+    const tela =
+        subRota === "" || subRota === "/"
+            ? "Início"
+            : TITULOS_SISTEMA.find(([prefixo]) => subRota.startsWith(prefixo))?.[1];
+    return {
+        title: `${tela ?? "Sistema"} | Calculadora revisional`,
+        description: "Ferramenta interna.",
+    };
 };
 
 const NOT_FOUND = {
@@ -70,7 +81,19 @@ export const SeoManager = () => {
         document.title = title;
         setAttr('meta[name="description"]', "content", description);
         setAttr('meta[name="robots"]', "content", page ? "index, follow" : privatePage ? "noindex, nofollow" : "noindex, follow");
-        setAttr('link[rel="canonical"]', "href", url);
+        const canonicalEl = document.head.querySelector('link[rel="canonical"]');
+        if (page) {
+            if (canonicalEl) {
+                canonicalEl.setAttribute("href", url);
+            } else {
+                const link = document.createElement("link");
+                link.rel = "canonical";
+                link.href = url;
+                document.head.appendChild(link);
+            }
+        } else {
+            canonicalEl?.remove();
+        }
         setAttr('meta[property="og:title"]', "content", title);
         setAttr('meta[property="og:description"]', "content", description);
         setAttr('meta[property="og:url"]', "content", url);
