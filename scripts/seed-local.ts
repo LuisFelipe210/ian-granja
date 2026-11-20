@@ -4,6 +4,9 @@
  *
  * Trava de segurança: recusa execução se a URL não apontar estritamente para 127.0.0.1 ou localhost.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
     PARAMETROS_DECISAO_PADRAO,
     calcularProcessoRevisional,
@@ -23,25 +26,52 @@ interface NodeRuntimeLike {
     };
 }
 
-const env = (globalThis as unknown as NodeRuntimeLike).process?.env ?? {};
+function lerEnvLocal(): Record<string, string> {
+    const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const arquivo = resolve(rootDir, ".env.development.local");
+    if (!existsSync(arquivo)) return {};
+    const out: Record<string, string> = {};
+    for (const line of readFileSync(arquivo, "utf8").split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let val = trimmed.slice(eq + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+        }
+        out[key] = val;
+    }
+    return out;
+}
+
+const envArquivo = lerEnvLocal();
+const env = { ...envArquivo, ...((globalThis as unknown as NodeRuntimeLike).process?.env ?? {}) };
 
 const LOCAL_URL = (env.LOCAL_SUPABASE_URL || "http://127.0.0.1:54321").replace(/\/+$/, "");
-const SERVICE_KEY =
-    env.LOCAL_SUPABASE_SERVICE_ROLE_KEY ||
-    "eyJhbGciOiJFUzI1NiIsImtpZCI6ImI4MTI2OWYxLTIxZDgtNGYyZS1iNzE5LWMyMjQwYTg0MGQ5MCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MjExMDMzMDY2NX0.MuXMaOCpB3WO1ZRCRABUP8ou3-YvE-h74tuJ-jpi4oWs4T7rLDPO-x4kLHqqLTTgiYGDFeuG7yLpTMfU9sfCbw";
+const SERVICE_KEY = (env.LOCAL_SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
 if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(LOCAL_URL)) {
     throw new Error(`BLOQUEADO POR SEGURANÇA: seed-local só roda em localhost/127.0.0.1 (recebido: ${LOCAL_URL}).`);
 }
 
+if (!SERVICE_KEY) {
+    throw new Error(
+        "Configure LOCAL_SUPABASE_SERVICE_ROLE_KEY no .env.development.local (ou no ambiente) para rodar o seed local.",
+    );
+}
+
+const SENHA_LOCAL_PADRAO = (env.LOCAL_SEED_PASSWORD || "dev-local-123456").trim();
 const USUARIOS_TESTE = [
-    { email: "contato@iangranja.adv.br", password: env.INITIAL_PASS_IAN || "IG-y5DL-wG5lS3y" },
-    { email: "lf210400@gmail.com", password: env.INITIAL_PASS_DEV || "IG-IkO0syI8L-ZS" },
+    { email: "contato@iangranja.adv.br", password: env.LOCAL_SEED_PASS_IAN || SENHA_LOCAL_PADRAO },
+    { email: "lf210400@gmail.com", password: env.LOCAL_SEED_PASS_DEV || SENHA_LOCAL_PADRAO },
 ];
 
 async function adminReq<T>(path: string, init: RequestInit = {}): Promise<T> {
     const res = await fetch(`${LOCAL_URL}${path}`, {
         ...init,
+        signal: init.signal ?? AbortSignal.timeout(10_000),
         headers: {
             apikey: SERVICE_KEY,
             Authorization: `Bearer ${SERVICE_KEY}`,
@@ -50,11 +80,11 @@ async function adminReq<T>(path: string, init: RequestInit = {}): Promise<T> {
         },
     });
     const text = await res.text();
-    const json = text ? (JSON.parse(text) as unknown) : null;
     if (!res.ok) {
-        throw new Error(`Erro HTTP ${res.status} em ${path}: ${text}`);
+        throw new Error(`Erro HTTP ${res.status} em ${path}: ${text.slice(0, 300)}`);
     }
-    return json as T;
+    if (!text) return null as T;
+    return JSON.parse(text) as T;
 }
 
 async function garantirUsuariosLocais(): Promise<Record<string, string>> {
@@ -919,15 +949,35 @@ const CASOS_SEED: CasoSeed[] = [
     },
 ];
 
+function dataRelativaISO(diasOffset: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + diasOffset);
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, "0");
+    const dia = String(d.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+}
+
 async function executarSeedLocal() {
     console.log(`Conectando ao banco local em ${LOCAL_URL}...`);
     const idsUsuarios = await garantirUsuariosLocais();
     console.log("Usuários locais prontos:", Object.keys(idsUsuarios).join(", "));
 
+    // Fases (revisional_categorias) e categorias = tipo da ação (revisional_tipos, migração 20261119120000).
     const categorias = await adminReq<Categoria[]>("/rest/v1/revisional_categorias?select=*&order=ordem.asc");
     const catPorNome = new Map(categorias.map((c) => [c.nome.toLowerCase(), c.id]));
+    const tipos = await adminReq<Categoria[]>("/rest/v1/revisional_tipos?select=*&order=ordem.asc").catch(
+        () => [] as Categoria[],
+    );
+    const tipoPorNome = new Map(tipos.map((t) => [t.nome.toLowerCase(), t.id]));
 
     // Limpa registros anteriores do banco local para manter o seed idempotente
+    await adminReq<unknown>("/rest/v1/revisional_tarefas?id=not.is.null", {
+        method: "DELETE",
+        headers: { Prefer: "return=minimal" },
+    }).catch(() => {
+        /* ignora caso a tabela ainda não tenha sido migrada */
+    });
     await adminReq<unknown>("/rest/v1/revisional_calculos?id=not.is.null", {
         method: "DELETE",
         headers: { Prefer: "return=minimal" },
@@ -949,7 +999,12 @@ async function executarSeedLocal() {
 
         const { onlineByContrato, seriesEconomicas } = await prepararDadosBacenProcesso(input);
         const resultado = calcularProcessoRevisional(input, seriesEconomicas, onlineByContrato);
-        const catId = catPorNome.get(caso.categoriaNome.toLowerCase()) ?? null;
+        // Os casos de exemplo ainda nomeiam o tipo da ação no campo de fase ("Busca e Apreensão"):
+        // nesse caso o nome vira a categoria e a fase sai de ter ou não número de processo.
+        const nomeInformado = caso.categoriaNome.toLowerCase();
+        const tipoId = tipoPorNome.get(nomeInformado) ?? null;
+        const faseNome = tipoId ? (caso.processoGlobal?.trim() ? "ajuizado" : "triagem") : nomeInformado;
+        const catId = catPorNome.get(faseNome) ?? null;
 
         const payload = processoParaPayload(resultado, input, {
             clienteNome: caso.clienteNome,
@@ -957,6 +1012,7 @@ async function executarSeedLocal() {
             banco: caso.contratos[0]?.instituicao ?? "",
             documentoContrato: caso.contratos[0]?.numeroContrato ?? "",
             categoriaId: catId,
+            ...(tipos.length > 0 ? { tipoId } : {}),
             observacoes: caso.observacoes,
         });
 
@@ -981,7 +1037,88 @@ async function executarSeedLocal() {
         },
     );
 
-    console.log(`Seed local concluído: ${inseridos.length} clientes gravados em ${LOCAL_URL}!`);
+    const idPorCliente = new Map(inseridos.map((r) => [r.cliente_nome, r.id]));
+    const emailPadrao = "contato@iangranja.adv.br";
+    const tarefasSeed = [
+        {
+            titulo: "Protocolar contestação com pedido de purgação da mora",
+            tipo: "prazo",
+            data: dataRelativaISO(-1),
+            hora: "18:00",
+            calculo_id: idPorCliente.get("Antônio Marcos Coelho") ?? null,
+            concluida: false,
+            observacoes: "Prazo fatal de 15 dias úteis após citação na busca e apreensão.",
+        },
+        {
+            titulo: "Anexar laudo revisional atualizado nos autos",
+            tipo: "prazo",
+            data: dataRelativaISO(0),
+            hora: "17:00",
+            calculo_id: idPorCliente.get("José Roberto Alencar") ?? null,
+            concluida: false,
+            observacoes: "Gerar PDF atualizado com média SGS mais recente antes do protocolo.",
+        },
+        {
+            titulo: "Atendimento de alinhamento sobre amortização extra",
+            tipo: "reuniao",
+            data: dataRelativaISO(0),
+            hora: "14:30",
+            calculo_id: idPorCliente.get("Pedro Henrique Damasceno") ?? null,
+            concluida: false,
+            observacoes: "Conferir comprovante do PIX de R$ 5.000,00.",
+        },
+        {
+            titulo: "Conferir CCB e planilha do capital de giro",
+            tipo: "tarefa",
+            data: dataRelativaISO(1),
+            hora: null,
+            calculo_id: idPorCliente.get("Fruticultura Vale Verde Ltda.") ?? null,
+            concluida: false,
+            observacoes: "Verificar cobrança de TAC e IOF na cédula.",
+        },
+        {
+            titulo: "Audiência de repactuação · CEJUSC Petrolina",
+            tipo: "audiencia",
+            data: dataRelativaISO(2),
+            hora: "09:30",
+            calculo_id: idPorCliente.get("Maria das Graças Nogueira") ?? null,
+            concluida: false,
+            observacoes: "Levar proposta de plano de pagamento conforme Lei 14.181/2021.",
+        },
+        {
+            titulo: "Audiência conciliatória pré-processual",
+            tipo: "audiencia",
+            data: dataRelativaISO(5),
+            hora: "10:00",
+            calculo_id: idPorCliente.get("Francisca Severina Lima") ?? null,
+            concluida: false,
+            observacoes: "Confirmar presença da cliente 24h antes.",
+        },
+        {
+            titulo: "Revisar cálculos de triagem da semana",
+            tipo: "tarefa",
+            data: dataRelativaISO(-2),
+            hora: null,
+            calculo_id: idPorCliente.get("Rafael Augusto Moura") ?? null,
+            concluida: true,
+            observacoes: "Comparativo Olinda BCB concluído.",
+        },
+    ].map((t) => ({
+        ...t,
+        created_by: idsUsuarios[emailPadrao] ?? null,
+        created_by_email: emailPadrao,
+    }));
+
+    const tarefasInseridas = await adminReq<Array<{ id: string; titulo: string }>>(
+        "/rest/v1/revisional_tarefas",
+        {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify(tarefasSeed),
+        },
+    );
+
+    console.log(`Seed local concluído: ${inseridos.length} clientes e ${tarefasInseridas.length} tarefas gravados em ${LOCAL_URL}!`);
     for (const row of inseridos) {
         console.log(
             ` - ${row.cliente_nome} [${row.nivel}] -> R$ ${Number(row.valor_total_acao).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
