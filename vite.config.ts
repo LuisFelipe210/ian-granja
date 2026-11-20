@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { readFileSync } from "node:fs";
 import path from "path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
-import { componentTagger } from "lovable-tagger";
 
 function readRequestBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -30,7 +30,10 @@ const ROTAS_API_LOCAIS: Record<string, { modulo: string; handler: string }> = {
   "/api/claude-revisional": { modulo: "/api/claude-revisional.ts", handler: "handleClaudeRevisionalRequest" },
   "/api/mcp": { modulo: "/api/mcp.ts", handler: "handleMcpHttpRequest" },
   "/api/djen-sync": { modulo: "/api/djen-sync.ts", handler: "handleDjenSync" },
+  "/api/send-contact": { modulo: "/api/send-contact.ts", handler: "handleContactRequest" },
 };
+
+const ORIGEM_LOCAL_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 function localApiDevPlugin(envVars: Record<string, string>): Plugin {
   return {
@@ -77,9 +80,16 @@ function localApiDevPlugin(envVars: Record<string, string>): Plugin {
           const mod = await server.ssrLoadModule(rota.modulo);
           const fn = mod[rota.handler] as (r: unknown, s: unknown, o: unknown) => Promise<unknown>;
 
-          // O dev server escuta em todas as interfaces (host "::"): só conexões que chegam de fato pelo
-          // loopback dispensam login. O header Host não serve para isso porque o cliente o define.
-          const conexaoLocalVerificada = ENDERECOS_LOOPBACK.has(req.socket.remoteAddress ?? "");
+          // O dev server escuta em todas as interfaces (host "::"): só conexões pelo loopback E
+          // sem origem cross-site dispensam login (evita site externo chamar http://127.0.0.1:8080/api/*).
+          const originHeader = Array.isArray(req.headers.origin) ? req.headers.origin[0] : req.headers.origin;
+          const secFetchSite = Array.isArray(req.headers["sec-fetch-site"])
+            ? req.headers["sec-fetch-site"][0]
+            : req.headers["sec-fetch-site"];
+          const origemSegura =
+            (!originHeader || ORIGEM_LOCAL_RE.test(originHeader)) && secFetchSite !== "cross-site";
+          const conexaoLocalVerificada =
+            ENDERECOS_LOOPBACK.has(req.socket.remoteAddress ?? "") && origemSegura;
 
           await fn(
             {
@@ -87,9 +97,10 @@ function localApiDevPlugin(envVars: Record<string, string>): Plugin {
               headers: req.headers,
               body: bodyStr,
               query,
+              socket: { remoteAddress: req.socket.remoteAddress },
             },
             mockRes as unknown as ServerResponse,
-            { conexaoLocalVerificada },
+            pathname === "/api/send-contact" ? undefined : { conexaoLocalVerificada },
           );
         } catch (err) {
           res.statusCode = 500;
@@ -106,17 +117,46 @@ function localApiDevPlugin(envVars: Record<string, string>): Plugin {
   };
 }
 
+/**
+ * Cabeçalhos de segurança de produção (CSP etc.), lidos do vercel.json para que o `vite preview`
+ * sirva exatamente a mesma política e dê para testá-la localmente antes do deploy.
+ * O dev server (`vite`) não usa a CSP: ele depende de scripts embutidos para o hot reload.
+ */
+function cabecalhosSegurancaProducao(): Record<string, string> {
+  try {
+    const config = JSON.parse(readFileSync(path.resolve(__dirname, "vercel.json"), "utf8")) as {
+      headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+    };
+    const regra = config.headers?.find((h) => h.source === "/(.*)");
+    const cabecalhos = Object.fromEntries((regra?.headers ?? []).map((h) => [h.key, h.value]));
+    // Só para testes locais: `CSP_EXTRA_CONNECT=http://127.0.0.1:54321 vite preview` libera o Supabase local.
+    const extra = process.env.CSP_EXTRA_CONNECT?.trim();
+    if (extra && cabecalhos["Content-Security-Policy"]) {
+      cabecalhos["Content-Security-Policy"] = cabecalhos["Content-Security-Policy"].replace(
+        "connect-src 'self'",
+        `connect-src 'self' ${extra}`,
+      );
+    }
+    return cabecalhos;
+  } catch (err) {
+    console.error("[vite preview] Falha ao ler headers de segurança em vercel.json:", err);
+    return {};
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const envVars = loadEnv(mode, process.cwd(), "");
   return {
     server: {
-      host: "::",
+      host: "127.0.0.1",
       port: 8080,
+    },
+    preview: {
+      headers: cabecalhosSegurancaProducao(),
     },
     plugins: [
       react(),
-      mode === "development" && componentTagger(),
       mode === "development" && localApiDevPlugin(envVars),
     ].filter(Boolean),
     resolve: {

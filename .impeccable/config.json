@@ -11,6 +11,12 @@
         ],
         "createdAt": "2026-11-10T03:10:27.386Z",
         "reason": "agent: esboço descartável da rodada de direção (A Estante, não escolhida); não é publicado nem importado pelo site"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "times new roman",
+        "createdAt": "2026-11-20T04:43:05.692Z",
+        "reason": "Claude: fonte do conteúdo da petição exportada (padrão forense para Word/PDF), não da interface do sistema"
       }
     ]
   }

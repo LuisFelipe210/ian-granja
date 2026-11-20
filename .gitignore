@@ -29,3 +29,6 @@ dist-ssr
 .claude
 supabase/.temp
 supabase/.branches
+
+# build local para testar a política de segurança (preview-csp)
+dist-csp

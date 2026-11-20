@@ -27,21 +27,21 @@ Escritório de um advogado identificado (Ian Granja, OAB/PE 61.107), com atendim
 ## Capabilities and Constraints
 
 - Stack: Vite + React 18 + TypeScript + Tailwind 3 + shadcn/ui, react-router, deploy na Vercel.
-- Rotas: `/`, `/sobre`, `/atuacao`, `/atuacao/:slug` (8 áreas em `src/data/practiceAreas.ts`), `/calculadora-juros-abusivos`, `/ferramentas/calculadora-revisional` (uso interno com login fechado no Supabase, histórico de clientes e categorias, `noindex`), `/faq`, `/contato`.
-- Formulário de contato envia para `/api/send-contact` (Vercel Serverless Function com Nodemailer), e `/api/keep-alive` roda diariamente via Vercel Cron para manter o banco Supabase ativo.
+- Rotas: `/`, `/sobre`, `/atuacao`, `/atuacao/:slug` (8 áreas em `src/data/practiceAreas.ts`), `/calculadora-juros-abusivos`, `/ferramentas/calculadora-revisional` (uso interno com login fechado no Supabase, CRM/carteira, clientes, agenda, processos DJEN, documentos e configurações, `noindex`), `/faq`, `/contato`, `/privacidade`.
+- Serverless APIs na Vercel: `/api/send-contact` (contato via Nodemailer), `/api/keep-alive` (cron diário para manter o Supabase ativo), `/api/djen-sync` (cron de publicações DJEN), `/api/claude-revisional` (extração de contratos via Claude) e `/api/mcp` (conector MCP HTTP autenticado por cabeçalho).
 - Publicidade de advocacia é regulada pela OAB (Provimento 205/2021): sem promessa de resultado, sem mercantilização.
 
 ## Brand Commitments
 
-- Logo atual (G dourado + "ADVOGADOS", `src/assets/logo2.png`, `logo3.jpg`, `logo.png`) permanece sem alteração.
+- Logo atual (G dourado + "ADVOGADOS", `src/assets/logo2.png`, `src/assets/logo.png`) permanece sem alteração.
 - Azul-marinho e dourado da marca permanecem (confirmado pelo usuário em 2026-11-09).
-- O retrato do advogado (`src/assets/lawyer-portrait.jpg`) não é substituído nem regenerado.
+- O retrato do advogado (`src/assets/lawyer-portrait.webp`) não é substituído nem regenerado.
 - Imagens novas podem ser geradas para o site, exceto fotos do advogado e logo.
 
 ## Evidence on Hand
 
 - OAB/PE 61.107; pós-graduado em direito civil, processo civil e direito bancário; 5+ anos de atuação.
-- Três depoimentos de clientes com foto (`src/assets/cliente1-3.jpg`): mantidos por decisão do usuário.
+- Três depoimentos de clientes com foto (`src/assets/cliente1.webp`, `cliente2.webp`, `cliente3.webp`): mantidos por decisão do usuário.
 - Removidos por decisão do usuário (não reintroduzir): "+2.000 consultas", "98% taxa de sucesso", "24h".
 - Não há fotos reais do escritório nem vídeo.
 
