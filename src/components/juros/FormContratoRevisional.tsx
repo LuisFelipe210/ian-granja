@@ -75,14 +75,14 @@ export const FormContratoRevisional = ({
     };
 
     return (
-        <section className="sheet-on-paper space-y-6 border border-ink/20 p-5 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/15 pb-3">
-                <div>
-                    <span className="rubric text-gold-deep">02 · Contrato {index + 1}</span>
-                    <h3 className="subdisplay mt-0.5 text-xl text-ink">
-                        {form.descricao || `Contrato ${index + 1}`}
-                    </h3>
-                </div>
+        <section className="space-y-5 border border-ink/20 bg-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/15 pb-2.5">
+                <h3 className="sys-section min-w-0 text-ink">
+                    {totalContratos > 1 && (
+                        <span className="mr-1.5 tabular-nums text-muted-foreground">{index + 1}.</span>
+                    )}
+                    {form.descricao || `Contrato ${index + 1}`}
+                </h3>
                 <div className="flex items-center gap-2">
                     {form.instituicao.trim() && (
                         <span className="border border-ink/15 bg-secondary/70 px-2.5 py-1 text-[11px] font-semibold text-ink">
@@ -177,7 +177,7 @@ export const FormContratoRevisional = ({
             {/* Bloco numérico-financeiro agrupado */}
             <div className="space-y-5 border border-ink/15 bg-secondary/35 p-4">
                 <div className="flex items-center justify-between border-b border-ink/15 pb-2">
-                    <span className="rubric text-ink/75">Dados numéricos da contratação</span>
+                    <span className="text-[13px] font-semibold text-ink">Dados numéricos da contratação</span>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -437,7 +437,7 @@ export const FormContratoRevisional = ({
                     {/* Pagamentos extras */}
                     <div className="space-y-3 border-t border-ink/15 pt-4">
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            <span className="text-[13px] font-semibold text-ink">
                                 Pagamentos extras / antecipações
                             </span>
                             <button

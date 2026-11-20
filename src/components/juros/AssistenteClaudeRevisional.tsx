@@ -1,9 +1,6 @@
-import { useRef, useState, type DragEvent } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import {
     Bot,
-    Check,
-    Copy,
     FileText,
     Image as ImageIcon,
     KeyRound,
@@ -16,6 +13,15 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
+    ErroGoogleDrive,
+    GOOGLE_DRIVE_CONFIGURADO,
+    baixarArquivoDrive,
+    escolherArquivosDrive,
+    prepararGoogleDrive,
+} from "@/lib/google-drive";
+import { IconeGoogleDrive } from "@/components/juros/IconeGoogleDrive";
+import { ModalConectorMcp } from "@/components/juros/ModalConectorMcp";
+import {
     LIMITE_TOTAL_ANEXOS_BYTES,
     interpretarComandoLocalFallback,
     type ClaudeArquivoAnexo,
@@ -24,15 +30,11 @@ import {
     type EstadoAtualCalculadora,
 } from "@/lib/juros/claude-revisional";
 
-const CLAUDE_KEY_STORAGE = "ig_claude_api_key_v1";
 const MAX_TOTAL_MB = Math.round(LIMITE_TOTAL_ANEXOS_BYTES / (1024 * 1024));
 
 function lerApiKeySalva(): string {
-    try {
-        return localStorage.getItem(CLAUDE_KEY_STORAGE) ?? "";
-    } catch {
-        return "";
-    }
+    // Nunca persiste chave da Anthropic em localStorage (risco de exfiltração por XSS/extensões).
+    return "";
 }
 
 function detectarMime(file: File): ClaudeMimeType | null {
@@ -44,6 +46,9 @@ function detectarMime(file: File): ClaudeMimeType | null {
     if (t.startsWith("text/") || /\.(txt|csv)$/i.test(file.name)) return "text/plain";
     return null;
 }
+
+/** Tipos que o Claude lê e que dá para baixar direto do Drive (documentos nativos do Google ficam de fora). */
+const MIME_ACEITOS_DRIVE = ["application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain"];
 
 function fileParaBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -90,16 +95,20 @@ export const AssistenteClaudeRevisional = ({
     const [processando, setProcessando] = useState(false);
     const [arrastando, setArrastando] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
+    const [buscandoDrive, setBuscandoDrive] = useState(false);
+
+    useEffect(() => {
+        prepararGoogleDrive();
+    }, []);
     const [ultimoResumo, setUltimoResumo] = useState<string | null>(null);
 
     const [mostrarConfigChave, setMostrarConfigChave] = useState(false);
     const [apiKeyLocal, setApiKeyLocal] = useState(lerApiKeySalva);
     const [modalMcpAberto, setModalMcpAberto] = useState(false);
-    const [copiadoBloco, setCopiadoBloco] = useState<string | null>(null);
 
     const ocupado = processando || carregandoExterno;
 
-    const adicionarArquivos = async (lista: FileList | null) => {
+    const adicionarArquivos = async (lista: FileList | File[] | null) => {
         if (!lista || lista.length === 0) return;
         setErro(null);
 
@@ -144,17 +153,35 @@ export const AssistenteClaudeRevisional = ({
         void adicionarArquivos(e.dataTransfer.files);
     };
 
+    /** Escolhe o contrato no Google Drive e anexa como se fosse um arquivo do computador. */
+    const importarDoDrive = async () => {
+        if (!GOOGLE_DRIVE_CONFIGURADO) {
+            toast.info("O Google Drive ainda não foi configurado neste sistema.", {
+                description: "Faltam as chaves do Google Cloud (passo a passo em docs/GOOGLE-DRIVE.md).",
+            });
+            return;
+        }
+        setErro(null);
+        setBuscandoDrive(true);
+        try {
+            const itens = await escolherArquivosDrive({
+                mimeTypes: MIME_ACEITOS_DRIVE,
+                multiplos: true,
+                titulo: "Escolha o contrato (PDF ou foto) no Google Drive",
+            });
+            if (itens.length === 0) return;
+            const baixados = await Promise.all(itens.map((item) => baixarArquivoDrive(item)));
+            await adicionarArquivos(baixados);
+        } catch (e) {
+            if (e instanceof ErroGoogleDrive && e.codigo === "cancelado") return;
+            setErro(e instanceof Error ? e.message : "Não foi possível trazer o arquivo do Google Drive.");
+        } finally {
+            setBuscandoDrive(false);
+        }
+    };
+
     const salvarChaveLocal = (valor: string) => {
         setApiKeyLocal(valor);
-        try {
-            if (valor.trim()) {
-                localStorage.setItem(CLAUDE_KEY_STORAGE, valor.trim());
-            } else {
-                localStorage.removeItem(CLAUDE_KEY_STORAGE);
-            }
-        } catch {
-            /* ignore */
-        }
     };
 
     const executarComClaude = async () => {
@@ -213,7 +240,9 @@ export const AssistenteClaudeRevisional = ({
             }
 
             setUltimoResumo(extracao.resumoExplicacao);
-            const deveSalvar = salvarAuto || extracao.acaoSugerida === "calcular_e_salvar";
+            // Proteção contra prompt injection indireta: nunca gravar no banco por sugestão do LLM
+            // quando o usuário não habilitou explicitamente o salvamento automático.
+            const deveSalvar = salvarAuto;
             await onAplicarResultadoClaude(extracao, {
                 salvarAutomaticamente: deveSalvar,
                 fonte,
@@ -227,31 +256,6 @@ export const AssistenteClaudeRevisional = ({
             setProcessando(false);
         }
     };
-
-    const copiarTexto = async (chave: string, texto: string) => {
-        try {
-            await navigator.clipboard.writeText(texto);
-            setCopiadoBloco(chave);
-            setTimeout(() => setCopiadoBloco(null), 1800);
-        } catch {
-            /* ignore */
-        }
-    };
-
-    const originAtual = typeof window !== "undefined" ? window.location.origin : "https://www.iangranja.adv.br";
-    const mcpHttpUrl = `${originAtual}/api/mcp`;
-    const mcpDesktopJson = JSON.stringify(
-        {
-            mcpServers: {
-                "ian-granja-revisional": {
-                    command: "node",
-                    args: ["--experimental-strip-types", "scripts/mcp-revisional.ts"],
-                },
-            },
-        },
-        null,
-        2,
-    );
 
     const sugestoes = calculoAtivoId
         ? [
@@ -289,7 +293,7 @@ export const AssistenteClaudeRevisional = ({
             onDrop={handleDrop}
             aria-label="Leitura Automática e Comando Claude"
             className={cn(
-                "sheet-on-paper border border-ink/20 border-l-[3px] border-l-gold transition-colors",
+                "border border-ink/20 bg-card transition-colors duration-150",
                 arrastando && "border-gold bg-gold-light/20 ring-1 ring-gold",
             )}
         >
@@ -306,10 +310,10 @@ export const AssistenteClaudeRevisional = ({
             />
 
             {/* Cabeçalho compacto */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/12 px-4 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/15 px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <Bot className="size-4 text-gold-deep" />
-                    <h2 className="rubric text-ink">Leitura Automática &amp; Comando Claude</h2>
+                    <Bot aria-hidden className="size-4 text-gold-deep" />
+                    <h2 className="sys-section text-ink">Leitura automática com Claude</h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                     <button
@@ -319,6 +323,20 @@ export const AssistenteClaudeRevisional = ({
                     >
                         <Paperclip className="size-3" />
                         Anexar PDF / Foto
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => void importarDoDrive()}
+                        disabled={buscandoDrive}
+                        title="Trazer o contrato direto do Google Drive"
+                        className="inline-flex h-7 items-center gap-1.5 border border-ink/25 bg-background/80 px-2.5 text-[11px] font-semibold text-ink transition-colors hover:border-ink hover:bg-ink/5 disabled:cursor-wait disabled:opacity-70"
+                    >
+                        {buscandoDrive ? (
+                            <Loader2 aria-hidden className="size-3 animate-spin" />
+                        ) : (
+                            <IconeGoogleDrive className="size-3.5" />
+                        )}
+                        {buscandoDrive ? "Buscando no Drive…" : "Google Drive"}
                     </button>
                     <button
                         type="button"
@@ -475,112 +493,7 @@ export const AssistenteClaudeRevisional = ({
                 </div>
             </div>
 
-            {modalMcpAberto &&
-                createPortal(
-                    <div
-                        className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-deep/80 p-4 backdrop-blur-[1px]"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="mcp-modal-title"
-                    >
-                        <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-2 border-ink bg-card shadow-2xl">
-                            <div className="flex items-center justify-between gap-3 border-b border-ink/20 bg-ink px-5 py-4 text-paper">
-                                <div className="flex items-center gap-2">
-                                    <Plug className="size-4 text-gold-light" />
-                                    <h3 id="mcp-modal-title" className="subdisplay text-lg text-paper">
-                                        Conector MCP do Claude (Desktop, Code e Web)
-                                    </h3>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setModalMcpAberto(false)}
-                                    aria-label="Fechar janela"
-                                    className="inline-flex size-8 items-center justify-center text-paper/75 hover:text-paper"
-                                >
-                                    <X className="size-4" />
-                                </button>
-                            </div>
-
-                            <div className="space-y-5 p-5 text-xs leading-relaxed text-ink">
-                                <p className="text-sm text-muted-foreground">
-                                    Conecte o aplicativo do Claude diretamente ao motor oficial da calculadora e ao banco
-                                    Supabase para cadastrar contratos por PDF/foto, renovar cálculos, mover cartões no
-                                    Kanban e consultar sua carteira.
-                                </p>
-
-                                <div className="space-y-2 border border-ink/20 bg-secondary/40 p-3.5">
-                                    <p className="font-bold text-ink">Exemplos do que você pode pedir direto no Claude:</p>
-                                    <ul className="list-disc space-y-1 pl-4 text-ink/90">
-                                        <li>
-                                            “Claude, lê esse contrato do Santander, faz o cálculo revisional pela média do
-                                            BACEN com seguro prestamista em dobro, cadastra o cliente na fase Busca e
-                                            Apreensão e me dá o resumo para a inicial.”
-                                        </li>
-                                        <li>
-                                            “Atualiza o cálculo de João da Silva para a data de hoje e preenche o CNJ
-                                            0001234-56.2026.8.17.1130.”
-                                        </li>
-                                        <li>“Move o cliente Maria para a fase Ajuizado.”</li>
-                                        <li>“Quais clientes do Banco Pan têm abuso acima de 1,8x?”</li>
-                                    </ul>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <span className="rubric text-ink">1. Claude Desktop / Claude Code (.mcp.json)</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => copiarTexto("desktop", mcpDesktopJson)}
-                                            className="inline-flex items-center gap-1 border border-ink/30 px-2 py-1 text-[11px] font-semibold hover:bg-ink/5"
-                                        >
-                                            {copiadoBloco === "desktop" ? (
-                                                <Check className="size-3" />
-                                            ) : (
-                                                <Copy className="size-3" />
-                                            )}
-                                            {copiadoBloco === "desktop" ? "Copiado" : "Copiar JSON"}
-                                        </button>
-                                    </div>
-                                    <pre className="overflow-x-auto border border-ink/20 bg-ink-deep p-3 text-[11px] text-paper">
-                                        {mcpDesktopJson}
-                                    </pre>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        O arquivo <code>.mcp.json</code> já está criado na raiz do projeto e registrado
-                                        como <code>ian-granja-revisional</code> no Claude Desktop deste Mac.
-                                    </p>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <span className="rubric text-ink">2. Claude Web / Conector HTTP Remoto</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => copiarTexto("http", mcpHttpUrl)}
-                                            className="inline-flex items-center gap-1 border border-ink/30 px-2 py-1 text-[11px] font-semibold hover:bg-ink/5"
-                                        >
-                                            {copiadoBloco === "http" ? (
-                                                <Check className="size-3" />
-                                            ) : (
-                                                <Copy className="size-3" />
-                                            )}
-                                            {copiadoBloco === "http" ? "Copiado" : "Copiar URL"}
-                                        </button>
-                                    </div>
-                                    <code className="block border border-ink/20 bg-secondary px-3 py-2 text-[11px] font-semibold text-ink">
-                                        {mcpHttpUrl}
-                                    </code>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Para acesso remoto na Vercel, defina <code>MCP_AUTH_TOKEN</code> e{" "}
-                                        <code>SUPABASE_SERVICE_ROLE_KEY</code> nas variáveis de ambiente da Vercel e envie
-                                        o cabeçalho <code>Authorization: Bearer &lt;MCP_AUTH_TOKEN&gt;</code> (ou{" "}
-                                        <code>?token=&lt;MCP_AUTH_TOKEN&gt;</code>).
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>,
-                    document.body,
-                )}
+            <ModalConectorMcp aberto={modalMcpAberto} onFechar={() => setModalMcpAberto(false)} />
         </section>
     );
 };

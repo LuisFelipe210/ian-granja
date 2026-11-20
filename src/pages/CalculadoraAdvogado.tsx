@@ -1,30 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
     ArrowLeft,
-    ArrowRight,
     BarChart3,
-    BookmarkCheck,
     BookmarkPlus,
-    Calculator,
     Check,
     Copy,
     CopyPlus,
-    ExternalLink,
     FileDown,
-    FilePlus2,
     FileSpreadsheet,
-    FolderClock,
-    FolderOpen,
     Gavel,
-    KeyRound,
     Loader2,
-    LogOut,
     Plus,
     RefreshCw,
     Save,
     Table2,
-    Tags,
 } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { toast } from "sonner";
@@ -32,15 +22,18 @@ import { cn } from "@/lib/utils";
 import { labelClass } from "@/components/juros/Campos";
 import { TelaLogin, ModalAlterarSenha } from "@/components/juros/RevisionalAuth";
 import { GerenciarCategorias, SeloCategoria } from "@/components/juros/GerenciarCategorias";
-import { HistoricoCalculos } from "@/components/juros/HistoricoCalculos";
-import { ProcessosSalvosDjen } from "@/components/juros/ProcessosSalvosDjen";
 import { FormContratoRevisional } from "@/components/juros/FormContratoRevisional";
-import { ModalRankingOlinda } from "@/components/juros/ModalRankingOlinda";
-import { ModalConsultaDjen, type ContextoInicialDjen } from "@/components/juros/ModalConsultaDjen";
+import type { ContextoInicialDjen } from "@/components/juros/ModalConsultaDjen";
 import { SecoesPericiaisExtras } from "@/components/juros/SecoesPericiaisExtras";
-import { AssistenteClaudeRevisional } from "@/components/juros/AssistenteClaudeRevisional";
 import { GraficoSerieBacen, PainelGraficosCaso } from "@/components/juros/GraficosCasoRevisional";
-import { PainelEstatisticas } from "@/components/juros/PainelEstatisticas";
+import {
+    BASE_ROTA,
+    ROTA_CALCULO,
+    ShellSistema,
+    type AbaSistema,
+} from "@/components/juros/ShellSistema";
+import { configEscritorioAtual, definirConfigEscritorio } from "@/lib/config-escritorio";
+import type { AlvoSheetTarefa } from "@/components/juros/AgendaSistema";
 import {
     MODALIDADES,
     brl,
@@ -71,43 +64,117 @@ import {
     aplicarExtracaoClaudeAoEstado,
     type ClaudeExtracaoRevisional,
 } from "@/lib/juros/claude-revisional";
-import { baixarCsvDemonstrativo, baixarLaudoPdf } from "@/lib/juros/laudo-pdf";
+import type { LaudoMetadata } from "@/lib/juros/laudo-pdf";
+import {
+    ErroGoogleDrive,
+    GOOGLE_DRIVE_CONFIGURADO,
+    criarPastaDrive,
+    desconectarGoogleDrive,
+    enviarArquivoDrive,
+    escolherPastaDrive,
+    esquecerUltimaPastaDrive,
+    lembrarUltimaPastaDrive,
+    prepararGoogleDrive,
+    ultimaPastaDrive,
+    type ItemDrive,
+} from "@/lib/google-drive";
+import { IconeGoogleDrive } from "@/components/juros/IconeGoogleDrive";
+import { ModalDestinoDrive, type DestinoDrive } from "@/components/juros/ModalDestinoDrive";
+import { MenuContaDrive } from "@/components/juros/MenuContaDrive";
+import { useContaDrive } from "@/lib/use-conta-drive";
 import {
     INTERVALO_VERIFICACAO_DJEN_HORAS,
     anexarMovimentacaoDjenAoProcesso,
     criarPayloadCarteiraDeDjen,
+    lerDadosProcessoDjen,
     normalizarNumeroProcessoDjen,
+    urlHttpSegura,
     verificarPublicacoesDjen,
     type DjenComunicacao,
 } from "@/lib/juros/djen";
 import {
-    IS_LOCAL_SUPABASE,
     RevisionalApiError,
     atualizarCalculo,
     calculoParaProcesso,
     consumirHashRecuperacao,
     criarCalculo,
+    existeCalculoComProcesso,
     criarCategoria,
+    dataHojeLocalISO,
     fichaSemCalculoParaPayload,
     isCalculoPendente,
+    isTabelaTarefasAusente,
     listarCalculos,
     listarCategorias,
+    listarTipos,
+    listarTarefas,
     montarTextoPeticaoPro,
+    obterConfigEscritorio,
     obterSessaoAtiva,
     processoParaPayload,
     sairDaSessao,
     type CalculoSalvo,
     type Categoria,
+    type TipoAcao,
     type FichaCliente,
     type RevisionalSession,
+    type Tarefa,
 } from "@/lib/revisional-db";
-import { HeroArt } from "@/components/HeroArt";
-import logo from "@/assets/logo2.png";
+
+/** Telas e modais pesados carregados sob demanda para manter o bundle inicial enxuto. */
+const DocumentosSistema = lazy(() =>
+    import("@/components/juros/DocumentosSistema").then((m) => ({ default: m.DocumentosSistema })),
+);
+const InicioSistema = lazy(() =>
+    import("@/components/juros/InicioSistema").then((m) => ({ default: m.InicioSistema })),
+);
+const AgendaSistema = lazy(() =>
+    import("@/components/juros/AgendaSistema").then((m) => ({ default: m.AgendaSistema })),
+);
+const SheetTarefa = lazy(() =>
+    import("@/components/juros/AgendaSistema").then((m) => ({ default: m.SheetTarefa })),
+);
+const ClientesSistema = lazy(() =>
+    import("@/components/juros/ClientesSistema").then((m) => ({ default: m.ClientesSistema })),
+);
+const PainelEstatisticas = lazy(() =>
+    import("@/components/juros/PainelEstatisticas").then((m) => ({ default: m.PainelEstatisticas })),
+);
+const HistoricoCalculos = lazy(() =>
+    import("@/components/juros/HistoricoCalculos").then((m) => ({ default: m.HistoricoCalculos })),
+);
+const ProcessosSalvosDjen = lazy(() =>
+    import("@/components/juros/ProcessosSalvosDjen").then((m) => ({ default: m.ProcessosSalvosDjen })),
+);
+const ConfiguracoesSistema = lazy(() =>
+    import("@/components/juros/ConfiguracoesSistema").then((m) => ({ default: m.ConfiguracoesSistema })),
+);
+const ModalRankingOlinda = lazy(() =>
+    import("@/components/juros/ModalRankingOlinda").then((m) => ({ default: m.ModalRankingOlinda })),
+);
+const ModalConsultaDjen = lazy(() =>
+    import("@/components/juros/ModalConsultaDjen").then((m) => ({ default: m.ModalConsultaDjen })),
+);
+const AssistenteClaudeRevisional = lazy(() =>
+    import("@/components/juros/AssistenteClaudeRevisional").then((m) => ({ default: m.AssistenteClaudeRevisional })),
+);
+
+const CarregandoTela = ({ rotulo = "Carregando tela…" }: { rotulo?: string }) => (
+    <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> {rotulo}
+    </div>
+);
 
 /**
  * Calculadora revisional pericial completa, para uso interno do escritório.
  * Protegida por login fechado no Supabase, com histórico, categorias, API Olinda e Laudo PDF.
  */
+
+/**
+ * Card "Leitura automática com Claude" (anexar PDF/foto, Google Drive, conector MCP) escondido a pedido
+ * em 18/11/2026. O código continua no lugar: troque para `true` para mostrar de novo.
+ */
+const MOSTRAR_LEITURA_CLAUDE = false;
 
 const ROTULO: Record<Nivel, string> = { abuso: "Indício de abuso", acima: "Acima da média", media: "Na média" };
 const COR: Record<Nivel, string> = {
@@ -144,12 +211,12 @@ const Comparacao = ({
     mes: string;
     razao: number;
 }) => (
-    <div className="border border-ink/25 bg-card p-5">
+    <div className="border border-ink/20 bg-card p-4">
         <div className="flex items-center justify-between gap-3">
-            <h3 className="rubric text-ink/80">{titulo}</h3>
+            <h3 className="sys-label font-semibold text-ink">{titulo}</h3>
             <Selo n={nivel(razao)} />
         </div>
-        <dl className="mt-4 space-y-2 tabular-nums">
+        <dl className="mt-3 space-y-2 text-sm tabular-nums">
             <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Contrato</dt>
                 <dd className="font-semibold text-ink">{contrato}</dd>
@@ -161,9 +228,9 @@ const Comparacao = ({
                 </dt>
                 <dd className="font-semibold text-ink">{media}</dd>
             </div>
-            <div className="flex items-baseline justify-between gap-4 border-t border-ink/20 pt-2">
+            <div className="flex items-baseline justify-between gap-4 border-t border-ink/15 pt-2">
                 <dt className="text-muted-foreground">Contrato / paradigma</dt>
-                <dd className="subdisplay text-2xl text-ink">{num(razao)}x</dd>
+                <dd className="text-xl font-bold text-ink">{num(razao)}x</dd>
             </div>
         </dl>
     </div>
@@ -207,7 +274,7 @@ const BlocoContratoResultado = ({
                         {rc.contrato.instituicao ? ` · ${rc.contrato.instituicao}` : ""}
                     </span>
                 </div>
-                <h2 className="subdisplay mt-4 text-[2rem] text-ink">
+                <h2 className="mt-3 text-xl font-bold text-ink">
                     {rc.nivel === "media" ? "Taxa dentro da média" : `Taxa ${num(a.razaoAm, 2)}x a média mensal`}
                 </h2>
                 <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
@@ -390,6 +457,16 @@ const ResultadoPainel = ({
     const [visaoResultado, setVisaoResultado] = useState<"demonstrativo" | "graficos">("demonstrativo");
     const [incluirGraficosPdf, setIncluirGraficosPdf] = useState(true);
     const [copiado, setCopiado] = useState(false);
+    const [salvandoDrive, setSalvandoDrive] = useState(false);
+    /** Janela "Onde salvar o laudo?" do Google Drive. */
+    const [modalDriveAberto, setModalDriveAberto] = useState(false);
+    const contaDrive = useContaDrive();
+    /** Última pasta usada no Drive, lida ao abrir a janela (vem marcada como padrão). */
+    const [ultimaPastaDriveAtual, setUltimaPastaDriveAtual] = useState<ItemDrive | null>(null);
+
+    useEffect(() => {
+        prepararGoogleDrive();
+    }, []);
 
     const safeIdx = Math.min(contratoAtivoIdx, Math.max(0, resultado.contratos.length - 1));
     const contratoAtual = resultado.contratos[safeIdx];
@@ -406,15 +483,18 @@ const ResultadoPainel = ({
         }
     };
 
-    const baixarPdf = () => {
+    const metaLaudo = (): LaudoMetadata => ({
+        clienteNome: ficha.clienteNome || "Cliente",
+        processoGlobal: ficha.processoGlobal,
+        categoriaNome: categoria?.nome,
+        observacoes: ficha.observacoes,
+        incluirGraficos: incluirGraficosPdf,
+    });
+
+    const baixarPdf = async () => {
         try {
-            const ok = baixarLaudoPdf(resultado, {
-                clienteNome: ficha.clienteNome || "Cliente",
-                processoGlobal: ficha.processoGlobal,
-                categoriaNome: categoria?.nome,
-                observacoes: ficha.observacoes,
-                incluirGraficos: incluirGraficosPdf,
-            });
+            const { baixarLaudoPdf } = await import("@/lib/juros/laudo-pdf");
+            const ok = baixarLaudoPdf(resultado, metaLaudo());
             if (ok) {
                 toast.success("Laudo PDF baixado.");
             }
@@ -423,168 +503,278 @@ const ResultadoPainel = ({
         }
     };
 
+    const clienteDrive = ficha.clienteNome.trim() || "Cliente";
+
+    /** Abre a janela "Onde salvar o laudo?" (criar pasta nova ou usar uma existente). */
+    const salvarLaudoNoDrive = () => {
+        if (!GOOGLE_DRIVE_CONFIGURADO) {
+            toast.info("O Google Drive ainda não foi configurado neste sistema.", {
+                description: "Faltam as chaves do Google Cloud (passo a passo em docs/GOOGLE-DRIVE.md).",
+            });
+            return;
+        }
+        setUltimaPastaDriveAtual(ultimaPastaDrive());
+        setModalDriveAberto(true);
+    };
+
+    const fecharDestinoDrive = useCallback(() => setModalDriveAberto(false), []);
+
+    /** Usado pela janela: abre o seletor do Google só com pastas. Cancelar devolve `null`. */
+    const escolherPastaNoDrive = useCallback(async () => {
+        try {
+            return await escolherPastaDrive(`Escolha a pasta para o laudo de ${clienteDrive}`);
+        } catch (e) {
+            if (e instanceof ErroGoogleDrive && e.codigo === "cancelado") return null;
+            throw e;
+        }
+    }, [clienteDrive]);
+
+    /** Cria a pasta nova (se for o caso), gera o laudo e envia para o Drive. */
+    const confirmarDestinoDrive = async (destino: DestinoDrive) => {
+        const cliente = clienteDrive;
+        // A pasta escolhida no topo da janela (ex.: "Processos"); `null` = raiz do Meu Drive.
+        const pastaBase = destino.tipo === "nova" ? destino.pastaPai : destino.pasta;
+        setSalvandoDrive(true);
+        try {
+            const pasta =
+                destino.tipo === "nova"
+                    ? await criarPastaDrive({ nome: destino.nome, pastaPaiId: destino.pastaPai?.id })
+                    : destino.pasta;
+            const { gerarBytesLaudoPdf } = await import("@/lib/juros/laudo-pdf");
+            const bytes = gerarBytesLaudoPdf(resultado, metaLaudo());
+            const dataHoje = new Date().toLocaleDateString("pt-BR").split("/").join("-");
+            const enviado = await enviarArquivoDrive({
+                nome: `Laudo revisional - ${cliente} - ${dataHoje}.pdf`,
+                conteudo: new Blob([bytes], { type: "application/pdf" }),
+                mimeType: "application/pdf",
+                pastaId: pasta?.id ?? null,
+            });
+            const link = urlHttpSegura(enviado.link);
+            // Lembra a pasta base (não a subpasta do cliente): o próximo laudo já começa nela.
+            if (pastaBase) lembrarUltimaPastaDrive(pastaBase);
+            else esquecerUltimaPastaDrive();
+            setModalDriveAberto(false);
+            toast.success(`Laudo salvo em "${pasta ? pasta.nome : "Meu Drive"}" no Google Drive.`, {
+                action: link
+                    ? { label: "Abrir", onClick: () => window.open(link, "_blank", "noopener,noreferrer") }
+                    : undefined,
+            });
+        } catch (e) {
+            if (e instanceof ErroGoogleDrive && e.codigo === "cancelado") return;
+            // A última pasta foi apagada ou perdeu o acesso: esquece para não oferecer de novo.
+            if (
+                e instanceof ErroGoogleDrive &&
+                e.codigo === "sem_permissao" &&
+                pastaBase &&
+                pastaBase.id === ultimaPastaDriveAtual?.id
+            ) {
+                esquecerUltimaPastaDrive();
+                setUltimaPastaDriveAtual(null);
+            }
+            toast.error(e instanceof Error ? e.message : "Não foi possível salvar o laudo no Google Drive.");
+        } finally {
+            setSalvandoDrive(false);
+        }
+    };
+
     return (
-        <div className="space-y-7" aria-live="polite">
-            {/* Barra de ações: salvar, PDF, renovar e CSV */}
-            <div className="sheet-on-paper flex flex-wrap items-center justify-between gap-4 border border-ink/20 px-5 py-4">
-                <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                        {calculoAtivoId ? (
-                            <span className="inline-flex items-center gap-1.5 bg-[#126A35]/10 px-2 py-0.5 text-xs font-semibold text-[#126A35]">
-                                <BookmarkCheck className="size-3.5" />
-                                Salvo no histórico
-                            </span>
-                        ) : (
-                            <span className="bg-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                Rascunho não salvo
-                            </span>
-                        )}
-                        {ficha.clienteNome.trim() && (
-                            <span className="text-sm font-bold text-ink">{ficha.clienteNome.trim()}</span>
-                        )}
-                        {categoria && <SeloCategoria categoria={categoria} />}
+        <div className="space-y-6" aria-live="polite">
+            <ModalDestinoDrive
+                aberto={modalDriveAberto}
+                nomeSugerido={clienteDrive}
+                conta={contaDrive}
+                ultimaPasta={ultimaPastaDriveAtual}
+                enviando={salvandoDrive}
+                onEscolherPasta={escolherPastaNoDrive}
+                onConfirmar={(destino) => void confirmarDestinoDrive(destino)}
+                onFechar={fecharDestinoDrive}
+            />
+
+            {/* Barra de ações em duas faixas: identificação + salvar | exportar + renovar */}
+            <div className="border border-ink/20 bg-card">
+                <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            {calculoAtivoId ? (
+                                <span className="inline-flex items-center gap-1.5 bg-[#126A35]/10 px-2 py-0.5 text-xs font-semibold text-[#126A35]">
+                                    <Check className="size-3.5" />
+                                    Salvo na carteira
+                                </span>
+                            ) : (
+                                <span className="bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                                    Rascunho não salvo
+                                </span>
+                            )}
+                            {ficha.clienteNome.trim() && (
+                                <span className="text-sm font-bold text-ink">{ficha.clienteNome.trim()}</span>
+                            )}
+                            {categoria && <SeloCategoria categoria={categoria} />}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Atualização até {resultado.parametros.dataBaseAtualizacao.split("-").reverse().join("/")} ·{" "}
+                            {resultado.contratos.length}{" "}
+                            {resultado.contratos.length === 1 ? "contrato" : "contratos"}
+                        </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                        Atualização até {resultado.parametros.dataBaseAtualizacao.split("-").reverse().join("/")} ·{" "}
-                        {resultado.contratos.length}{" "}
-                        {resultado.contratos.length === 1 ? "contrato" : "contratos"}
-                    </p>
+    
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        {calculoAtivoId ? (
+                            <>
+                                <button
+                                    type="button"
+                                    disabled={salvando}
+                                    onClick={() => onSalvar(false)}
+                                    className="inline-flex min-h-9 items-center gap-1.5 bg-ink px-3.5 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
+                                >
+                                    {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                                    Atualizar salvo
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={salvando}
+                                    onClick={() => onSalvar(true)}
+                                    className="inline-flex min-h-9 items-center gap-1.5 border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-70"
+                                >
+                                    <CopyPlus className="size-3.5" />
+                                    Salvar novo
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled={salvando}
+                                onClick={() => onSalvar(true)}
+                                className="inline-flex min-h-9 items-center gap-1.5 bg-ink px-3.5 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
+                            >
+                                {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                                Salvar no histórico
+                            </button>
+                        )}
+                        {onRenovarHoje && (calculoAtivoId || resultado.parametros.dataBaseAtualizacao !== hojeISO()) && (
+                            <button
+                                type="button"
+                                disabled={renovando || salvando}
+                                onClick={onRenovarHoje}
+                                title="Atualiza a data-base para hoje, consulta os índices recentes do BACEN, recalcula, salva e gera o novo PDF"
+                                className="inline-flex min-h-9 items-center gap-1.5 border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-60"
+                            >
+                                {renovando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                                Renovar para hoje
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                {/* Exportar: cada item cresce para preencher a linha, então a quebra fica alinhada em painéis estreitos */}
+                <div className="flex flex-wrap items-stretch gap-2 border-t border-ink/12 bg-background/60 px-4 py-2.5">
+                    {/* Laudo PDF + "com gráficos" num botão só (a opção vale também para o envio ao Drive) */}
+                    <div className="inline-flex h-8 grow items-stretch overflow-hidden border border-ink/30 bg-card">
+                        <button
+                            type="button"
+                            onClick={baixarPdf}
+                            className="inline-flex grow items-center justify-center gap-1.5 whitespace-nowrap rounded-none px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink hover:text-paper"
+                        >
+                            <FileDown className="size-3.5" />
+                            Laudo PDF
+                        </button>
+                        <label
+                            title="Incluir os gráficos no Laudo PDF (também no enviado ao Drive)"
+                            className="inline-flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-none border-l border-ink/20 px-2.5 text-xs font-medium text-ink/80 hover:bg-ink/[0.04]"
+                        >
+                            <input
+                                type="checkbox"
+                                checked={incluirGraficosPdf}
+                                onChange={(e) => setIncluirGraficosPdf(e.target.checked)}
+                                className="accent-ink"
+                            />
+                            com gráficos
+                        </label>
+                    </div>
+
                     <button
                         type="button"
-                        onClick={baixarPdf}
-                        className="inline-flex min-h-9 items-center gap-1.5 border border-gold bg-gold-light px-3.5 text-xs font-bold text-ink hover:bg-paper-white"
-                    >
-                        <FileDown className="size-3.5" />
-                        Laudo PDF
-                    </button>
-
-                    <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 border border-ink/20 bg-background/60 px-2.5 text-xs font-medium text-ink select-none">
-                        <input
-                            type="checkbox"
-                            checked={incluirGraficosPdf}
-                            onChange={(e) => setIncluirGraficosPdf(e.target.checked)}
-                            className="accent-ink"
-                        />
-                        Gráficos
-                    </label>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            baixarCsvDemonstrativo(resultado, {
-                                clienteNome: ficha.clienteNome || "cliente",
-                                processoGlobal: ficha.processoGlobal,
-                            })
-                        }
-                        className="inline-flex min-h-9 items-center gap-1.5 border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5"
+                        onClick={() => {
+                            void import("@/lib/juros/laudo-pdf")
+                                .then(({ baixarCsvDemonstrativo }) =>
+                                    baixarCsvDemonstrativo(resultado, {
+                                        clienteNome: ficha.clienteNome || "cliente",
+                                        processoGlobal: ficha.processoGlobal,
+                                    }),
+                                )
+                                .catch(() => toast.error("Não foi possível gerar o arquivo CSV agora."));
+                        }}
+                        className="inline-flex h-8 grow items-center justify-center gap-1.5 whitespace-nowrap border border-ink/30 bg-card px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink/5"
                     >
                         <FileSpreadsheet className="size-3.5" />
                         CSV
                     </button>
 
-                    {onRenovarHoje && (calculoAtivoId || resultado.parametros.dataBaseAtualizacao !== hojeISO()) && (
+                    {/* Um botão só, com a seta da conta dentro (separada por um filete) */}
+                    <div className="inline-flex h-8 grow items-stretch overflow-hidden border border-ink/30 bg-card">
                         <button
                             type="button"
-                            disabled={renovando || salvando}
-                            onClick={onRenovarHoje}
-                            title="Atualiza a data-base para hoje, consulta os índices recentes do BACEN, recalcula, salva e gera o novo PDF"
-                            className="inline-flex min-h-9 items-center gap-1.5 border border-ink/35 bg-secondary px-3 text-xs font-semibold text-ink hover:bg-ink hover:text-paper disabled:opacity-60"
+                            onClick={salvarLaudoNoDrive}
+                            disabled={salvandoDrive}
+                            title={
+                                contaDrive
+                                    ? `Salvar o Laudo PDF no Google Drive (${contaDrive})`
+                                    : "Salvar o Laudo PDF numa pasta do Google Drive"
+                            }
+                            className="inline-flex grow items-center justify-center gap-1.5 whitespace-nowrap rounded-none px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink/5 disabled:cursor-wait disabled:opacity-70"
                         >
-                            {renovando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-                            Renovar p/ hoje
+                            {salvandoDrive ? (
+                                <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                            ) : (
+                                <IconeGoogleDrive className="size-4" />
+                            )}
+                            {salvandoDrive ? "Salvando no Drive…" : "Salvar no Drive"}
                         </button>
-                    )}
-
-                    {calculoAtivoId ? (
-                        <>
-                            <button
-                                type="button"
-                                disabled={salvando}
-                                onClick={() => onSalvar(false)}
-                                className="inline-flex min-h-9 items-center gap-1.5 bg-ink px-3.5 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
-                            >
-                                {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                                Atualizar salvo
-                            </button>
-                            <button
-                                type="button"
-                                disabled={salvando}
-                                onClick={() => onSalvar(true)}
-                                className="inline-flex min-h-9 items-center gap-1.5 border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-70"
-                            >
-                                <CopyPlus className="size-3.5" />
-                                Salvar novo
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            type="button"
-                            disabled={salvando}
-                            onClick={() => onSalvar(true)}
-                            className="inline-flex min-h-9 items-center gap-1.5 bg-ink px-3.5 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
-                        >
-                            {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                            Salvar no histórico
-                        </button>
-                    )}
+                        {contaDrive && (
+                            <MenuContaDrive conta={contaDrive} disabled={salvandoDrive} />
+                        )}
+                    </div>
+    
                 </div>
             </div>
 
-            {/* Faixa de 3 KPIs em destaque */}
-            <div className="grid gap-4 sm:grid-cols-3 tabular-nums">
-                <div className="border border-gold bg-gold-light/25 p-5">
-                    <span className="rubric text-gold-deep">Proveito Econômico Total</span>
-                    <p className="display mt-2 text-[1.75rem] text-ink">{brl(r.valorTotalAcao)}</p>
-                    <p className="mt-1.5 text-xs text-ink/75">
-                        Soma de restituição + economia futura
-                    </p>
+            {/* Faixa única de 3 KPIs */}
+            <div className="grid divide-y divide-ink/15 border-y border-ink/20 tabular-nums sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <div className="bg-gold-light/20 px-4 py-3.5">
+                    <span className="sys-label block text-gold-deep">Proveito econômico total</span>
+                    <p className="sys-kpi-value mt-1 text-ink">{brl(r.valorTotalAcao)}</p>
                 </div>
 
-                <div className="sheet-on-paper border border-ink/20 p-5">
-                    <span className="rubric text-muted-foreground">Líquido a Restituir</span>
-                    <p className="subdisplay mt-2 text-[1.5rem] text-ink">{brl(r.totalRestituicaoAtualizado)}</p>
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                        Pagas + tarifas{r.deducoesAtualizado > 0 ? " − deduções" : ""}
-                    </p>
+                <div className="px-4 py-3.5">
+                    <span className="sys-label block">Líquido a restituir</span>
+                    <p className="sys-kpi-value mt-1 text-ink">{brl(r.totalRestituicaoAtualizado)}</p>
                 </div>
 
-                <div className="sheet-on-paper border border-ink/20 p-5">
+                <div className="px-4 py-3.5">
                     {r.economiaVincendasTotal > 0 ? (
                         <>
-                            <span className="rubric text-muted-foreground">Economia nas Vincendas</span>
-                            <p className="subdisplay mt-2 text-[1.5rem] text-ink">
+                            <span className="sys-label block">Economia nas vincendas</span>
+                            <p className="sys-kpi-value mt-1 text-ink">
                                 {brl(r.economiaVincendasTotal)}
-                            </p>
-                            <p className="mt-1.5 text-xs text-muted-foreground">
-                                Taxa {num(contratoAtual?.analise.razaoAm ?? 1, 2)}x paradigma BACEN
                             </p>
                         </>
                     ) : (
                         <>
-                            <span className="rubric text-muted-foreground">Grau vs. Paradigma</span>
-                            <div className="mt-2 flex items-baseline justify-between gap-2">
-                                <p className="subdisplay text-[1.5rem] text-ink">
+                            <span className="sys-label block">Grau vs. paradigma</span>
+                            <div className="mt-1 flex items-baseline justify-between gap-2">
+                                <p className="sys-kpi-value text-ink">
                                     {num(contratoAtual?.analise.razaoAm ?? 1, 2)}x
                                 </p>
                                 {contratoAtual && <Selo n={contratoAtual.nivel} />}
                             </div>
-                            <p className="mt-1.5 text-xs text-muted-foreground">
-                                {contratoAtual
-                                    ? `${num(contratoAtual.analise.contratoAm)}% vs ${num(contratoAtual.taxaRevisionalAm)}% a.m.`
-                                    : "Comparativo mensal"}
-                            </p>
                         </>
                     )}
                 </div>
             </div>
 
             {/* Quadro Resumo Global do Laudo */}
-            <section className="sheet-on-paper border border-ink/25">
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-ink px-5 py-3 text-paper">
-                    <h2 className="rubric text-gold-light">Composição Analítica do Laudo</h2>
+            <section className="border border-ink/20 bg-card">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-ink px-4 py-2.5 text-paper">
+                    <h2 className="sys-section text-gold-light">Composição analítica do laudo</h2>
                     <span className="text-xs text-paper/75">
                         {resultado.contratos.length}{" "}
                         {resultado.contratos.length === 1 ? "contrato" : "contratos"} · atualização até{" "}
@@ -644,9 +834,9 @@ const ResultadoPainel = ({
                             <dd className="font-semibold text-ink">{brl(r.economiaVincendasTotal)}</dd>
                         </div>
                     )}
-                    <div className="flex flex-wrap items-baseline justify-between gap-4 bg-gold-light/30 px-5 py-4 -mx-5">
-                        <dt className="subdisplay text-base text-ink">PROVEITO ECONÔMICO / VALOR DA AÇÃO</dt>
-                        <dd className="display text-[1.75rem] text-ink">{brl(r.valorTotalAcao)}</dd>
+                    <div className="flex flex-wrap items-baseline justify-between gap-4 bg-gold-light/30 px-4 py-3.5 -mx-5">
+                        <dt className="text-sm font-bold text-ink">Proveito econômico / Valor da ação</dt>
+                        <dd className="sys-kpi-value text-ink">{brl(r.valorTotalAcao)}</dd>
                     </div>
                 </dl>
             </section>
@@ -789,10 +979,6 @@ const ResultadoPainel = ({
     );
 };
 
-type AbaAtiva = "calculadora" | "painel" | "historico" | "processos" | "categorias";
-
-const BASE_ROTA = "/ferramentas/calculadora-revisional";
-
 const CalculadoraAdvogado = () => {
     const reduce = useReducedMotion();
     const location = useLocation();
@@ -801,21 +987,48 @@ const CalculadoraAdvogado = () => {
     const subRota = location.pathname.startsWith(BASE_ROTA)
         ? location.pathname.slice(BASE_ROTA.length).replace(/^\/+|\/+$/g, "")
         : "";
-    const aba: AbaAtiva =
-        subRota === "painel"
-            ? "painel"
-            : subRota === "historico"
-              ? "historico"
-              : subRota === "processos" || subRota.startsWith("processos/")
-                ? "processos"
-                : subRota === "categorias"
-                  ? "categorias"
-                  : "calculadora";
+    const aba: AbaSistema =
+        subRota === ""
+            ? "inicio"
+            : subRota === "agenda"
+              ? "agenda"
+              : subRota === "documentos"
+                ? "documentos"
+                : subRota === "clientes"
+                  ? "clientes"
+              : subRota === "painel"
+                ? "painel"
+                : subRota === "historico"
+                  ? "historico"
+                  : subRota === "crm"
+                    ? "crm"
+                  : subRota === "processos" || subRota.startsWith("processos/")
+                    ? "processos"
+                    : subRota === "configuracoes" || subRota === "categorias"
+                      ? "configuracoes"
+                      : "calculadora";
+    // "Fases e categorias" virou uma aba de Configurações: link antigo vai direto para lá.
+    useEffect(() => {
+        if (subRota === "categorias") navigate(`${BASE_ROTA}/configuracoes?aba=fases`, { replace: true });
+    }, [subRota, navigate]);
+
     const rotaCasoId = subRota.startsWith("caso/") ? decodeURIComponent(subRota.slice(5)) : null;
     const rotaProcessoId = subRota.startsWith("processos/")
         ? decodeURIComponent(subRota.slice("processos/".length))
         : null;
     const origemHistorico = (location.state as { origemHistorico?: string } | null)?.origemHistorico ?? null;
+    const origemEhCrm = origemHistorico?.startsWith(`${BASE_ROTA}/crm`) ?? false;
+    const rotuloOrigem = origemEhCrm ? "CRM" : "Carteira";
+
+    // O Quadro saiu da Carteira e virou a tela CRM: links antigos (?modo=quadro) vão direto para lá.
+    useEffect(() => {
+        if (aba !== "historico") return;
+        const params = new URLSearchParams(location.search);
+        if (params.get("modo") !== "quadro") return;
+        params.delete("modo");
+        const qs = params.toString();
+        navigate(`${BASE_ROTA}/crm${qs ? `?${qs}` : ""}`, { replace: true });
+    }, [aba, location.search, navigate]);
 
     // Sessão e carregamento inicial
     const [verificandoSessao, setVerificandoSessao] = useState(true);
@@ -825,7 +1038,12 @@ const CalculadoraAdvogado = () => {
 
     // Dados do banco
     const [categorias, setCategorias] = useState<Categoria[]>([]);
+    /** Categorias no sentido de tipo da ação (revisional_tipos); "categorias" acima são as fases. */
+    const [tipos, setTipos] = useState<TipoAcao[]>([]);
     const [calculos, setCalculos] = useState<CalculoSalvo[]>([]);
+    const [tarefas, setTarefas] = useState<Tarefa[]>([]);
+    const [agendaIndisponivel, setAgendaIndisponivel] = useState(false);
+    const [sheetTarefaAlvo, setSheetTarefaAlvo] = useState<AlvoSheetTarefa | null>(null);
     const [carregandoBanco, setCarregandoBanco] = useState(false);
 
     // Ficha do caso
@@ -850,6 +1068,7 @@ const CalculadoraAdvogado = () => {
     const [verificandoDjen, setVerificandoDjen] = useState(false);
     const verificandoDjenRef = useRef(false);
     const calculosRef = useRef<CalculoSalvo[]>([]);
+    const carregamentoCasoReqRef = useRef(0);
 
     const [erro, setErro] = useState<string | null>(null);
     const [carregando, setCarregando] = useState(false);
@@ -865,14 +1084,60 @@ const CalculadoraAdvogado = () => {
     const carregarDadosEscritorio = useCallback(async () => {
         setCarregandoBanco(true);
         try {
-            const [cats, calcs] = await Promise.all([listarCategorias(), listarCalculos()]);
-            setCategorias(cats);
-            setCalculos(calcs);
-        } catch (e) {
-            if (e instanceof RevisionalApiError && e.status === 401) {
-                setSessao(null);
+            const [catsRes, calcsRes, tarefasRes, tiposRes, configRes] = await Promise.allSettled([
+                listarCategorias(),
+                listarCalculos(),
+                listarTarefas(),
+                listarTipos(),
+                obterConfigEscritorio(),
+            ]);
+
+            // Nome, OAB e cidade de Configurações (sem a tabela, ficam os valores padrão).
+            if (configRes.status === "fulfilled" && configRes.value) definirConfigEscritorio(configRes.value);
+
+            // Banco sem a migração de categorias (revisional_tipos): segue só com as fases.
+            setTipos(tiposRes.status === "fulfilled" ? tiposRes.value : []);
+
+            let expirou = false;
+            if (catsRes.status === "fulfilled") {
+                setCategorias(catsRes.value);
+            } else if (catsRes.reason instanceof RevisionalApiError && catsRes.reason.status === 401) {
+                expirou = true;
             } else {
-                toast.error(e instanceof Error ? e.message : "Erro ao carregar histórico.");
+                toast.error(
+                    catsRes.reason instanceof Error ? catsRes.reason.message : "Erro ao carregar categorias.",
+                );
+            }
+
+            if (calcsRes.status === "fulfilled") {
+                setCalculos(calcsRes.value);
+            } else if (calcsRes.reason instanceof RevisionalApiError && calcsRes.reason.status === 401) {
+                expirou = true;
+            } else {
+                toast.error(
+                    calcsRes.reason instanceof Error ? calcsRes.reason.message : "Erro ao carregar carteira.",
+                );
+            }
+
+            if (tarefasRes.status === "fulfilled") {
+                setTarefas(tarefasRes.value);
+                setAgendaIndisponivel(false);
+            } else if (isTabelaTarefasAusente(tarefasRes.reason)) {
+                setTarefas([]);
+                setAgendaIndisponivel(true);
+            } else if (
+                tarefasRes.reason instanceof RevisionalApiError &&
+                tarefasRes.reason.status === 401
+            ) {
+                expirou = true;
+            } else {
+                toast.error(
+                    tarefasRes.reason instanceof Error ? tarefasRes.reason.message : "Erro ao carregar agenda.",
+                );
+            }
+
+            if (expirou) {
+                setSessao(null);
             }
         } finally {
             setCarregandoBanco(false);
@@ -883,8 +1148,16 @@ const CalculadoraAdvogado = () => {
         calculosRef.current = calculos;
     }, [calculos]);
 
+    // Fases e categorias atuais sem recriar o callback de verificação (que reiniciaria os timers).
+    const fasesETiposRef = useRef<{ categorias: Categoria[]; tipos: TipoAcao[] }>({ categorias: [], tipos: [] });
+    useEffect(() => {
+        fasesETiposRef.current = { categorias, tipos };
+    }, [categorias, tipos]);
+
     /**
      * Consulta o DJEN para os processos salvos e anexa as publicações novas ao histórico de cada um.
+     * Também varre pela OAB do escritório (manual: sempre; automática: no máximo 1x por hora) e cadastra
+     * em Processos os processos novos que aparecerem.
      * Automática: só processos sem verificação há INTERVALO_VERIFICACAO_DJEN_HORAS. Manual: todos.
      */
     const verificarPublicacoesSalvas = useCallback(
@@ -900,16 +1173,48 @@ const CalculadoraAdvogado = () => {
                     setCalculos(frescos);
                 }
 
+                const CHAVE_VARREDURA = "ig_djen_varredura_oab_v1";
+                let ultimaVarredura = 0;
+                try {
+                    ultimaVarredura = Number(localStorage.getItem(CHAVE_VARREDURA)) || 0;
+                } catch {
+                    /* sem localStorage: varre */
+                }
+                const varrerOab = manual || Date.now() - ultimaVarredura > 60 * 60_000;
+
                 const resultado = await verificarPublicacoesDjen({
                     calculos: calculosRef.current,
                     atualizar: atualizarCalculo,
                     obterAtual: (id) => calculosRef.current.find((c) => c.id === id),
                     intervaloHoras: manual ? 0 : INTERVALO_VERIFICACAO_DJEN_HORAS,
+                    varreduraOab: varrerOab
+                        ? {
+                              numeroOab: configEscritorioAtual().oabNumero,
+                              ufOab: configEscritorioAtual().oabUf,
+                              criar: criarCalculo,
+                              listarAtuais: listarCalculos,
+                              existeProcesso: existeCalculoComProcesso,
+                              categorias: fasesETiposRef.current.categorias,
+                              tipos: fasesETiposRef.current.tipos,
+                          }
+                        : undefined,
                 });
 
-                if (resultado.atualizados.length > 0) {
+                if (varrerOab && !resultado.erros.some((e) => e.id === "varredura-oab") && !resultado.interrompidoPorLimite) {
+                    try {
+                        localStorage.setItem(CHAVE_VARREDURA, String(Date.now()));
+                    } catch {
+                        /* ignore */
+                    }
+                }
+
+                if (resultado.atualizados.length > 0 || resultado.criados.length > 0) {
                     const porId = new Map(resultado.atualizados.map((c) => [c.id, c]));
-                    setCalculos((prev) => prev.map((c) => porId.get(c.id) ?? c));
+                    const idsCriados = new Set(resultado.criados.map((c) => c.id));
+                    setCalculos((prev) => [
+                        ...resultado.criados,
+                        ...prev.filter((c) => !idsCriados.has(c.id)).map((c) => porId.get(c.id) ?? c),
+                    ]);
                 }
 
                 if (resultado.totalNovas > 0) {
@@ -931,7 +1236,7 @@ const CalculadoraAdvogado = () => {
                     toast.info(
                         resultado.verificados === 0
                             ? "Nenhum processo salvo com número CNJ para verificar."
-                            : `Nenhuma publicação nova em ${resultado.verificados} ${resultado.verificados === 1 ? "processo verificado" : "processos verificados"}.`,
+                            : `Nenhuma publicação nova em ${resultado.verificados} ${resultado.verificados === 1 ? "processo verificado" : "processos verificados"} nem na OAB/${configEscritorioAtual().oabUf} ${configEscritorioAtual().oabNumero}.`,
                         { id: "djen-verificacao" },
                     );
                 }
@@ -1016,6 +1321,14 @@ const CalculadoraAdvogado = () => {
         return { calculosCarteira: carteira, processosSalvos: processos };
     }, [calculos]);
 
+    const contagemPorTipo = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const c of calculos) {
+            if (c.tipo_id) counts[c.tipo_id] = (counts[c.tipo_id] ?? 0) + 1;
+        }
+        return counts;
+    }, [calculos]);
+
     const contagemPorCategoria = useMemo(() => {
         const counts: Record<string, number> = {};
         for (const c of calculos) {
@@ -1046,12 +1359,13 @@ const CalculadoraAdvogado = () => {
 
     const limparFormulario = () => {
         limparCamposEmMemoria();
-        if (location.pathname !== BASE_ROTA) {
-            navigate(BASE_ROTA);
+        if (location.pathname !== ROTA_CALCULO) {
+            navigate(ROTA_CALCULO);
         }
     };
 
     const carregarCasoEmEstado = useCallback(async (c: CalculoSalvo, manterVinculo: boolean) => {
+        const reqId = ++carregamentoCasoReqRef.current;
         const { ficha: fichaRest, processo } = calculoParaProcesso(c);
         casoSincronizadoRef.current = manterVinculo ? c.id : null;
         setFormInstanceKey((k) => k + 1);
@@ -1072,10 +1386,13 @@ const CalculadoraAdvogado = () => {
 
         try {
             const { onlineByContrato, seriesEconomicas } = await prepararDadosBacenProcesso(processo);
+            if (reqId !== carregamentoCasoReqRef.current) return;
             const resultado = calcularProcessoRevisional(processo, seriesEconomicas, onlineByContrato);
             setRes({ resultado, input: processo });
-        } catch {
+        } catch (err) {
+            if (reqId !== carregamentoCasoReqRef.current) return;
             setRes(null);
+            setErro(err instanceof Error ? err.message : "Não foi possível recalcular o caso agora.");
         }
     }, []);
 
@@ -1109,7 +1426,7 @@ const CalculadoraAdvogado = () => {
     const duplicarCasoDoHistorico = (c: CalculoSalvo) => {
         const origem = `${location.pathname}${location.search}`;
         void carregarCasoEmEstado(c, false);
-        navigate(BASE_ROTA, {
+        navigate(ROTA_CALCULO, {
             state: { origemHistorico: origem },
         });
     };
@@ -1262,6 +1579,7 @@ const CalculadoraAdvogado = () => {
             } else if (existente) {
                 const atualizado = await atualizarCalculo(existente.id, {
                     categoria_id: fichaCompleta.categoriaId || null,
+                    ...(fichaCompleta.tipoId !== undefined ? { tipo_id: fichaCompleta.tipoId || null } : {}),
                     cliente_nome: payload.cliente_nome,
                     processo_global: payload.processo_global,
                     banco: payload.banco,
@@ -1333,7 +1651,7 @@ const CalculadoraAdvogado = () => {
                 return;
             }
 
-            const payload = criarPayloadCarteiraDeDjen(item, categorias);
+            const payload = criarPayloadCarteiraDeDjen(item, categorias, {}, tipos);
             const criado = await criarCalculo(payload);
             setCalculos((prev) => [criado, ...prev]);
             toast.success(`Processo de "${criado.cliente_nome}" salvo em Processos.`, {
@@ -1370,10 +1688,16 @@ const CalculadoraAdvogado = () => {
     };
 
     const encerrarSessao = async () => {
+        carregamentoCasoReqRef.current += 1;
+        desconectarGoogleDrive();
         await sairDaSessao();
         setSessao(null);
         setCalculos([]);
-        limparFormulario();
+        setTarefas([]);
+        limparCamposEmMemoria();
+        if (location.pathname !== BASE_ROTA) {
+            navigate(BASE_ROTA, { replace: true });
+        }
     };
 
     const renovarCasoNaCalculadora = async () => {
@@ -1409,6 +1733,7 @@ const CalculadoraAdvogado = () => {
             }
 
             const catAtual = categorias.find((c) => c.id === ficha.categoriaId) ?? null;
+            const { baixarLaudoPdf } = await import("@/lib/juros/laudo-pdf");
             baixarLaudoPdf(novoResultado, {
                 clienteNome: ficha.clienteNome || "Cliente",
                 processoGlobal: ficha.processoGlobal,
@@ -1657,10 +1982,72 @@ const CalculadoraAdvogado = () => {
                 ),
             );
         }
-        if (aba !== "calculadora") {
-            navigate(BASE_ROTA);
+        if (aba !== "calculadora" || rotaCasoId) {
+            navigate(ROTA_CALCULO);
         }
         toast.success("Dados do processo no DJEN preenchidos na calculadora.");
+    };
+
+    const temPublicacaoNova = useMemo(
+        () => processosSalvos.some((p) => lerDadosProcessoDjen(p).idsNovos.length > 0),
+        [processosSalvos],
+    );
+
+    const agendaPendentesCount = useMemo(() => {
+        const hojeIso = dataHojeLocalISO();
+        return tarefas.filter((t) => !t.concluida && t.data <= hojeIso).length;
+    }, [tarefas]);
+
+    const { tituloTela, breadcrumb } = useMemo(() => {
+        if (aba === "inicio") {
+            return { tituloTela: "Início", breadcrumb: null };
+        }
+        if (aba === "agenda") {
+            return { tituloTela: "Agenda", breadcrumb: null };
+        }
+        if (aba === "documentos") {
+            return { tituloTela: "Documentos", breadcrumb: null };
+        }
+        if (aba === "clientes") {
+            return { tituloTela: "Clientes", breadcrumb: null };
+        }
+        if (aba === "painel") {
+            return { tituloTela: "Painel", breadcrumb: null };
+        }
+        if (aba === "historico") {
+            return { tituloTela: "Carteira", breadcrumb: null };
+        }
+        if (aba === "crm") {
+            return { tituloTela: "CRM", breadcrumb: null };
+        }
+        if (aba === "configuracoes") {
+            return { tituloTela: "Configurações", breadcrumb: null };
+        }
+        if (aba === "processos") {
+            if (rotaProcessoId) {
+                const proc = processosSalvos.find((p) => p.id === rotaProcessoId);
+                return {
+                    tituloTela: proc?.cliente_nome || "Processo",
+                    breadcrumb: { label: "Processos", to: `${BASE_ROTA}/processos` },
+                };
+            }
+            return { tituloTela: "Processos", breadcrumb: null };
+        }
+        if (rotaCasoId) {
+            return {
+                tituloTela: ficha.clienteNome.trim() || "Caso",
+                breadcrumb: { label: rotuloOrigem, to: origemEhCrm ? `${BASE_ROTA}/crm` : `${BASE_ROTA}/historico` },
+            };
+        }
+        return { tituloTela: "Calculadora", breadcrumb: null };
+    }, [aba, rotaProcessoId, processosSalvos, rotaCasoId, ficha.clienteNome, rotuloOrigem, origemEhCrm]);
+
+    const abrirCasoOuProcesso = (c: CalculoSalvo) => {
+        if (isCalculoPendente(c)) {
+            abrirProcessoSalvo(c);
+        } else {
+            abrirCasoDoHistorico(c);
+        }
     };
 
     if (verificandoSessao) {
@@ -1676,148 +2063,25 @@ const CalculadoraAdvogado = () => {
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            <header className="border-b border-paper/15 bg-ink text-paper">
-                <div className="container flex flex-wrap items-center justify-between gap-4 py-3.5">
-                    <div className="flex items-center gap-4 sm:gap-6">
-                        <Link to={BASE_ROTA} aria-label="Início da Calculadora Revisional">
-                            <img src={logo} alt="Ian Granja Advogados" width={768} height={132} className="h-8 w-auto" />
-                        </Link>
-                        <span className="hidden border-l border-paper/20 pl-5 text-sm font-medium text-paper/80 sm:inline">
-                            Calculadora revisional
-                        </span>
-                        {IS_LOCAL_SUPABASE && (
-                            <span
-                                title="Conectado ao banco PostgreSQL local via OrbStack/Docker (isolado de produção)"
-                                className="inline-flex items-center border border-gold-light/60 bg-gold-light/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-gold-light"
-                            >
-                                Banco Local · Teste
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="hidden text-paper/70 md:inline">{sessao.user.email}</span>
-                        <Link
-                            to="/"
-                            className="inline-flex h-9 items-center gap-1.5 border border-paper/20 px-2.5 font-medium text-paper/75 hover:border-paper/50 hover:text-paper"
-                        >
-                            <ExternalLink className="size-3.5" />
-                            Site
-                        </Link>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSenhaObrigatoria(false);
-                                setModalSenhaAberto(true);
-                            }}
-                            className="inline-flex h-9 items-center gap-1.5 border border-paper/25 px-3 font-semibold text-paper/90 hover:border-gold-light hover:text-gold-light"
-                        >
-                            <KeyRound className="size-3.5" />
-                            Senha
-                        </button>
-                        <button
-                            type="button"
-                            onClick={encerrarSessao}
-                            className="inline-flex h-9 items-center gap-1.5 border border-paper/25 px-3 font-semibold text-paper/90 hover:border-gold-light hover:text-gold-light"
-                        >
-                            <LogOut className="size-3.5" />
-                            Sair
-                        </button>
-                    </div>
-                </div>
-
-                {/* Navegação interna da ferramenta */}
-                <div className="border-t border-paper/10 bg-ink-deep/60">
-                    <div className="container flex flex-wrap items-center justify-between gap-3">
-                        <nav aria-label="Seções da calculadora" className="flex gap-1">
-                            <Link
-                                to={calculoAtivoId ? `${BASE_ROTA}/caso/${encodeURIComponent(calculoAtivoId)}` : BASE_ROTA}
-                                className={cn(
-                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
-                                    aba === "calculadora"
-                                        ? "border-gold-light text-paper"
-                                        : "border-transparent text-paper/70 hover:text-paper",
-                                )}
-                            >
-                                <Calculator className="size-4" />
-                                Calculadora
-                            </Link>
-                            <Link
-                                to={`${BASE_ROTA}/painel`}
-                                className={cn(
-                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
-                                    aba === "painel"
-                                        ? "border-gold-light text-paper"
-                                        : "border-transparent text-paper/70 hover:text-paper",
-                                )}
-                            >
-                                <BarChart3 className="size-4" />
-                                Painel
-                            </Link>
-                            <Link
-                                to={`${BASE_ROTA}/historico`}
-                                className={cn(
-                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
-                                    aba === "historico"
-                                        ? "border-gold-light text-paper"
-                                        : "border-transparent text-paper/70 hover:text-paper",
-                                )}
-                            >
-                                <FolderClock className="size-4" />
-                                Carteira ({calculosCarteira.length})
-                            </Link>
-                            <Link
-                                to={`${BASE_ROTA}/processos`}
-                                className={cn(
-                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
-                                    aba === "processos"
-                                        ? "border-gold-light text-paper"
-                                        : "border-transparent text-paper/70 hover:text-paper",
-                                )}
-                            >
-                                <Gavel className="size-4" />
-                                Processos ({processosSalvos.length})
-                            </Link>
-                            <Link
-                                to={`${BASE_ROTA}/categorias`}
-                                className={cn(
-                                    "inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
-                                    aba === "categorias"
-                                        ? "border-gold-light text-paper"
-                                        : "border-transparent text-paper/70 hover:text-paper",
-                                )}
-                            >
-                                <Tags className="size-4" />
-                                Categorias ({categorias.length})
-                            </Link>
-                        </nav>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setDjenContexto({ modoInicial: "oab" })}
-                                className="inline-flex h-8 items-center gap-1.5 border border-gold-light/50 bg-gold-light/15 px-2.5 text-xs font-semibold text-gold-light hover:bg-gold-light hover:text-ink"
-                            >
-                                <Gavel className="size-3.5" />
-                                Radar DJEN (OAB 61.107)
-                            </button>
-
-                            {aba === "calculadora" && (calculoAtivoId || res || ficha.clienteNome) && (
-                                <button
-                                    type="button"
-                                    onClick={limparFormulario}
-                                    className="inline-flex h-8 items-center gap-1.5 text-xs font-semibold text-gold-light hover:underline"
-                                >
-                                    <FilePlus2 className="size-3.5" />
-                                    Novo cálculo em branco
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </header>
-
+        <ShellSistema
+            abaAtiva={aba}
+            tituloTela={tituloTela}
+            breadcrumb={breadcrumb}
+            calculos={calculos}
+            calculosCarteiraCount={calculosCarteira.length}
+            processosSalvosCount={processosSalvos.length}
+            temPublicacaoNova={temPublicacaoNova}
+            agendaPendentesCount={agendaPendentesCount}
+            calculoAtivoId={calculoAtivoId}
+            mostrarBotaoLimparCalculo={aba === "calculadora" && Boolean(calculoAtivoId || res || ficha.clienteNome)}
+            onLimparCalculo={limparFormulario}
+            onAbrirCaso={abrirCasoDoHistorico}
+            onAbrirProcesso={abrirProcessoSalvo}
+            onNovoCalculo={limparFormulario}
+            onNovaTarefa={() => setSheetTarefaAlvo({ modo: "criar", dataInicial: dataHojeLocalISO() })}
+            onAbrirRadarDjen={() => setDjenContexto({ modoInicial: "oab" })}
+            onSair={encerrarSessao}
+        >
             <ModalAlterarSenha
                 aberto={modalSenhaAberto}
                 obrigatorio={senhaObrigatoria}
@@ -1827,48 +2091,137 @@ const CalculadoraAdvogado = () => {
                 }}
             />
 
-            <ModalRankingOlinda
-                aberto={olindaAlvoIdx !== null && Boolean(olindaContratoAtual)}
-                modalidadeId={olindaContratoAtual?.modalidadeId ?? ""}
-                dataRef={olindaContratoAtual?.dataContrato ?? ""}
-                bancoAtual={olindaContratoAtual?.instituicao ?? ""}
-                onFechar={() => setOlindaAlvoIdx(null)}
-                onSelecionarTaxa={aplicarTaxaOlinda}
-                onPreencherBanco={preencherBancoOlinda}
-            />
+            <Suspense fallback={null}>
+                {olindaAlvoIdx !== null && Boolean(olindaContratoAtual) && (
+                    <ModalRankingOlinda
+                        aberto
+                        modalidadeId={olindaContratoAtual?.modalidadeId ?? ""}
+                        dataRef={olindaContratoAtual?.dataContrato ?? ""}
+                        bancoAtual={olindaContratoAtual?.instituicao ?? ""}
+                        onFechar={() => setOlindaAlvoIdx(null)}
+                        onSelecionarTaxa={aplicarTaxaOlinda}
+                        onPreencherBanco={preencherBancoOlinda}
+                    />
+                )}
 
-            <ModalConsultaDjen
-                aberto={djenContexto !== null}
-                contexto={djenContexto}
-                calculos={calculos}
-                categorias={categorias}
-                onFechar={() => setDjenContexto(null)}
-                onAbrirCaso={abrirCasoDoHistorico}
-                onAbrirProcessoSalvo={abrirProcessoSalvo}
-                onUsarNaCalculadora={usarPublicacaoDjenNaCalculadora}
-                onVincularCnjObservacao={vincularDjenAoCaso}
-                onSalvarNaCarteira={salvarPublicacaoDjenNaCarteira}
-            />
+                {djenContexto !== null && (
+                    <ModalConsultaDjen
+                        aberto
+                        contexto={djenContexto}
+                        calculos={calculos}
+                        categorias={categorias}
+                        onFechar={() => setDjenContexto(null)}
+                        onAbrirCaso={abrirCasoDoHistorico}
+                        onAbrirProcessoSalvo={abrirProcessoSalvo}
+                        onUsarNaCalculadora={usarPublicacaoDjenNaCalculadora}
+                        onVincularCnjObservacao={vincularDjenAoCaso}
+                        onSalvarNaCarteira={salvarPublicacaoDjenNaCarteira}
+                    />
+                )}
 
-            {aba === "painel" && (
-                <main className="container py-10 lg:py-14">
+                {sheetTarefaAlvo !== null && (
+                    <SheetTarefa
+                        alvo={sheetTarefaAlvo}
+                        calculos={calculos}
+                        agendaIndisponivel={agendaIndisponivel}
+                        onFechar={() => setSheetTarefaAlvo(null)}
+                        onSalvo={(salva, modo) => {
+                            setTarefas((prev) => {
+                                const lista =
+                                    modo === "criar"
+                                        ? [...prev, salva]
+                                        : prev.map((t) => (t.id === salva.id ? salva : t));
+                                return lista.sort(
+                                    (a, b) =>
+                                        a.data.localeCompare(b.data) ||
+                                        (a.hora ?? "99:99").localeCompare(b.hora ?? "99:99"),
+                                );
+                            });
+                        }}
+                        onExcluido={(id) => setTarefas((prev) => prev.filter((t) => t.id !== id))}
+                    />
+                )}
+            </Suspense>
+
+            <Suspense fallback={<CarregandoTela />}>
+                {aba === "inicio" && (
+                    <InicioSistema
+                        calculos={calculos}
+                        calculosCarteira={calculosCarteira}
+                        processosSalvos={processosSalvos}
+                        categorias={categorias}
+                        tarefas={tarefas}
+                        carregando={carregandoBanco}
+                        verificandoDjen={verificandoDjen}
+                        agendaIndisponivel={agendaIndisponivel}
+                        onNovoCalculo={limparFormulario}
+                        onNovaTarefa={(dataInicial) =>
+                            setSheetTarefaAlvo({ modo: "criar", dataInicial: dataInicial || dataHojeLocalISO() })
+                        }
+                        onEditarTarefa={(tarefa) => setSheetTarefaAlvo({ modo: "editar", tarefa })}
+                        onTarefaAtualizada={(atualizada) =>
+                            setTarefas((prev) => prev.map((t) => (t.id === atualizada.id ? atualizada : t)))
+                        }
+                        onAbrirRadarDjen={() => setDjenContexto({ modoInicial: "oab" })}
+                        onVerificarDjen={() => void verificarPublicacoesSalvas(true)}
+                        onAbrirCaso={abrirCasoDoHistorico}
+                        onAbrirProcesso={abrirProcessoSalvo}
+                        onAbrirCasoOuProcesso={abrirCasoOuProcesso}
+                        onNavegar={(rota) => navigate(rota)}
+                    />
+                )}
+
+                {aba === "agenda" && (
+                    <AgendaSistema
+                        tarefas={tarefas}
+                        calculos={calculos}
+                        carregando={carregandoBanco}
+                        agendaIndisponivel={agendaIndisponivel}
+                        onRecarregar={carregarDadosEscritorio}
+                        onAbrirNovaTarefa={(dataInicial) =>
+                            setSheetTarefaAlvo({ modo: "criar", dataInicial: dataInicial || dataHojeLocalISO() })
+                        }
+                        onEditarTarefa={(tarefa) => setSheetTarefaAlvo({ modo: "editar", tarefa })}
+                        onAtualizada={(atualizada) =>
+                            setTarefas((prev) => prev.map((t) => (t.id === atualizada.id ? atualizada : t)))
+                        }
+                        onAbrirCasoOuProcesso={abrirCasoOuProcesso}
+                    />
+                )}
+
+                {aba === "clientes" && (
+                    <ClientesSistema
+                        calculos={calculos}
+                        onAbrirCaso={abrirCasoOuProcesso}
+                        onGerarDocumento={(clienteId) =>
+                            navigate(`${BASE_ROTA}/documentos?gerar=1&clienteId=${encodeURIComponent(clienteId)}`)
+                        }
+                        onRecarregarCasos={() => void carregarDadosEscritorio()}
+                    />
+                )}
+
+                {aba === "documentos" && <DocumentosSistema calculos={calculos} />}
+
+                {aba === "painel" && (
                     <PainelEstatisticas
                         calculos={calculosCarteira}
                         categorias={categorias}
                         carregando={carregandoBanco}
                         onRecarregar={carregarDadosEscritorio}
-                        onIrCalculadora={() => navigate(BASE_ROTA)}
+                        onIrCalculadora={() => navigate(ROTA_CALCULO)}
                         onAbrirHistoricoCategoria={(catId) => {
                             const qs = catId && catId !== "todas" ? `?cat=${encodeURIComponent(catId)}` : "";
                             navigate(`${BASE_ROTA}/historico${qs}`);
                         }}
+                        tipos={tipos}
+                        onAbrirHistoricoTipo={(tipoId) => navigate(`${BASE_ROTA}/historico?tipo=${encodeURIComponent(tipoId)}`)}
                     />
-                </main>
-            )}
+                )}
 
-            {aba === "historico" && (
-                <main className="container py-10 lg:py-14">
+                {(aba === "historico" || aba === "crm") && (
                     <HistoricoCalculos
+                        key={aba}
+                        visao={aba === "crm" ? "crm" : "carteira"}
                         calculos={calculosCarteira}
                         categorias={categorias}
                         calculoAtivoId={calculoAtivoId}
@@ -1885,7 +2238,9 @@ const CalculadoraAdvogado = () => {
                                 limparCamposEmMemoria();
                             }
                         }}
-                        onGerenciarCategorias={() => navigate(`${BASE_ROTA}/categorias`)}
+                        onGerenciarCategorias={() => navigate(`${BASE_ROTA}/configuracoes?aba=fases`)}
+                        onCategoriasAlteradas={setCategorias}
+                        tipos={tipos}
                         onAbrirDjen={(c) =>
                             setDjenContexto({
                                 modoInicial: "processo",
@@ -1895,12 +2250,17 @@ const CalculadoraAdvogado = () => {
                             })
                         }
                         onAbrirRadarDjen={() => setDjenContexto({ modoInicial: "oab" })}
+                        onAdicionarPrazo={(c) =>
+                            setSheetTarefaAlvo({
+                                modo: "criar",
+                                dataInicial: dataHojeLocalISO(),
+                                calculoIdInicial: c.id,
+                            })
+                        }
                     />
-                </main>
-            )}
+                )}
 
-            {aba === "processos" && (
-                <main className="container py-10 lg:py-14">
+                {aba === "processos" && (
                     <ProcessosSalvosDjen
                         processos={processosSalvos}
                         categorias={categorias}
@@ -1929,78 +2289,112 @@ const CalculadoraAdvogado = () => {
                             })
                         }
                         onLevarParaCalculadora={abrirCasoDoHistorico}
+                        onAdicionarPrazo={(c) =>
+                            setSheetTarefaAlvo({
+                                modo: "criar",
+                                dataInicial: dataHojeLocalISO(),
+                                calculoIdInicial: c.id,
+                            })
+                        }
                     />
-                </main>
-            )}
+                )}
 
-            {aba === "categorias" && (
-                <main className="container max-w-4xl py-10 lg:py-14">
-                    <GerenciarCategorias
-                        categorias={categorias}
-                        contagemPorCategoria={contagemPorCategoria}
-                        onChange={(novas) => {
-                            setCategorias(novas);
-                            if (ficha.categoriaId && !novas.some((c) => c.id === ficha.categoriaId)) {
-                                setFicha((f) => ({ ...f, categoriaId: null }));
-                            }
-                        }}
+                {aba === "configuracoes" && (
+                    <ConfiguracoesSistema
+                        userEmail={sessao.user.email}
+                        onSair={() => void encerrarSessao()}
+                        fasesECategorias={
+                            <div className="grid max-w-6xl gap-8 xl:grid-cols-2">
+                                <section className="space-y-3">
+                                    <div>
+                                        <h2 className="sys-section text-ink">Fases</h2>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                            Etapas do fluxo do caso. São as colunas do CRM.
+                                        </p>
+                                    </div>
+                                    <GerenciarCategorias
+                                        tipoLista="fase"
+                                        categorias={categorias}
+                                        contagemPorCategoria={contagemPorCategoria}
+                                        onChange={(novas) => {
+                                            setCategorias(novas);
+                                            if (ficha.categoriaId && !novas.some((c) => c.id === ficha.categoriaId)) {
+                                                setFicha((f) => ({ ...f, categoriaId: null }));
+                                            }
+                                        }}
+                                    />
+                                </section>
+                                <section className="space-y-3">
+                                    <div>
+                                        <h2 className="sys-section text-ink">Categorias</h2>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                            Tipo da ação. Aparecem como etiqueta no caso e servem de filtro.
+                                        </p>
+                                    </div>
+                                    <GerenciarCategorias
+                                        tipoLista="categoria"
+                                        categorias={tipos}
+                                        contagemPorCategoria={contagemPorTipo}
+                                        onChange={(novas) => {
+                                            setTipos(novas);
+                                            if (ficha.tipoId && !novas.some((t) => t.id === ficha.tipoId)) {
+                                                setFicha((f) => ({ ...f, tipoId: null }));
+                                            }
+                                        }}
+                                    />
+                                </section>
+                            </div>
+                        }
                     />
-                </main>
-            )}
+                )}
+            </Suspense>
 
             {aba === "calculadora" && (
-                <main className="container grid gap-x-10 gap-y-10 py-10 lg:grid-cols-12 lg:py-14">
+                <div className="grid gap-x-8 gap-y-8 lg:grid-cols-12">
                     {(calculoAtivoId || origemHistorico) && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/20 pb-3 lg:col-span-12">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/15 pb-3 lg:col-span-12">
                             <button
                                 type="button"
                                 onClick={voltarParaHistorico}
                                 className="inline-flex items-center gap-2 text-xs font-semibold text-ink hover:underline"
                             >
                                 <ArrowLeft className="size-3.5" />
-                                Voltar para a pauta de clientes
+                                Voltar para {origemEhCrm ? "o CRM" : "a carteira"}
                             </button>
                             {ficha.clienteNome && (
                                 <span className="text-xs text-muted-foreground">
-                                    Visualizando ficha de <strong className="text-ink">{ficha.clienteNome}</strong>
+                                    Editando ficha de <strong className="text-ink">{ficha.clienteNome}</strong>
                                 </span>
                             )}
                         </div>
                     )}
 
-                    <form onSubmit={calcular} noValidate className="space-y-5 lg:col-span-5">
-                        <div className="border-b border-ink/15 pb-4">
-                            <span className="rubric text-gold-deep">Suite Pericial Bancária</span>
-                            <h1 className="subdisplay mt-1.5 text-[1.75rem] text-ink">
-                                Cálculo revisional completo
-                            </h1>
-                            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                                Múltiplos contratos, taxas BACEN/Olinda, tarifas em dobro, atualização monetária e laudo
-                                PDF A4.
-                            </p>
-                        </div>
+                    <form onSubmit={calcular} noValidate className="min-w-0 space-y-5 lg:col-span-5">
+                        {MOSTRAR_LEITURA_CLAUDE && (
+                            <Suspense fallback={null}>
+                                <AssistenteClaudeRevisional
+                                sessaoAccessToken={sessao.accessToken}
+                                calculoAtivoId={calculoAtivoId}
+                                carregandoExterno={carregando || salvandoCalculo || renovandoCaso}
+                                estadoAtual={{
+                                    ficha,
+                                    processo: {
+                                        parametros,
+                                        contratos: contratosForm.map(formParaContratoInput),
+                                        tarifas,
+                                        deducoes,
+                                    },
+                                    categorias,
+                                }}
+                                onAplicarResultadoClaude={aplicarResultadoClaude}
+                            />
+                            </Suspense>
+                        )}
 
-                        <AssistenteClaudeRevisional
-                            sessaoAccessToken={sessao.accessToken}
-                            calculoAtivoId={calculoAtivoId}
-                            carregandoExterno={carregando || salvandoCalculo || renovandoCaso}
-                            estadoAtual={{
-                                ficha,
-                                processo: {
-                                    parametros,
-                                    contratos: contratosForm.map(formParaContratoInput),
-                                    tarifas,
-                                    deducoes,
-                                },
-                                categorias,
-                            }}
-                            onAplicarResultadoClaude={aplicarResultadoClaude}
-                        />
-
-                        {/* 01 · Ficha global do caso */}
-                        <section className="sheet-on-paper space-y-5 border border-ink/20 p-5 sm:p-6">
+                        {/* Identificação do caso */}
+                        <section className="space-y-4 border border-ink/20 bg-card p-5">
                             <div className="flex items-baseline justify-between gap-3 border-b border-ink/15 pb-2.5">
-                                <h2 className="rubric text-ink">01 · Identificação do caso</h2>
+                                <h2 className="sys-section text-ink">Identificação do caso</h2>
                                 {calculoAtivoId && (
                                     <span className="bg-gold-light/40 px-2 py-0.5 text-[11px] font-semibold text-ink">
                                         Editando salvo
@@ -2023,12 +2417,20 @@ const CalculadoraAdvogado = () => {
                                 />
                             </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
                                 <div>
-                                    <div className="flex items-baseline justify-between gap-2">
-                                        <label htmlFor="adv-processo" className={labelClass}>
-                                            Nº do processo (CNJ)
-                                        </label>
+                                    <label htmlFor="adv-processo" className={labelClass}>
+                                        Nº do processo (CNJ)
+                                    </label>
+                                    <div className="flex items-end gap-2">
+                                        <input
+                                            id="adv-processo"
+                                            value={ficha.processoGlobal ?? ""}
+                                            onChange={(e) => setFicha({ ...ficha, processoGlobal: e.target.value })}
+                                            maxLength={80}
+                                            placeholder="0002720-86.2026.8.17.1130"
+                                            className="field min-w-0 flex-1 py-2 text-sm tabular-nums"
+                                        />
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -2039,26 +2441,19 @@ const CalculadoraAdvogado = () => {
                                                     processoGlobal: ficha.processoGlobal ?? "",
                                                 })
                                             }
-                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gold-deep hover:text-ink"
+                                            title="Consultar publicações deste processo no DJEN"
+                                            className="mb-1 inline-flex h-7 shrink-0 items-center gap-1 border border-ink/20 px-2 text-[11px] font-semibold text-gold-deep transition-colors duration-150 hover:border-ink/45 hover:text-ink"
                                         >
-                                            <Gavel className="size-3" />
-                                            Consultar DJEN
+                                            <Gavel aria-hidden className="size-3" />
+                                            DJEN
                                         </button>
                                     </div>
-                                    <input
-                                        id="adv-processo"
-                                        value={ficha.processoGlobal ?? ""}
-                                        onChange={(e) => setFicha({ ...ficha, processoGlobal: e.target.value })}
-                                        maxLength={80}
-                                        placeholder="0002720-86.2026.8.17.1130"
-                                        className="field py-2 text-sm tabular-nums"
-                                    />
                                 </div>
 
                                 <div>
                                     <div className="flex items-baseline justify-between gap-2">
                                         <label htmlFor="adv-cat" className={labelClass}>
-                                            Fase / Categoria
+                                            Fase
                                         </label>
                                         <button
                                             type="button"
@@ -2075,7 +2470,7 @@ const CalculadoraAdvogado = () => {
                                         onChange={(e) => setFicha({ ...ficha, categoriaId: e.target.value || null })}
                                         className="field cursor-pointer py-2 text-sm [&>option]:text-ink"
                                     >
-                                        <option value="">Sem categoria</option>
+                                        <option value="">Sem fase</option>
                                         {categorias.map((c) => (
                                             <option key={c.id} value={c.id}>
                                                 {c.nome}
@@ -2085,12 +2480,31 @@ const CalculadoraAdvogado = () => {
                                 </div>
                             </div>
 
+                            <div>
+                                <label htmlFor="adv-tipo" className={labelClass}>
+                                    Categoria (tipo da ação)
+                                </label>
+                                <select
+                                    id="adv-tipo"
+                                    value={ficha.tipoId ?? ""}
+                                    onChange={(e) => setFicha({ ...ficha, tipoId: e.target.value || null })}
+                                    className="field cursor-pointer py-2 text-sm [&>option]:text-ink"
+                                >
+                                    <option value="">Sem categoria</option>
+                                    {tipos.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.nome}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
                             {criandoCatRapida && (
                                 <div className="flex items-center gap-2 border border-ink/15 bg-secondary/40 p-2.5">
                                     <input
                                         value={nomeCatRapida}
                                         onChange={(e) => setNomeCatRapida(e.target.value)}
-                                        placeholder="Nome da nova fase/categoria"
+                                        placeholder="Nome da nova fase"
                                         maxLength={60}
                                         className="field py-1 text-sm"
                                     />
@@ -2200,7 +2614,7 @@ const CalculadoraAdvogado = () => {
                         </button>
                     </form>
 
-                    <div ref={topoRes} className="scroll-mt-6 lg:col-span-7">
+                    <div ref={topoRes} className="min-w-0 scroll-mt-6 lg:col-span-7">
                         {res ? (
                             <ResultadoPainel
                                 resultado={res.resultado}
@@ -2213,100 +2627,19 @@ const CalculadoraAdvogado = () => {
                                 onRenovarHoje={renovarCasoNaCalculadora}
                             />
                         ) : (
-                            <div className="sheet-on-paper border border-ink/20 lg:sticky lg:top-8">
-                                <div className="grid items-center gap-6 bg-ink px-6 py-7 text-paper sm:grid-cols-[minmax(0,1fr)_10.5rem]">
-                                    <div>
-                                        <span className="rubric text-gold-light">Folha de Rosto Pericial</span>
-                                        <h2 className="subdisplay mt-2 text-2xl text-paper">
-                                            O laudo completo aparece aqui.
-                                        </h2>
-                                        <p className="mt-2.5 max-w-[52ch] text-sm leading-relaxed text-paper/80">
-                                            Solte o PDF/foto da CCB no painel do Claude ou preencha os dados ao lado para
-                                            gerar o comparativo BACEN, os gráficos e o Laudo PDF em A4.
-                                        </p>
-                                    </div>
-                                    <HeroArt variant="calculo" className="mx-auto max-w-[10.5rem]" />
-                                </div>
-
-                                <div className="grid divide-y divide-ink/15 border-b border-ink/15 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                                    <div className="p-4">
-                                        <span className="rubric text-gold-deep">01 · Contrato</span>
-                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                                            Informe capital, parcelas e taxa ou anexe o contrato direto no Claude.
-                                        </p>
-                                    </div>
-                                    <div className="p-4">
-                                        <span className="rubric text-gold-deep">02 · BACEN / Olinda</span>
-                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                                            Consulta automática às médias SGS e taxas por instituição financeira.
-                                        </p>
-                                    </div>
-                                    <div className="p-4">
-                                        <span className="rubric text-gold-deep">03 · Laudo &amp; Inicial</span>
-                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                                            Resumo pronto para petição, CSV das parcelas e PDF A4 com gráficos.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="p-5">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <h3 className="rubric text-ink">Últimos casos salvos</h3>
-                                        <Link
-                                            to={`${BASE_ROTA}/historico`}
-                                            className="inline-flex items-center gap-1 text-xs font-semibold text-gold-deep hover:text-ink hover:underline"
-                                        >
-                                            Ver pauta completa ({calculosCarteira.length})
-                                            <ArrowRight className="size-3.5" />
-                                        </Link>
-                                    </div>
-
-                                    {calculosCarteira.length === 0 ? (
-                                        <p className="mt-3 text-xs text-muted-foreground">
-                                            Nenhum cálculo salvo ainda. Calcule um contrato e salve para acessá-lo rápido
-                                            por aqui.
-                                        </p>
-                                    ) : (
-                                        <ul className="mt-3 divide-y divide-ink/12 border border-ink/15 bg-background/50">
-                                            {calculosCarteira.slice(0, 4).map((c) => {
-                                                const pendente = isCalculoPendente(c);
-                                                const val = Number(c.valor_total_acao) || Number(c.diferenca_total) || 0;
-                                                return (
-                                                    <li key={c.id}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => abrirCasoDoHistorico(c)}
-                                                            className="flex w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left transition-colors hover:bg-ink/[0.03]"
-                                                        >
-                                                            <div className="min-w-0">
-                                                                <p className="truncate text-sm font-semibold text-ink">
-                                                                    {c.cliente_nome}
-                                                                </p>
-                                                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                                                    {c.banco || "Banco não informado"} ·{" "}
-                                                                    {mNome(c.mes_contrato)} ·{" "}
-                                                                    {pendente ? "Aguardando contrato" : `${num(c.razao_am, 2)}x`}
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex shrink-0 items-center gap-2.5 tabular-nums">
-                                                                <span className="text-sm font-bold text-ink">
-                                                                    {pendente && val === 0 ? "Pendente" : brl(val)}
-                                                                </span>
-                                                                <FolderOpen className="size-3.5 text-ink/50" />
-                                                            </div>
-                                                        </button>
-                                                    </li>
-                                                );
-                                            })}
-                                        </ul>
-                                    )}
-                                </div>
+                            <div className="border border-dashed border-ink/25 bg-card p-6 lg:sticky lg:top-20">
+                                <h2 className="sys-section text-ink">O resultado aparece aqui</h2>
+                                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                                    {MOSTRAR_LEITURA_CLAUDE
+                                        ? "Preencha os dados do contrato ao lado ou solte o PDF da CCB no painel do Claude para gerar o comparativo BACEN, os gráficos e o Laudo PDF A4."
+                                        : "Preencha os dados do contrato ao lado para gerar o comparativo BACEN, os gráficos e o Laudo PDF A4."}
+                                </p>
                             </div>
                         )}
                     </div>
-                </main>
+                </div>
             )}
-        </div>
+        </ShellSistema>
     );
 };
 

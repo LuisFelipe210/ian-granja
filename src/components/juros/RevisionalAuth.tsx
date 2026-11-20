@@ -1,10 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Eye, EyeOff, KeyRound, Loader2, Lock, X } from "lucide-react";
 import { toast } from "sonner";
 import { HeroArt } from "@/components/HeroArt";
 import { labelClass } from "@/components/juros/Campos";
+import { ModalDialog } from "@/components/juros/ModalDialog";
 import {
     alterarSenha,
     entrarComSenha,
@@ -254,33 +254,7 @@ export const ModalAlterarSenha = ({ aberto, obrigatorio = false, onFechar }: Mod
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!aberto) return;
-        const prevOverflow = document.body.style.overflow;
-        const prevPaddingRight = document.body.style.paddingRight;
-        const prevOverscroll = document.documentElement.style.overscrollBehavior;
-        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-        document.body.style.overflow = "hidden";
-        if (scrollbarWidth > 0) {
-            document.body.style.paddingRight = `${scrollbarWidth}px`;
-        }
-        document.documentElement.style.overscrollBehavior = "none";
-
-        const onKey = (e: KeyboardEvent) => {
-            if (!obrigatorio && e.key === "Escape") onFechar();
-        };
-        window.addEventListener("keydown", onKey);
-
-        return () => {
-            window.removeEventListener("keydown", onKey);
-            document.body.style.overflow = prevOverflow;
-            document.body.style.paddingRight = prevPaddingRight;
-            document.documentElement.style.overscrollBehavior = prevOverscroll;
-        };
-    }, [aberto, obrigatorio, onFechar]);
-
-    if (!aberto || typeof document === "undefined") return null;
+    if (!aberto) return null;
 
     const salvar = async (ev: FormEvent) => {
         ev.preventDefault();
@@ -307,17 +281,16 @@ export const ModalAlterarSenha = ({ aberto, obrigatorio = false, onFechar }: Mod
         }
     };
 
-    return createPortal(
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-alterar-senha"
-            onMouseDown={(e) => {
-                if (!obrigatorio && e.target === e.currentTarget) onFechar();
-            }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-deep/80 p-4 overscroll-contain"
+    return (
+        <ModalDialog
+            aberto={aberto}
+            onFechar={onFechar}
+            bloquearFechamento={obrigatorio}
+            ariaLabelledBy="titulo-alterar-senha"
+            tituloAcessivel="Definir nova senha"
+            overlayClassName="bg-ink-deep/80"
+            contentClassName="sheet max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto overscroll-contain p-6 sm:p-8"
         >
-            <div className="sheet max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain p-6 sm:p-8">
                 <div className="flex items-start justify-between gap-4 border-b border-ink/20 pb-4">
                     <div className="flex items-center gap-2.5">
                         <KeyRound aria-hidden className="size-5 text-gold-deep" />
@@ -394,8 +367,6 @@ export const ModalAlterarSenha = ({ aberto, obrigatorio = false, onFechar }: Mod
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>,
-        document.body,
+        </ModalDialog>
     );
 };

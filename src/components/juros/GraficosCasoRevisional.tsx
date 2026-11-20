@@ -44,8 +44,7 @@ export const GraficoSerieBacen = ({ rc }: { rc: ResultadoContrato }) => {
         <figure className="border border-ink/25 bg-card p-5">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-ink/15 pb-2.5">
                 <div>
-                    <p className="rubric text-gold-deep">Série temporal oficial</p>
-                    <h3 className="font-semibold text-ink">
+                    <h3 className="sys-section text-ink">
                         Histórico da taxa média do Banco Central (SGS {serieCodigo})
                     </h3>
                 </div>
@@ -234,8 +233,7 @@ const GraficoReguaTaxas = ({ rc }: { rc: ResultadoContrato }) => {
         <figure className="border border-ink/25 bg-card p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink/15 pb-2.5">
                 <div>
-                    <p className="rubric text-gold-deep">Comparativo direto</p>
-                    <h3 className="font-semibold text-ink">Régua de abusividade da taxa mensal</h3>
+                    <h3 className="sys-section text-ink">Régua de abusividade da taxa mensal</h3>
                 </div>
                 <span className="text-xs font-semibold tabular-nums text-ink">
                     Razão: {num(a.razaoAm, 2)}x o paradigma
@@ -309,8 +307,7 @@ const GraficoEvolucaoSaldo = ({ rc }: { rc: ResultadoContrato }) => {
         <figure className="border border-ink/25 bg-card p-5">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-ink/15 pb-2.5">
                 <div>
-                    <p className="rubric text-gold-deep">Amortização Tabela Price</p>
-                    <h3 className="font-semibold text-ink">
+                    <h3 className="sys-section text-ink">
                         Curva de evolução do saldo devedor ({e.parcelas} parcelas)
                     </h3>
                 </div>
@@ -380,12 +377,13 @@ const GraficoEvolucaoSaldo = ({ rc }: { rc: ResultadoContrato }) => {
                         .join(" ")}
                 />
 
-                {/* Saldo cobrado pelo banco */}
+                {/* Saldo cobrado pelo banco: é o dado real do contrato, então linha sólida */}
                 <polyline
                     fill="none"
                     stroke="hsl(var(--destructive))"
-                    strokeWidth="2.3"
-                    strokeDasharray="7 4"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
                     points={pontos.map((p) => `${X(p.parcela).toFixed(1)},${Y(p.saldoBanco).toFixed(1)}`).join(" ")}
                 />
 
@@ -393,7 +391,9 @@ const GraficoEvolucaoSaldo = ({ rc }: { rc: ResultadoContrato }) => {
                 <polyline
                     fill="none"
                     stroke="hsl(var(--primary))"
-                    strokeWidth="2.6"
+                    strokeWidth="2.4"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
                     points={pontos
                         .map((p) => `${X(p.parcela).toFixed(1)},${Y(p.saldoAbatendoPagas).toFixed(1)}`)
                         .join(" ")}
@@ -416,7 +416,7 @@ const GraficoEvolucaoSaldo = ({ rc }: { rc: ResultadoContrato }) => {
                             r="4.5"
                             fill="hsl(var(--destructive))"
                             stroke="hsl(var(--card))"
-                            strokeWidth="1.5"
+                            strokeWidth="2"
                         />
                         <circle
                             cx={X(e.pagas)}
@@ -445,21 +445,21 @@ const GraficoEvolucaoSaldo = ({ rc }: { rc: ResultadoContrato }) => {
             <figcaption className="mt-3 space-y-2 text-xs text-muted-foreground">
                 <div className="flex flex-wrap gap-x-5 gap-y-2">
                     <span className="inline-flex items-center gap-2">
-                        <span className="h-0.5 w-5 border-t-2 border-dashed border-destructive" />
-                        Saldo exigido pelo banco
+                        <span aria-hidden className="h-0.5 w-5 rounded-full bg-destructive" />
+                        Saldo exigido pelo banco (contrato)
                     </span>
                     <span className="inline-flex items-center gap-2">
-                        <span className="h-0.5 w-5 bg-ink" />
+                        <span aria-hidden className="h-0.5 w-5 rounded-full bg-ink" />
                         Saldo recalculado (abatendo parcelas de {brl(e.parcela)})
                     </span>
                     <span className="inline-flex items-center gap-2">
-                        <span className="h-0.5 w-5 border-t-2 border-dotted border-muted-foreground" />
-                        Cronograma com parcela revisada ({brl(rc.analise.parcelaNaMedia)})
+                        <span aria-hidden className="h-0.5 w-5 border-t-2 border-dotted border-muted-foreground" />
+                        Projeção com parcela revisada ({brl(rc.analise.parcelaNaMedia)})
                     </span>
                 </div>
 
                 {parcelaQuitacaoAntecipada !== null && parcelaQuitacaoAntecipada < e.parcelas && (
-                    <p className="border-l-2 border-gold bg-background/70 px-3 py-2 font-medium text-ink">
+                    <p className="border border-gold/40 bg-gold-light/20 px-3 py-2 font-medium text-ink">
                         Aplicando a taxa paradigma sobre o valor de parcela cobrado ({brl(e.parcela)}), o contrato
                         zera o saldo devedor na <strong>{parcelaQuitacaoAntecipada}ª parcela</strong> (
                         {e.parcelas - parcelaQuitacaoAntecipada}{" "}
@@ -492,8 +492,7 @@ const GraficoComposicaoCusto = ({
         <figure className="border border-ink/25 bg-card p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink/15 pb-2.5">
                 <div>
-                    <p className="rubric text-gold-deep">Decomposição financeira</p>
-                    <h3 className="font-semibold text-ink">Capital financiado vs. juros totais do contrato</h3>
+                    <h3 className="sys-section text-ink">Capital financiado vs. juros totais do contrato</h3>
                 </div>
                 <span className="text-xs font-semibold tabular-nums text-destructive">
                     Excesso bruto em juros: {brl(comp.excessoJurosNominal)}
@@ -560,7 +559,7 @@ const GraficoComposicaoCusto = ({
             {somaFatias > 0 && (
                 <div className="mt-6 border-t border-ink/15 pt-4">
                     <div className="flex items-baseline justify-between text-xs tabular-nums">
-                        <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+                        <span className="font-semibold text-ink">
                             Origem do proveito econômico da ação
                         </span>
                         <span className="font-bold text-ink">{brl(resultado.resumo.valorTotalAcao)}</span>

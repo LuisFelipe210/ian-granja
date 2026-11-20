@@ -4,15 +4,43 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
     atualizarCategoria,
+    atualizarTipo,
     criarCategoria,
+    criarTipo,
     excluirCategoria,
+    excluirTipo,
     type Categoria,
     type CategoriaCor,
 } from "@/lib/revisional-db";
 
+/** A mesma tela gerencia as FASES (etapas do fluxo) e as CATEGORIAS (tipo da ação). */
+type TipoLista = "fase" | "categoria";
+
+const API_LISTA = {
+    fase: { criar: criarCategoria, atualizar: atualizarCategoria, excluir: excluirCategoria },
+    categoria: { criar: criarTipo, atualizar: atualizarTipo, excluir: excluirTipo },
+} as const;
+
+const ROTULOS_LISTA: Record<TipoLista, { singular: string; plural: string; titulo: string; placeholder: string; semItem: string }> = {
+    fase: {
+        singular: "fase",
+        plural: "fases",
+        titulo: "Nova fase do fluxo",
+        placeholder: "Ex.: Triagem, Em análise, Ajuizado, Sentença...",
+        semItem: "Os casos ficam sem fase.",
+    },
+    categoria: {
+        singular: "categoria",
+        plural: "categorias",
+        titulo: "Nova categoria (tipo da ação)",
+        placeholder: "Ex.: Revisional, Busca e Apreensão, Superendividamento...",
+        semItem: "Os casos ficam sem categoria.",
+    },
+};
+
 const CORES_CATEGORIA: { id: CategoriaCor; rotulo: string; badge: string; dot: string }[] = [
     { id: "gold", rotulo: "Dourado", badge: "bg-gold-light/70 text-ink border-gold", dot: "bg-gold" },
-    { id: "ink", rotulo: "Marinho", badge: "bg-ink text-paper border-ink", dot: "bg-ink" },
+    { id: "ink", rotulo: "Marinho", badge: "bg-ink/10 text-ink border-ink/30", dot: "bg-ink" },
     { id: "crimson", rotulo: "Urgente", badge: "bg-destructive/15 text-destructive border-destructive/40", dot: "bg-destructive" },
     { id: "emerald", rotulo: "Ativo", badge: "bg-[#177F40]/15 text-[#126A35] border-[#177F40]/40", dot: "bg-[#177F40]" },
     { id: "slate", rotulo: "Neutro", badge: "bg-secondary text-ink/85 border-ink/25", dot: "bg-ink/45" },
@@ -42,13 +70,19 @@ interface GerenciarCategoriasProps {
     categorias: Categoria[];
     contagemPorCategoria: Record<string, number>;
     onChange: (novas: Categoria[]) => void;
+    /** "fase" (padrão) ou "categoria" (tipo da ação). */
+    tipoLista?: TipoLista;
 }
 
 export const GerenciarCategorias = ({
     categorias,
     contagemPorCategoria,
     onChange,
+    tipoLista = "fase",
 }: GerenciarCategoriasProps) => {
+    const api = API_LISTA[tipoLista];
+    const rotulo = ROTULOS_LISTA[tipoLista];
+    const Singular = rotulo.singular.charAt(0).toUpperCase() + rotulo.singular.slice(1);
     const [novoNome, setNovoNome] = useState("");
     const [novaCor, setNovaCor] = useState<CategoriaCor>("gold");
     const [criando, setCriando] = useState(false);
@@ -65,12 +99,12 @@ export const GerenciarCategorias = ({
         setCriando(true);
         try {
             const maxOrdem = categorias.reduce((acc, c) => Math.max(acc, c.ordem), 0);
-            const criada = await criarCategoria(novoNome, novaCor, maxOrdem + 1);
+            const criada = await api.criar(novoNome, novaCor, maxOrdem + 1);
             onChange([...categorias, criada]);
             setNovoNome("");
-            toast.success(`Categoria "${criada.nome}" criada.`);
+            toast.success(`${Singular} "${criada.nome}" criada.`);
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Erro ao criar categoria.");
+            toast.error(e instanceof Error ? e.message : `Erro ao criar ${rotulo.singular}.`);
         } finally {
             setCriando(false);
         }
@@ -87,12 +121,12 @@ export const GerenciarCategorias = ({
         if (!editNome.trim()) return;
         setSalvandoId(id);
         try {
-            const atualizada = await atualizarCategoria(id, { nome: editNome.trim(), cor: editCor });
+            const atualizada = await api.atualizar(id, { nome: editNome.trim(), cor: editCor });
             onChange(categorias.map((c) => (c.id === id ? atualizada : c)));
             setEditandoId(null);
-            toast.success("Categoria atualizada.");
+            toast.success(`${Singular} atualizada.`);
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Erro ao atualizar categoria.");
+            toast.error(e instanceof Error ? e.message : `Erro ao atualizar ${rotulo.singular}.`);
         } finally {
             setSalvandoId(null);
         }
@@ -101,81 +135,79 @@ export const GerenciarCategorias = ({
     const remover = async (cat: Categoria) => {
         setSalvandoId(cat.id);
         try {
-            await excluirCategoria(cat.id);
+            await api.excluir(cat.id);
             onChange(categorias.filter((c) => c.id !== cat.id));
             setConfirmarExclusaoId(null);
-            toast.success(`Categoria "${cat.nome}" removida.`);
+            toast.success(`${Singular} "${cat.nome}" removida.`);
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Erro ao excluir categoria.");
+            toast.error(e instanceof Error ? e.message : `Erro ao excluir ${rotulo.singular}.`);
         } finally {
             setSalvandoId(null);
         }
     };
 
     return (
-        <div className="space-y-8">
-            <div className="sheet-on-paper p-6 sm:p-8">
-                <h2 className="subdisplay text-2xl text-ink">Nova categoria</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Organize os cálculos por fase processual, tipo de ação ou banco.
-                </p>
+        <div className="space-y-5">
+            <form
+                onSubmit={adicionar}
+                className="flex flex-wrap items-end gap-4 border border-ink/20 bg-card px-5 py-4"
+            >
+                <div className="min-w-[14rem] flex-1">
+                    <label htmlFor={`nova-${tipoLista}-nome`} className="sys-label block text-ink">
+                        {rotulo.titulo}
+                    </label>
+                    <input
+                        id={`nova-${tipoLista}-nome`}
+                        value={novoNome}
+                        onChange={(e) => setNovoNome(e.target.value)}
+                        maxLength={60}
+                        placeholder={rotulo.placeholder}
+                        className="field py-2 text-sm"
+                        required
+                    />
+                </div>
 
-                <form onSubmit={adicionar} className="mt-6 grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-                    <div>
-                        <label htmlFor="nova-cat-nome" className="block text-sm font-semibold text-ink">
-                            Nome da categoria
-                        </label>
-                        <input
-                            id="nova-cat-nome"
-                            value={novoNome}
-                            onChange={(e) => setNovoNome(e.target.value)}
-                            maxLength={60}
-                            placeholder="Ex.: Liminar deferida, Santander, Perícia..."
-                            className="field"
-                            required
-                        />
+                <div>
+                    <span className="sys-label block text-ink">Cor</span>
+                    <div className="mt-2 flex items-center gap-1.5">
+                        {CORES_CATEGORIA.map((c) => (
+                            <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => setNovaCor(c.id)}
+                                title={c.rotulo}
+                                aria-label={`Cor ${c.rotulo}`}
+                                aria-pressed={novaCor === c.id}
+                                className={cn(
+                                    "inline-flex size-8 items-center justify-center border transition-colors",
+                                    novaCor === c.id ? "border-ink ring-2 ring-gold" : "border-ink/20 opacity-70 hover:opacity-100",
+                                )}
+                            >
+                                <span className={cn("size-3.5", c.dot)} />
+                            </button>
+                        ))}
                     </div>
+                </div>
 
-                    <div>
-                        <span className="block text-sm font-semibold text-ink">Cor da etiqueta</span>
-                        <div className="mt-2.5 flex items-center gap-2">
-                            {CORES_CATEGORIA.map((c) => (
-                                <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => setNovaCor(c.id)}
-                                    title={c.rotulo}
-                                    aria-label={`Cor ${c.rotulo}`}
-                                    aria-pressed={novaCor === c.id}
-                                    className={cn(
-                                        "inline-flex size-8 items-center justify-center border transition-transform",
-                                        novaCor === c.id ? "scale-110 border-ink ring-2 ring-gold" : "border-ink/25 opacity-70 hover:opacity-100",
-                                    )}
-                                >
-                                    <span className={cn("size-4", c.dot)} />
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                <button
+                    type="submit"
+                    disabled={criando || !novoNome.trim()}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 bg-ink px-4 text-xs font-semibold text-paper hover:bg-ink-soft disabled:opacity-60"
+                >
+                    {criando ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                    Criar {rotulo.singular}
+                </button>
+            </form>
 
-                    <button
-                        type="submit"
-                        disabled={criando || !novoNome.trim()}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 bg-ink px-5 text-sm font-semibold text-paper hover:bg-ink-soft disabled:opacity-60"
-                    >
-                        {criando ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                        Criar categoria
-                    </button>
-                </form>
-            </div>
-
-            <div className="border border-ink/25 bg-card">
-                <div className="border-b border-ink/20 px-6 py-4">
-                    <h3 className="font-semibold text-ink">Categorias cadastradas ({categorias.length})</h3>
+            <div className="border border-ink/20 bg-card">
+                <div className="border-b border-ink/15 px-5 py-3">
+                    <h2 className="sys-section text-ink">
+                        {Singular === "Fase" ? "Fases" : "Categorias"} cadastradas ({categorias.length})
+                    </h2>
                 </div>
 
                 {categorias.length === 0 ? (
-                    <p className="px-6 py-8 text-sm text-muted-foreground">Nenhuma categoria cadastrada ainda.</p>
+                    <p className="px-6 py-8 text-sm text-muted-foreground">Nenhuma {rotulo.singular} cadastrada ainda.</p>
                 ) : (
                     <ul className="divide-y divide-ink/15">
                         {categorias.map((cat) => {
@@ -191,7 +223,7 @@ export const GerenciarCategorias = ({
                                                 value={editNome}
                                                 onChange={(e) => setEditNome(e.target.value)}
                                                 maxLength={60}
-                                                aria-label="Editar nome da categoria"
+                                                aria-label={`Editar nome da ${rotulo.singular}`}
                                                 className="field max-w-xs py-1.5"
                                             />
                                             <div className="flex items-center gap-1.5">
@@ -236,7 +268,7 @@ export const GerenciarCategorias = ({
                                             <div className="flex items-center gap-3">
                                                 <SeloCategoria categoria={cat} />
                                                 <span className="text-xs tabular-nums text-muted-foreground">
-                                                    {qtd} {qtd === 1 ? "cálculo salvo" : "cálculos salvos"}
+                                                    {qtd} {qtd === 1 ? "caso" : "casos"}
                                                 </span>
                                             </div>
 
@@ -244,7 +276,7 @@ export const GerenciarCategorias = ({
                                                 {confirmando ? (
                                                     <>
                                                         <span className="text-xs text-muted-foreground">
-                                                            Os cálculos ficam sem categoria.
+                                                            {rotulo.semItem}
                                                         </span>
                                                         <button
                                                             type="button"
@@ -275,7 +307,7 @@ export const GerenciarCategorias = ({
                                                         <button
                                                             type="button"
                                                             onClick={() => setConfirmarExclusaoId(cat.id)}
-                                                            aria-label={`Excluir categoria ${cat.nome}`}
+                                                            aria-label={`Excluir ${rotulo.singular} ${cat.nome}`}
                                                             className="inline-flex size-8 items-center justify-center border border-ink/25 text-ink/70 hover:border-destructive hover:text-destructive"
                                                         >
                                                             <Trash2 className="size-3.5" />

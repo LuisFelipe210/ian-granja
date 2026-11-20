@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Plus, Scale, ShieldAlert, Trash2 } from "lucide-react";
 import { labelClass } from "@/components/juros/Campos";
 import { lerDecimal, lerMoeda, mascaraMoeda, num } from "@/lib/juros";
@@ -73,14 +74,67 @@ export const SecoesPericiaisExtras = ({
               ? "INPC+IPCA"
               : parametros.indiceCorrecao;
 
+    const [tarifasAberto, setTarifasAberto] = useState(tarifas.length > 0);
+    const [decisaoAberto, setDecisaoAberto] = useState(deducoes.length > 0);
+    const [jurosFixoTexto, setJurosFixoTexto] = useState(() => num(parametros.jurosFixoMensal));
+    const [multaTexto, setMultaTexto] = useState(() =>
+        parametros.multaGlobalPercentual > 0 ? num(parametros.multaGlobalPercentual) : "",
+    );
+    const [honorariosTexto, setHonorariosTexto] = useState(() =>
+        parametros.honorariosPercentual > 0 ? num(parametros.honorariosPercentual) : "",
+    );
+
+    useEffect(() => {
+        if (tarifas.length > 0) setTarifasAberto(true);
+    }, [tarifas.length]);
+
+    useEffect(() => {
+        if (deducoes.length > 0) setDecisaoAberto(true);
+    }, [deducoes.length]);
+
+    useEffect(() => {
+        setJurosFixoTexto((atual) => {
+            const parsed = lerDecimal(atual);
+            return !Number.isNaN(parsed) && Math.abs(parsed - parametros.jurosFixoMensal) < 1e-6
+                ? atual
+                : num(parametros.jurosFixoMensal);
+        });
+    }, [parametros.jurosFixoMensal]);
+
+    useEffect(() => {
+        setMultaTexto((atual) => {
+            const parsed = atual.trim() === "" ? 0 : lerDecimal(atual);
+            return !Number.isNaN(parsed) && Math.abs(parsed - parametros.multaGlobalPercentual) < 1e-6
+                ? atual
+                : parametros.multaGlobalPercentual > 0
+                  ? num(parametros.multaGlobalPercentual)
+                  : "";
+        });
+    }, [parametros.multaGlobalPercentual]);
+
+    useEffect(() => {
+        setHonorariosTexto((atual) => {
+            const parsed = atual.trim() === "" ? 0 : lerDecimal(atual);
+            return !Number.isNaN(parsed) && Math.abs(parsed - parametros.honorariosPercentual) < 1e-6
+                ? atual
+                : parametros.honorariosPercentual > 0
+                  ? num(parametros.honorariosPercentual)
+                  : "";
+        });
+    }, [parametros.honorariosPercentual]);
+
     return (
         <div className="space-y-3.5">
             {/* 1. Seguros Prestamistas e Tarifas Abusivas */}
-            <details open={tarifas.length > 0} className="sheet-on-paper border border-ink/20">
+            <details
+                open={tarifasAberto}
+                onToggle={(e) => setTarifasAberto(e.currentTarget.open)}
+                className="border border-ink/20 bg-card"
+            >
                 <summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-3.5 text-sm font-semibold text-ink hover:bg-ink/[0.02]">
                     <span className="inline-flex items-center gap-2">
                         <ShieldAlert className="size-4 text-gold-deep" />
-                        <span>03 · Seguros prestamistas e tarifas</span>
+                        <span className="sys-section">Seguros prestamistas e tarifas</span>
                     </span>
                     <span className="bg-secondary px-2 py-0.5 text-[11px] font-bold tabular-nums text-ink">
                         {tarifas.length}
@@ -204,11 +258,15 @@ export const SecoesPericiaisExtras = ({
             </details>
 
             {/* 2. Parâmetros da Decisão (Correção, Juros, Dobro, Multa, Honorários e Deduções) */}
-            <details open={deducoes.length > 0} className="sheet-on-paper border border-ink/20">
+            <details
+                open={decisaoAberto}
+                onToggle={(e) => setDecisaoAberto(e.currentTarget.open)}
+                className="border border-ink/20 bg-card"
+            >
                 <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-5 py-3.5 text-sm font-semibold text-ink hover:bg-ink/[0.02]">
                     <span className="inline-flex items-center gap-2">
                         <Scale className="size-4 text-gold-deep" />
-                        <span>04 · Correção, juros, honorários e alvarás</span>
+                        <span className="sys-section">Correção, juros, honorários e alvarás</span>
                     </span>
                     <span className="bg-secondary px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
                         {resumoIndice} · até {dataBaseBr}
@@ -224,7 +282,7 @@ export const SecoesPericiaisExtras = ({
                         <select
                             id="dec-indice"
                             value={parametros.indiceCorrecao}
-                            disabled={parametros.tipoJuros === "SELIC"}
+                            disabled={parametros.tipoJuros === "SELIC" && parametros.termoInicialJuros !== "CITACAO"}
                             onChange={(e) => patchParam({ indiceCorrecao: e.target.value as IndiceCorrecao })}
                             className="field cursor-pointer text-sm disabled:opacity-50 [&>option]:text-ink"
                         >
@@ -236,7 +294,9 @@ export const SecoesPericiaisExtras = ({
                         </select>
                         {parametros.tipoJuros === "SELIC" && (
                             <p className="mt-1 text-xs text-muted-foreground">
-                                A Taxa SELIC já engloba correção monetária e juros moratórios (Tema 905/STJ).
+                                {parametros.termoInicialJuros === "CITACAO"
+                                    ? "Antes da citação aplica-se o índice de correção acima; a partir da citação incide apenas a SELIC (Tema 905/STJ)."
+                                    : "A Taxa SELIC já engloba correção monetária e juros moratórios (Tema 905/STJ)."}
                             </p>
                         )}
                     </div>
@@ -267,8 +327,9 @@ export const SecoesPericiaisExtras = ({
                             <input
                                 id="dec-juros-fixo"
                                 type="text"
-                                defaultValue={num(parametros.jurosFixoMensal)}
+                                value={jurosFixoTexto}
                                 onChange={(e) => {
+                                    setJurosFixoTexto(e.target.value);
                                     const val = lerDecimal(e.target.value);
                                     if (!Number.isNaN(val)) patchParam({ jurosFixoMensal: val });
                                 }}
@@ -371,9 +432,10 @@ export const SecoesPericiaisExtras = ({
                             <input
                                 id="dec-multa"
                                 type="text"
-                                defaultValue={parametros.multaGlobalPercentual > 0 ? num(parametros.multaGlobalPercentual) : ""}
+                                value={multaTexto}
                                 placeholder="Ex.: 10,00"
                                 onChange={(e) => {
+                                    setMultaTexto(e.target.value);
                                     const v = lerDecimal(e.target.value);
                                     patchParam({ multaGlobalPercentual: Number.isNaN(v) ? 0 : v });
                                 }}
@@ -387,9 +449,10 @@ export const SecoesPericiaisExtras = ({
                             <input
                                 id="dec-hon"
                                 type="text"
-                                defaultValue={parametros.honorariosPercentual > 0 ? num(parametros.honorariosPercentual) : ""}
+                                value={honorariosTexto}
                                 placeholder="Ex.: 20,00"
                                 onChange={(e) => {
+                                    setHonorariosTexto(e.target.value);
                                     const v = lerDecimal(e.target.value);
                                     patchParam({ honorariosPercentual: Number.isNaN(v) ? 0 : v });
                                 }}
@@ -401,7 +464,7 @@ export const SecoesPericiaisExtras = ({
                     {/* Deduções / Alvarás */}
                     <div className="space-y-3 border-t border-ink/15 pt-4">
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            <span className="text-[13px] font-semibold text-ink">
                                 Valores a deduzir (pagamentos / alvarás)
                             </span>
                             <button

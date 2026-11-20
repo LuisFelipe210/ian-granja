@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
     ArrowLeft,
     Calculator,
+    CalendarPlus,
     Check,
+    ChevronDown,
     Copy,
     ExternalLink,
     FileText,
@@ -19,11 +22,19 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { configEscritorioAtual, formatarOab } from "@/lib/config-escritorio";
+import { BarraPaginacao } from "@/components/juros/PaginacaoLista";
+import { usePaginacao } from "@/lib/use-paginacao";
 import { brl } from "@/lib/juros";
 import {
     atualizarFichaProcessoDjen,
+    formatarClasseProcessual,
+    formatarNomeParte,
+    formatarRecebidaEm,
     lerDadosProcessoDjen,
     marcarPublicacoesDjenComoVistas,
+    resumirTeorPublicacao,
+    urlHttpSegura,
     type ProcessoDjenSalvoView,
     type StatusProcessoDjen,
 } from "@/lib/juros/djen";
@@ -34,6 +45,7 @@ import {
     type Categoria,
 } from "@/lib/revisional-db";
 import { SeloCategoria } from "@/components/juros/GerenciarCategorias";
+import { MenuAcoesLinha } from "@/components/juros/MenuAcoesLinha";
 
 interface ProcessosSalvosDjenProps {
     processos: CalculoSalvo[];
@@ -49,6 +61,7 @@ interface ProcessosSalvosDjenProps {
     onAbrirRadarDjen: () => void;
     onConsultarDjenProcesso: (c: CalculoSalvo) => void;
     onLevarParaCalculadora: (c: CalculoSalvo) => void;
+    onAdicionarPrazo?: (c: CalculoSalvo) => void;
 }
 
 const OPCOES_STATUS: Array<{ value: StatusProcessoDjen; label: string }> = [
@@ -107,6 +120,7 @@ interface DetalheProcessoDjenProps {
     onExcluido: (id: string) => void;
     onConsultarDjenProcesso: (c: CalculoSalvo) => void;
     onLevarParaCalculadora: (c: CalculoSalvo) => void;
+    onAdicionarPrazo?: (c: CalculoSalvo) => void;
 }
 
 const DetalheProcessoDjen = ({
@@ -118,6 +132,7 @@ const DetalheProcessoDjen = ({
     onExcluido,
     onConsultarDjenProcesso,
     onLevarParaCalculadora,
+    onAdicionarPrazo,
 }: DetalheProcessoDjenProps) => {
     const { calc, view } = item;
 
@@ -133,6 +148,8 @@ const DetalheProcessoDjen = ({
     const [confirmarExclusao, setConfirmarExclusao] = useState(false);
     const [copiadoChave, setCopiadoChave] = useState<string | null>(null);
     const [idsNovosNaAbertura] = useState(() => new Set(view.idsNovos));
+    const listaMovRef = useRef<HTMLDivElement>(null);
+    const pagMov = usePaginacao(view.movimentacoes, { porPaginaPadrao: 10 });
 
     useEffect(() => {
         const patch = marcarPublicacoesDjenComoVistas(calc);
@@ -152,6 +169,8 @@ const DetalheProcessoDjen = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Só reseta o formulário ao trocar de processo (calc.id) — não quando `marcarPublicacoesDjenComoVistas`
+    // atualiza `calc.updated_at`, evitando apagar anotações/edições em andamento.
     useEffect(() => {
         setClienteNome(view.clienteNome);
         setParteContraria(view.parteContraria);
@@ -159,16 +178,8 @@ const DetalheProcessoDjen = ({
         setCategoriaId(view.categoriaId ?? "");
         setStatusProcesso(view.statusProcesso);
         setAnotacoesInternas(view.anotacoesInternas);
-    }, [
-        calc.id,
-        calc.updated_at,
-        view.clienteNome,
-        view.parteContraria,
-        view.processoGlobal,
-        view.categoriaId,
-        view.statusProcesso,
-        view.anotacoesInternas,
-    ]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [calc.id]);
 
     const categoriaAtual = categoriaId ? mapaCategorias[categoriaId] ?? null : null;
 
@@ -230,6 +241,16 @@ const DetalheProcessoDjen = ({
                 </button>
 
                 <div className="flex flex-wrap items-center gap-2">
+                    {onAdicionarPrazo && (
+                        <button
+                            type="button"
+                            onClick={() => onAdicionarPrazo(calc)}
+                            className="inline-flex h-9 items-center gap-1.5 border border-ink/30 bg-card px-3 text-xs font-semibold text-ink hover:bg-ink/5"
+                        >
+                            <CalendarPlus className="size-3.5" />
+                            Adicionar prazo
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => onConsultarDjenProcesso(calc)}
@@ -246,9 +267,9 @@ const DetalheProcessoDjen = ({
                         <Calculator className="size-3.5" />
                         Levar p/ Calculadora
                     </button>
-                    {view.linkUltimaPublicacao && (
+                    {urlHttpSegura(view.linkUltimaPublicacao) && (
                         <a
-                            href={view.linkUltimaPublicacao}
+                            href={urlHttpSegura(view.linkUltimaPublicacao)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex h-9 items-center gap-1.5 bg-ink px-3.5 text-xs font-semibold text-paper hover:bg-ink-soft"
@@ -260,8 +281,8 @@ const DetalheProcessoDjen = ({
                 </div>
             </div>
 
-            {/* Cabeçalho editorial do dossiê */}
-            <header className="sheet-on-paper border border-ink/20 p-5 sm:p-6">
+            {/* Cabeçalho do dossiê */}
+            <header className="border border-ink/20 bg-card p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
@@ -280,9 +301,7 @@ const DetalheProcessoDjen = ({
                             )}
                         </div>
 
-                        <h1 className="subdisplay text-2xl leading-tight text-ink sm:text-[1.75rem]">
-                            {view.clienteNome}
-                        </h1>
+                        <h2 className="sys-title text-xl text-ink">{formatarNomeParte(view.clienteNome)}</h2>
 
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                             {view.processoGlobal ? (
@@ -305,7 +324,7 @@ const DetalheProcessoDjen = ({
                             {view.classe && (
                                 <>
                                     <span aria-hidden>·</span>
-                                    <span>{view.classe}</span>
+                                    <span>{formatarClasseProcessual(view.classe)}</span>
                                 </>
                             )}
                             {view.orgao && (
@@ -319,7 +338,7 @@ const DetalheProcessoDjen = ({
 
                     {view.valorCitado > 0 && (
                         <div className="shrink-0 border border-ink/15 bg-secondary/50 px-3.5 py-2 text-right tabular-nums">
-                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            <span className="block text-[11px] font-medium text-muted-foreground">
                                 Valor citado no texto
                             </span>
                             <span className="text-base font-bold text-ink">{brl(view.valorCitado)}</span>
@@ -330,10 +349,10 @@ const DetalheProcessoDjen = ({
 
             <div className="grid gap-6 lg:grid-cols-12">
                 {/* Coluna esquerda: Ficha editável + Partes e Advogados */}
-                <div className="space-y-5 lg:col-span-5">
-                    <section className="sheet-on-paper space-y-4 border border-ink/20 p-5">
+                <div className="min-w-0 space-y-5 lg:col-span-5">
+                    <section className="space-y-4 border border-ink/20 bg-card p-5">
                         <div className="border-b border-ink/15 pb-2.5">
-                            <h2 className="subdisplay text-lg text-ink">Dados do processo</h2>
+                            <h2 className="sys-section text-ink">Dados do processo</h2>
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -472,10 +491,10 @@ const DetalheProcessoDjen = ({
                         </div>
                     </section>
 
-                    <section className="sheet-on-paper space-y-4 border border-ink/20 p-5">
+                    <section className="space-y-4 border border-ink/20 bg-card p-5">
                         <div className="flex items-center gap-2 border-b border-ink/15 pb-2.5">
                             <Users className="size-4 text-gold-deep" />
-                            <h2 className="subdisplay text-lg text-ink">Partes e Advogados Intimados</h2>
+                            <h2 className="sys-section text-ink">Partes e advogados intimados</h2>
                         </div>
 
                         {view.destinatarios.length === 0 && view.advogados.length === 0 ? (
@@ -490,7 +509,7 @@ const DetalheProcessoDjen = ({
                             <div className="space-y-4 text-xs">
                                 {view.destinatarios.length > 0 && (
                                     <div>
-                                        <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        <span className="block text-[11px] font-medium text-muted-foreground">
                                             Partes registradas ({view.destinatarios.length})
                                         </span>
                                         <ul className="mt-2 divide-y divide-ink/10 border border-ink/15 bg-background/60">
@@ -513,7 +532,7 @@ const DetalheProcessoDjen = ({
 
                                 {view.advogados.length > 0 && (
                                     <div>
-                                        <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        <span className="block text-[11px] font-medium text-muted-foreground">
                                             Advogados vinculados ({view.advogados.length})
                                         </span>
                                         <ul className="mt-2 divide-y divide-ink/10 border border-ink/15 bg-background/60">
@@ -539,19 +558,19 @@ const DetalheProcessoDjen = ({
                 </div>
 
                 {/* Coluna direita: Linha do tempo das publicações do DJEN */}
-                <section className="space-y-4 lg:col-span-7">
+                <section className="min-w-0 space-y-4 lg:col-span-7">
                     <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink/20 pb-2.5">
-                        <h2 className="subdisplay text-xl text-ink">
+                        <h2 className="sys-section text-ink">
                             Publicações no DJEN{" "}
-                            <span className="font-sans text-base font-medium tabular-nums text-muted-foreground">
-                                {view.movimentacoes.length}
+                            <span className="font-normal tabular-nums text-muted-foreground">
+                                ({view.movimentacoes.length})
                             </span>
                         </h2>
                     </div>
 
                     {view.movimentacoes.length === 0 ? (
-                        <div className="sheet-on-paper border border-ink/20 p-6 text-center">
-                            <p className="subdisplay text-lg text-ink">Nenhuma movimentação registrada ainda.</p>
+                        <div className="border border-ink/20 bg-card p-6 text-center">
+                            <p className="sys-section text-ink">Nenhuma movimentação registrada ainda.</p>
                             <p className="mt-1 text-xs text-muted-foreground">
                                 Consulte o DJEN para puxar o teor oficial das intimações deste processo.
                             </p>
@@ -565,11 +584,11 @@ const DetalheProcessoDjen = ({
                             </button>
                         </div>
                     ) : (
-                        <div className="space-y-4">
-                            {view.movimentacoes.map((m, idx) => (
+                        <div ref={listaMovRef} className="space-y-4">
+                            {pagMov.itensPagina.map((m, idx) => (
                                 <article
                                     key={`${m.id}-${idx}`}
-                                    className="sheet-on-paper border border-ink/20 p-5"
+                                    className="border border-ink/20 bg-card p-5"
                                 >
                                     <div className="flex flex-wrap items-start justify-between gap-2 border-b border-ink/12 pb-3">
                                         <div className="space-y-1">
@@ -586,6 +605,15 @@ const DetalheProcessoDjen = ({
                                                     {" · "}
                                                     {[m.tribunal || "DJEN", m.tipoComunicacao || "Comunicação"].join(" · ")}
                                                 </span>
+                                                {m.recebidaEm && (
+                                                    <span
+                                                        className="tabular-nums text-muted-foreground"
+                                                        title="Quando a publicação entrou no sistema"
+                                                    >
+                                                        {" · entrou "}
+                                                        {formatarRecebidaEm(m.recebidaEm)}
+                                                    </span>
+                                                )}
                                             </p>
                                             {(m.orgao || m.classe) && (
                                                 <p className="text-xs text-muted-foreground">
@@ -611,9 +639,9 @@ const DetalheProcessoDjen = ({
                                                     {copiadoChave === `mov-${m.id}-${idx}` ? "Copiado" : "Copiar teor"}
                                                 </button>
                                             )}
-                                            {m.link && (
+                                            {urlHttpSegura(m.link) && (
                                                 <a
-                                                    href={m.link}
+                                                    href={urlHttpSegura(m.link)}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="inline-flex h-8 items-center gap-1 border border-ink/25 px-2.5 text-[11px] font-semibold text-ink hover:bg-ink/5"
@@ -631,6 +659,19 @@ const DetalheProcessoDjen = ({
                                     </div>
                                 </article>
                             ))}
+                            <BarraPaginacao
+                                pagina={pagMov.pagina}
+                                totalPaginas={pagMov.totalPaginas}
+                                total={pagMov.total}
+                                inicio={pagMov.inicio}
+                                fim={pagMov.fim}
+                                onPagina={pagMov.irPara}
+                                porPagina={pagMov.porPagina}
+                                onPorPagina={pagMov.mudarPorPagina}
+                                opcoesPorPagina={[10, 20, 50]}
+                                rotulo="publicações"
+                                alvoRolagem={listaMovRef}
+                            />
                         </div>
                     )}
                 </section>
@@ -653,14 +694,40 @@ export const ProcessosSalvosDjen = ({
     onAbrirRadarDjen,
     onConsultarDjenProcesso,
     onLevarParaCalculadora,
+    onAdicionarPrazo,
 }: ProcessosSalvosDjenProps) => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [busca, setBusca] = useState("");
-    const [filtroStatus, setFiltroStatus] = useState<StatusProcessoDjen | "todos">("todos");
     const [filtroTribunal, setFiltroTribunal] = useState<string>("todos");
     const [filtroCategoria, setFiltroCategoria] = useState<string>("todas");
     const [operandoId, setOperandoId] = useState<string | null>(null);
     const [confirmarExclusaoId, setConfirmarExclusaoId] = useState<string | null>(null);
     const [copiadoCnjId, setCopiadoCnjId] = useState<string | null>(null);
+
+    const abaParam = searchParams.get("aba");
+    const abaLista: "processos" | "publicacoes" = abaParam === "publicacoes" ? "publicacoes" : "processos";
+    const filtroPublicacoes: "todas" | "novas" =
+        searchParams.get("filtro") === "novas" ? "novas" : "todas";
+    const statusParam = searchParams.get("status") as StatusProcessoDjen | null;
+    const filtroStatus: StatusProcessoDjen | "todos" =
+        statusParam === "prazo_aberto" ||
+        statusParam === "em_analise" ||
+        statusParam === "manifestado" ||
+        statusParam === "concluido"
+            ? statusParam
+            : "todos";
+
+    const atualizarUrl = (mutacoes: Record<string, string | null>, replace = true) => {
+        const next = new URLSearchParams(searchParams);
+        for (const [k, v] of Object.entries(mutacoes)) {
+            if (!v || v === "todos" || v === "todas" || (k === "aba" && v === "processos")) {
+                next.delete(k);
+            } else {
+                next.set(k, v);
+            }
+        }
+        setSearchParams(next, { replace });
+    };
 
     const mapaCategorias = useMemo(
         () => Object.fromEntries(categorias.map((c) => [c.id, c])),
@@ -749,6 +816,77 @@ export const ProcessosSalvosDjen = ({
         );
     }, [itensComView, filtroStatus, filtroTribunal, filtroCategoria, busca]);
 
+    const totalNaoLidas = useMemo(
+        () => itensComView.reduce((acc, { view }) => acc + view.idsNovos.length, 0),
+        [itensComView],
+    );
+
+    const publicacoesPlanas = useMemo(() => {
+        const termo = busca.trim().toLowerCase();
+        const lista: Array<{
+            calc: CalculoSalvo;
+            view: ProcessoDjenSalvoView;
+            id: number;
+            dataIso: string;
+            dataBr: string;
+            recebidaEm?: string;
+            tribunal: string;
+            tipo: string;
+            orgao: string;
+            texto: string;
+            nova: boolean;
+        }> = [];
+
+        for (const { calc, view } of itensComView) {
+            if (filtroTribunal !== "todos" && view.tribunal !== filtroTribunal) continue;
+            const setNovos = new Set(view.idsNovos);
+            for (const m of view.movimentacoes) {
+                const nova = setNovos.has(Number(m.id));
+                if (filtroPublicacoes === "novas" && !nova) continue;
+                if (termo) {
+                    const textoBusca = [
+                        view.clienteNome,
+                        view.parteContraria,
+                        view.processoGlobal,
+                        m.tribunal || view.tribunal,
+                        m.orgao,
+                        m.tipoComunicacao,
+                        m.texto,
+                    ]
+                        .join(" ")
+                        .toLowerCase();
+                    if (!textoBusca.includes(termo)) continue;
+                }
+                lista.push({
+                    calc,
+                    view,
+                    id: Number(m.id) || 0,
+                    dataIso: m.dataDisponibilizacao || view.dataUltimaPublicacao,
+                    dataBr: m.dataDisponibilizacaoBr || view.dataUltimaPublicacaoBr || "—",
+                    recebidaEm: m.recebidaEm,
+                    tribunal: m.tribunal || view.tribunal || "DJEN",
+                    tipo: m.tipoComunicacao || "Comunicação",
+                    orgao: m.orgao || view.orgao,
+                    texto: m.texto,
+                    nova,
+                });
+            }
+        }
+
+        return lista.sort((a, b) => Number(b.nova) - Number(a.nova) || b.dataIso.localeCompare(a.dataIso));
+    }, [itensComView, filtroTribunal, filtroPublicacoes, busca]);
+
+    const listaProcRef = useRef<HTMLDivElement>(null);
+    const listaPubRef = useRef<HTMLDivElement>(null);
+    const pagProc = usePaginacao(filtrados, {
+        porPaginaPadrao: 20,
+        reiniciarCom: [filtroStatus, filtroTribunal, filtroCategoria, busca],
+    });
+    const pagPub = usePaginacao(publicacoesPlanas, {
+        porPaginaPadrao: 20,
+        reiniciarCom: [filtroTribunal, filtroPublicacoes, busca],
+    });
+
     if (itemAtivo) {
         return (
             <DetalheProcessoDjen
@@ -761,6 +899,7 @@ export const ProcessosSalvosDjen = ({
                 onExcluido={onExcluido}
                 onConsultarDjenProcesso={onConsultarDjenProcesso}
                 onLevarParaCalculadora={onLevarParaCalculadora}
+                onAdicionarPrazo={onAdicionarPrazo}
             />
         );
     }
@@ -824,9 +963,9 @@ export const ProcessosSalvosDjen = ({
 
     const limparFiltros = () => {
         setBusca("");
-        setFiltroStatus("todos");
         setFiltroTribunal("todos");
         setFiltroCategoria("todas");
+        atualizarUrl({ status: null, filtro: null });
     };
 
     const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -855,110 +994,67 @@ export const ProcessosSalvosDjen = ({
             <span className="text-muted-foreground">Sem número CNJ</span>
         );
 
-    const renderSituacao = (calc: CalculoSalvo, view: ProcessoDjenSalvoView) => (
-        <div className="flex items-center gap-2">
-            <span aria-hidden className={cn("size-2 shrink-0", PONTO_STATUS[view.statusProcesso])} />
-            <select
-                value={view.statusProcesso}
-                disabled={operandoId === calc.id}
-                onChange={(e) => trocarStatusCard(calc, e.target.value as StatusProcessoDjen)}
-                aria-label={`Situação do processo de ${view.clienteNome}`}
-                className="h-8 min-w-0 cursor-pointer border border-transparent bg-transparent pr-1 text-sm text-ink hover:border-ink/25 focus:border-ink focus:outline-none disabled:cursor-wait disabled:opacity-60"
-            >
-                {OPCOES_STATUS.map((op) => (
-                    <option key={op.value} value={op.value}>
-                        {op.label}
-                    </option>
-                ))}
-            </select>
-        </div>
-    );
-
-    const renderFase = (calc: CalculoSalvo, view: ProcessoDjenSalvoView) => (
-        <select
-            value={calc.categoria_id ?? ""}
-            disabled={operandoId === calc.id}
-            onChange={(e) => trocarCategoriaCard(calc, e.target.value)}
-            aria-label={`Fase do processo de ${view.clienteNome}`}
-            className="h-8 w-auto min-w-0 max-w-[11rem] cursor-pointer border border-transparent bg-transparent pr-1 text-sm text-ink hover:border-ink/25 focus:border-ink focus:outline-none disabled:cursor-wait disabled:opacity-60"
-        >
-            <option value="">Sem fase</option>
-            {categorias.map((c) => (
-                <option key={c.id} value={c.id}>
-                    {c.nome}
-                </option>
-            ))}
-        </select>
-    );
-
-    /** `atalhosSoNoXl`: na tabela entre lg e xl só cabe "Abrir"; os atalhos também existem no dossiê. */
-    const renderAcoes = (calc: CalculoSalvo, view: ProcessoDjenSalvoView, atalhosSoNoXl = false) => {
-        const classeAtalho = cn(
-            "size-8 items-center justify-center border border-ink/25",
-            atalhosSoNoXl ? "hidden xl:inline-flex" : "inline-flex",
-        );
+    /** "Abrir" fica sempre visível; as demais ações vão para o menu "⋯" (também existem no dossiê). */
+    const renderAcoes = (calc: CalculoSalvo, view: ProcessoDjenSalvoView) => {
         if (confirmarExclusaoId === calc.id) {
+            // A coluna de ações é estreita: a confirmação flutua sobre a linha, alinhada à direita.
             return (
-                <div className="inline-flex items-center justify-end gap-1">
-                    <span className="mr-1 whitespace-nowrap text-xs font-semibold text-destructive">
-                        Excluir processo?
-                    </span>
-                    <button
-                        type="button"
-                        disabled={operandoId === calc.id}
-                        onClick={() => excluirCard(calc)}
-                        className="inline-flex h-8 items-center bg-destructive px-2.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60"
-                    >
-                        Excluir
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setConfirmarExclusaoId(null)}
-                        className="inline-flex h-8 items-center border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5"
-                    >
-                        Cancelar
-                    </button>
+                <div className="relative">
+                    <div className="absolute right-0 top-0 z-20 inline-flex items-center gap-1 whitespace-nowrap border border-destructive/30 bg-card p-1.5 shadow-xl">
+                        <span className="mx-1 text-xs font-semibold text-destructive">Excluir processo?</span>
+                        <button
+                            type="button"
+                            disabled={operandoId === calc.id}
+                            onClick={() => excluirCard(calc)}
+                            className="inline-flex h-8 items-center bg-destructive px-2.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60"
+                        >
+                            Excluir
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setConfirmarExclusaoId(null)}
+                            className="inline-flex h-8 items-center border border-ink/30 px-2.5 text-xs font-semibold text-ink hover:bg-ink/5"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
                 </div>
             );
         }
 
         return (
             <div className="inline-flex items-center justify-end gap-1">
-                <button
-                    type="button"
-                    onClick={() => onAbrirProcesso(calc)}
-                    className="inline-flex h-8 items-center gap-1 whitespace-nowrap bg-ink px-3 text-xs font-semibold text-paper hover:bg-ink-soft"
-                >
-                    <FolderOpen className="size-3.5" />
-                    Abrir
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onConsultarDjenProcesso(calc)}
-                    title="Buscar novas publicações deste processo no DJEN"
-                    aria-label={`Buscar publicações de ${view.clienteNome} no DJEN`}
-                    className={cn(classeAtalho, "text-ink/80 hover:border-ink hover:bg-ink hover:text-paper")}
-                >
-                    <Gavel className="size-3.5" />
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onLevarParaCalculadora(calc)}
-                    title="Levar para a calculadora revisional"
-                    aria-label={`Levar ${view.clienteNome} para a calculadora`}
-                    className={cn(classeAtalho, "text-ink/80 hover:border-ink hover:bg-ink hover:text-paper")}
-                >
-                    <Calculator className="size-3.5" />
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setConfirmarExclusaoId(calc.id)}
-                    title="Excluir processo"
-                    aria-label={`Excluir processo de ${view.clienteNome}`}
-                    className={cn(classeAtalho, "text-ink/60 hover:border-destructive hover:text-destructive")}
-                >
-                    <Trash2 className="size-3.5" />
-                </button>
+                <MenuAcoesLinha
+                    contexto={view.clienteNome}
+                    className="size-8"
+                    acoes={[
+                        {
+                            id: "abrir",
+                            rotulo: "Abrir processo",
+                            Icone: FolderOpen,
+                            onSelect: () => onAbrirProcesso(calc),
+                        },
+                        {
+                            id: "djen",
+                            rotulo: "Buscar novas publicações no DJEN",
+                            Icone: Gavel,
+                            onSelect: () => onConsultarDjenProcesso(calc),
+                        },
+                        {
+                            id: "calculadora",
+                            rotulo: "Levar para a calculadora",
+                            Icone: Calculator,
+                            onSelect: () => onLevarParaCalculadora(calc),
+                        },
+                        {
+                            id: "excluir",
+                            rotulo: "Excluir processo",
+                            Icone: Trash2,
+                            onSelect: () => setConfirmarExclusaoId(calc.id),
+                            destrutiva: true,
+                        },
+                    ]}
+                />
             </div>
         );
     };
@@ -966,184 +1062,337 @@ export const ProcessosSalvosDjen = ({
     const linhaPublicacao = (view: ProcessoDjenSalvoView) =>
         [view.tribunal, view.tipoComunicacao].filter(Boolean).join(" · ");
 
+    const renderSituacaoFase = (calc: CalculoSalvo, view: ProcessoDjenSalvoView) => (
+        <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+            <label className="relative flex w-fit max-w-full items-center">
+                <span
+                    aria-hidden
+                    className={cn("pointer-events-none absolute left-2 size-2", PONTO_STATUS[view.statusProcesso])}
+                />
+                <select
+                    value={view.statusProcesso}
+                    disabled={operandoId === calc.id}
+                    onChange={(e) => trocarStatusCard(calc, e.target.value as StatusProcessoDjen)}
+                    aria-label={`Situação do processo de ${view.clienteNome}`}
+                    className="h-7 max-w-full cursor-pointer appearance-none border border-ink/15 bg-card py-0 pl-6 pr-7 text-xs font-semibold text-ink transition-colors duration-150 hover:border-ink/40 focus:border-ink focus:outline-none disabled:cursor-wait disabled:opacity-60"
+                >
+                    {OPCOES_STATUS.map((op) => (
+                        <option key={op.value} value={op.value}>
+                            {op.label}
+                        </option>
+                    ))}
+                </select>
+                <ChevronDown aria-hidden className="pointer-events-none absolute right-2 size-3.5 text-ink/50" />
+            </label>
+            <label className="relative flex w-fit max-w-full items-center">
+                <select
+                    value={calc.categoria_id ?? ""}
+                    disabled={operandoId === calc.id}
+                    onChange={(e) => trocarCategoriaCard(calc, e.target.value)}
+                    aria-label={`Fase do processo de ${view.clienteNome}`}
+                    className="h-6 max-w-[11rem] cursor-pointer appearance-none truncate border border-transparent bg-transparent py-0 pl-2 pr-6 text-xs text-muted-foreground transition-colors duration-150 hover:border-ink/25 hover:text-ink focus:border-ink focus:outline-none disabled:cursor-wait disabled:opacity-60"
+                >
+                    <option value="">Sem fase</option>
+                    {categorias.map((c) => (
+                        <option key={c.id} value={c.id}>
+                            {c.nome}
+                        </option>
+                    ))}
+                </select>
+                <ChevronDown aria-hidden className="pointer-events-none absolute right-1.5 size-3 text-ink/40" />
+            </label>
+        </div>
+    );
+
+    const renderUltimaPublicacao = (view: ProcessoDjenSalvoView) => {
+        const recebida = view.movimentacoes.find((m) => m.recebidaEm)?.recebidaEm;
+        return (
+            <div className="text-xs">
+                <p className="flex items-center gap-2">
+                    <span className="text-sm font-medium tabular-nums text-ink">{view.dataUltimaPublicacaoBr || "—"}</span>
+                    {view.idsNovos.length > 0 && (
+                        <span className="bg-gold-light px-1.5 py-0.5 text-[11px] font-semibold text-ink">
+                            {view.idsNovos.length === 1 ? "1 nova" : `${view.idsNovos.length} novas`}
+                        </span>
+                    )}
+                </p>
+                <p className="mt-0.5 text-muted-foreground">
+                    {linhaPublicacao(view)}
+                    {view.movimentacoes.length > 1 && ` · ${view.movimentacoes.length}`}
+                </p>
+                {recebida && (
+                    <p className="tabular-nums text-muted-foreground" title="Quando a publicação entrou no sistema">
+                        entrou {formatarRecebidaEm(recebida)}
+                    </p>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-5">
-            <div className="sheet-on-paper p-5">
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/15 pb-4">
-                    <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                            <h1 className="subdisplay text-2xl text-ink">Processos acompanhados</h1>
-                            {estatisticas.total > 0 && (
-                                <p className="text-xs font-medium tabular-nums text-muted-foreground">
-                                    <strong className="text-ink">{estatisticas.total}</strong>{" "}
-                                    {estatisticas.total === 1 ? "processo" : "processos"} ·{" "}
-                                    {estatisticas.comNovidade > 0 && (
+            {/* Cabeçalho da página: resumo da carteira de processos e as duas ações do DJEN */}
+            <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                <div className="min-w-0">
+                    <h2 className="text-xl font-semibold tracking-tight text-ink">
+                        {plural(estatisticas.total, "processo acompanhado", "processos acompanhados")}
+                    </h2>
+                    {estatisticas.total > 0 && (
+                        <p aria-live="polite" className="mt-0.5 text-sm text-muted-foreground">
+                            {verificandoDjen ? (
+                                "Verificando novas publicações no DJEN…"
+                            ) : (
+                                <>
+                                    {estatisticas.prazosAbertos > 0 && (
                                         <>
-                                            <strong className="text-gold-deep">{estatisticas.comNovidade}</strong> com
-                                            publicação nova ·{" "}
+                                            <span className="font-semibold text-ink">
+                                                {estatisticas.prazosAbertos} com prazo em aberto
+                                            </span>
+                                            <span className="px-1.5 text-ink/30">·</span>
                                         </>
                                     )}
-                                    <strong className="text-ink">{estatisticas.prazosAbertos}</strong> com prazo em
-                                    aberto · {plural(estatisticas.tribunais, "tribunal", "tribunais")} ·{" "}
-                                    {plural(estatisticas.totalMovs, "publicação salva", "publicações salvas")}
-                                </p>
+                                    {`Verificação automática a cada ${intervaloVerificacaoHoras} h`}
+                                    {estatisticas.ultimaVerificacao &&
+                                        `, a última ${descreverMomento(estatisticas.ultimaVerificacao)}`}
+                                </>
+                            )}
+                        </p>
+                    )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={onAbrirRadarDjen}
+                        title={`Buscar publicações da ${formatarOab(configEscritorioAtual())} no DJEN`}
+                        className="inline-flex h-9 items-center gap-1.5 border border-ink/25 bg-card px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink/5"
+                    >
+                        <Radar className="size-3.5 text-gold-deep" />
+                        Radar DJEN
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onVerificarDjen}
+                        disabled={verificandoDjen}
+                        className="inline-flex h-9 items-center gap-1.5 bg-ink px-3 text-xs font-semibold text-paper transition-colors duration-150 hover:bg-ink-soft disabled:cursor-wait disabled:opacity-60"
+                    >
+                        <RefreshCw className={cn("size-3.5", verificandoDjen && "animate-spin")} />
+                        {verificandoDjen ? "Verificando…" : "Verificar agora"}
+                    </button>
+                </div>
+            </header>
+
+            {/* Abas sublinhadas: Processos · Publicações */}
+            <div role="tablist" aria-label="Visualização de processos e publicações" className="flex gap-6 border-b border-ink/15">
+                {(
+                    [
+                        { id: "processos", label: "Processos", qtd: estatisticas.total, novas: 0 },
+                        { id: "publicacoes", label: "Publicações", qtd: estatisticas.totalMovs, novas: totalNaoLidas },
+                    ] as const
+                ).map((aba) => {
+                    const ativa = abaLista === aba.id;
+                    return (
+                        <button
+                            key={aba.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={ativa}
+                            onClick={() =>
+                                atualizarUrl(
+                                    aba.id === "processos"
+                                        ? { aba: "processos", filtro: null }
+                                        : { aba: "publicacoes", status: null },
+                                )
+                            }
+                            className={cn(
+                                "-mb-px inline-flex h-10 items-center gap-2 rounded-none border-b-2 text-sm font-semibold transition-colors duration-150",
+                                ativa ? "border-ink text-ink" : "border-transparent text-muted-foreground hover:text-ink",
+                            )}
+                        >
+                            {aba.label}
+                            <span className="text-xs font-medium tabular-nums text-muted-foreground">{aba.qtd}</span>
+                            {aba.novas > 0 && (
+                                <span className="bg-gold-light px-1.5 py-0.5 text-[10px] font-semibold text-ink">
+                                    {aba.novas} {aba.novas === 1 ? "nova" : "novas"}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {processos.length > 0 && abaLista === "processos" && (
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    {/* Celular: select nativo; a partir do tablet, botões com ponto de cor e contagem */}
+                    <select
+                        value={filtroStatus}
+                        onChange={(e) => atualizarUrl({ status: e.target.value as StatusProcessoDjen | "todos" })}
+                        aria-label="Filtrar por situação"
+                        className="field cursor-pointer py-2 text-xs font-medium md:hidden [&>option]:text-ink"
+                    >
+                        {opcoesFiltroStatus.map((op) => (
+                            <option key={op.value} value={op.value}>
+                                {op.value === "todos" ? "Todas as situações" : op.label} ({op.qtd})
+                            </option>
+                        ))}
+                    </select>
+
+                    <div role="group" aria-label="Filtrar por situação" className="hidden flex-wrap items-center gap-1 md:flex">
+                        {opcoesFiltroStatus.map((op) => {
+                            const ativo = filtroStatus === op.value;
+                            return (
+                                <button
+                                    key={op.value}
+                                    type="button"
+                                    aria-pressed={ativo}
+                                    onClick={() => atualizarUrl({ status: op.value })}
+                                    className={cn(
+                                        "inline-flex h-8 items-center gap-1.5 whitespace-nowrap px-2.5 text-xs font-medium transition-colors duration-150",
+                                        ativo ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
+                                    )}
+                                >
+                                    {op.value !== "todos" && (
+                                        <span aria-hidden className={cn("size-2 shrink-0", PONTO_STATUS[op.value])} />
+                                    )}
+                                    {op.label}
+                                    <span className={cn("tabular-nums", ativo ? "text-paper/70" : "text-muted-foreground")}>
+                                        {op.qtd}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8.5rem_9rem] xl:w-[33rem] xl:shrink-0">
+                        <div className="relative">
+                            <Search
+                                aria-hidden
+                                className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-ink/50"
+                            />
+                            <input
+                                type="search"
+                                value={busca}
+                                onChange={(e) => setBusca(e.target.value)}
+                                placeholder="Buscar cliente, CNJ ou teor"
+                                aria-label="Buscar processos"
+                                className="field py-2 pl-6 pr-7 text-sm [&::-webkit-search-cancel-button]:hidden"
+                            />
+                            {busca && (
+                                <button
+                                    type="button"
+                                    onClick={() => setBusca("")}
+                                    aria-label="Limpar busca"
+                                    className="absolute right-0 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center text-ink/50 hover:text-ink"
+                                >
+                                    <X className="size-3.5" />
+                                </button>
                             )}
                         </div>
-                        {estatisticas.total > 0 && (
-                            <p aria-live="polite" className="text-xs text-muted-foreground">
-                                {verificandoDjen
-                                    ? "Verificando novas publicações no DJEN…"
-                                    : `Verificação automática a cada ${intervaloVerificacaoHoras} h${
-                                          estatisticas.ultimaVerificacao
-                                              ? ` · última ${descreverMomento(estatisticas.ultimaVerificacao)}`
-                                              : ""
-                                      }`}
-                            </p>
-                        )}
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={onAbrirRadarDjen}
-                            title="Buscar publicações da OAB/PE 61.107 no DJEN"
-                            className="inline-flex h-9 items-center gap-1.5 border border-gold bg-gold-light/40 px-3 text-xs font-semibold text-ink hover:bg-gold-light"
-                        >
-                            <Radar className="size-3.5" />
-                            Radar DJEN
-                        </button>
-                        <button
-                            type="button"
-                            onClick={onVerificarDjen}
-                            disabled={verificandoDjen}
-                            className="inline-flex h-9 items-center gap-1.5 border border-ink/30 px-3 text-xs font-semibold text-ink hover:bg-ink/5 disabled:cursor-wait disabled:opacity-60"
-                        >
-                            <RefreshCw className={cn("size-3.5", verificandoDjen && "animate-spin")} />
-                            Verificar agora
-                        </button>
-                    </div>
-                </div>
-
-                {processos.length > 0 && (
-                    <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-center">
-                        {/* Celular: select nativo; a partir do tablet, o controle segmentado inteiro cabe na linha */}
                         <select
-                            value={filtroStatus}
-                            onChange={(e) => setFiltroStatus(e.target.value as StatusProcessoDjen | "todos")}
-                            aria-label="Filtrar por situação"
-                            className="field cursor-pointer py-2 text-xs font-medium md:hidden [&>option]:text-ink"
+                            value={filtroTribunal}
+                            onChange={(e) => setFiltroTribunal(e.target.value)}
+                            aria-label="Filtrar por tribunal"
+                            className="field cursor-pointer py-2 text-xs font-medium [&>option]:text-ink"
                         >
-                            {opcoesFiltroStatus.map((op) => (
-                                <option key={op.value} value={op.value}>
-                                    {op.value === "todos" ? "Todas as situações" : op.label} ({op.qtd})
+                            <option value="todos">Todos os tribunais</option>
+                            {tribunaisDisponiveis.map((t) => (
+                                <option key={t} value={t}>
+                                    {t}
                                 </option>
                             ))}
                         </select>
 
-                        <div
-                            role="group"
-                            aria-label="Filtrar por situação"
-                            className="hidden shrink-0 self-start border border-ink/30 bg-background md:inline-flex"
+                        <select
+                            value={filtroCategoria}
+                            onChange={(e) => setFiltroCategoria(e.target.value)}
+                            aria-label="Filtrar por fase"
+                            className="field cursor-pointer py-2 text-xs font-medium [&>option]:text-ink"
                         >
-                            {opcoesFiltroStatus.map((op, idx) => {
-                                    const ativo = filtroStatus === op.value;
-                                    return (
-                                        <button
-                                            key={op.value}
-                                            type="button"
-                                            aria-pressed={ativo}
-                                            onClick={() => setFiltroStatus(op.value)}
-                                            className={cn(
-                                                "inline-flex h-9 items-center gap-1.5 whitespace-nowrap px-3 text-xs font-semibold transition-colors",
-                                                idx > 0 && "border-l border-ink/25",
-                                                ativo ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
-                                            )}
-                                        >
-                                            {op.label}
-                                            <span
-                                                className={cn(
-                                                    "tabular-nums",
-                                                    ativo ? "text-paper/70" : "text-muted-foreground",
-                                                )}
-                                            >
-                                                {op.qtd}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                        </div>
-
-                        <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_10rem_11rem_auto]">
-                            <div className="relative sm:col-span-2 lg:col-span-1">
-                                <Search
-                                    aria-hidden
-                                    className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-ink/50"
-                                />
-                                <input
-                                    type="search"
-                                    value={busca}
-                                    onChange={(e) => setBusca(e.target.value)}
-                                    placeholder="Buscar cliente, parte, CNJ, vara ou teor..."
-                                    aria-label="Buscar processos"
-                                    className="field py-2 pl-6 pr-7 text-sm [&::-webkit-search-cancel-button]:hidden"
-                                />
-                                {busca && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setBusca("")}
-                                        aria-label="Limpar busca"
-                                        className="absolute right-0 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center text-ink/50 hover:text-ink"
-                                    >
-                                        <X className="size-3.5" />
-                                    </button>
-                                )}
-                            </div>
-
-                            <select
-                                value={filtroTribunal}
-                                onChange={(e) => setFiltroTribunal(e.target.value)}
-                                aria-label="Filtrar por tribunal"
-                                className="field cursor-pointer py-2 text-xs font-medium [&>option]:text-ink"
-                            >
-                                <option value="todos">Todos os tribunais</option>
-                                {tribunaisDisponiveis.map((t) => (
-                                    <option key={t} value={t}>
-                                        {t}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <select
-                                value={filtroCategoria}
-                                onChange={(e) => setFiltroCategoria(e.target.value)}
-                                aria-label="Filtrar por fase"
-                                className="field cursor-pointer py-2 text-xs font-medium [&>option]:text-ink"
-                            >
-                                <option value="todas">Todas as fases</option>
-                                {categorias.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.nome}
-                                    </option>
-                                ))}
-                                <option value="sem">Sem fase</option>
-                            </select>
-
-                            {temFiltros && (
-                                <button
-                                    type="button"
-                                    onClick={limparFiltros}
-                                    className="justify-self-start whitespace-nowrap text-xs font-semibold text-ink underline-offset-4 hover:underline"
-                                >
-                                    Limpar filtros
-                                </button>
-                            )}
-                        </div>
+                            <option value="todas">Todas as fases</option>
+                            {categorias.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.nome}
+                                </option>
+                            ))}
+                            <option value="sem">Sem fase</option>
+                        </select>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {processos.length > 0 && abaLista === "publicacoes" && (
+                <div className="flex flex-wrap items-center gap-3">
+                    <div role="group" aria-label="Filtrar publicações" className="flex items-center gap-1">
+                        {(
+                            [
+                                { id: "todas", label: "Todas", qtd: estatisticas.totalMovs },
+                                { id: "novas", label: "Não lidas", qtd: totalNaoLidas },
+                            ] as const
+                        ).map((op) => {
+                            const ativo = filtroPublicacoes === op.id;
+                            return (
+                                <button
+                                    key={op.id}
+                                    type="button"
+                                    aria-pressed={ativo}
+                                    onClick={() => atualizarUrl({ filtro: op.id === "todas" ? null : "novas" })}
+                                    className={cn(
+                                        "inline-flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors duration-150",
+                                        ativo ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
+                                    )}
+                                >
+                                    {op.label}
+                                    <span className={cn("tabular-nums", ativo ? "text-paper/70" : "text-muted-foreground")}>
+                                        {op.qtd}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="relative min-w-[14rem] flex-1">
+                        <Search
+                            aria-hidden
+                            className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-ink/50"
+                        />
+                        <input
+                            type="search"
+                            value={busca}
+                            onChange={(e) => setBusca(e.target.value)}
+                            placeholder="Buscar cliente, CNJ, órgão ou teor da publicação"
+                            aria-label="Buscar publicações"
+                            className="field py-1.5 pl-6 pr-7 text-sm [&::-webkit-search-cancel-button]:hidden"
+                        />
+                        {busca && (
+                            <button
+                                type="button"
+                                onClick={() => setBusca("")}
+                                aria-label="Limpar busca"
+                                className="absolute right-0 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center text-ink/50 hover:text-ink"
+                            >
+                                <X className="size-3.5" />
+                            </button>
+                        )}
+                    </div>
+
+                    <select
+                        value={filtroTribunal}
+                        onChange={(e) => setFiltroTribunal(e.target.value)}
+                        aria-label="Filtrar por tribunal"
+                        className="field w-auto cursor-pointer py-1.5 text-xs font-medium [&>option]:text-ink"
+                    >
+                        <option value="todos">Todos os tribunais</option>
+                        {tribunaisDisponiveis.map((t) => (
+                            <option key={t} value={t}>
+                                {t}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
 
             {processos.length === 0 ? (
-                <div className="border border-ink/25 bg-card px-6 py-12 text-center">
+                <div className="border border-ink/20 bg-card px-6 py-12 text-center">
                     <h2 className="text-base font-semibold text-ink">Nenhum processo acompanhado ainda</h2>
                     <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">
                         No Radar DJEN, busque as publicações da OAB ou de um número CNJ e use{" "}
@@ -1159,6 +1408,92 @@ export const ProcessosSalvosDjen = ({
                         Abrir Radar DJEN
                     </button>
                 </div>
+            ) : abaLista === "publicacoes" ? (
+                publicacoesPlanas.length === 0 ? (
+                    <div className="border border-ink/20 bg-card px-6 py-10 text-center">
+                        <p className="text-sm font-semibold text-ink">
+                            {filtroPublicacoes === "novas"
+                                ? "Nenhuma publicação não lida no momento."
+                                : "Nenhuma publicação corresponde aos filtros."}
+                        </p>
+                        {(filtroPublicacoes === "novas" || busca.trim() || filtroTribunal !== "todos") && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setBusca("");
+                                    setFiltroTribunal("todos");
+                                    atualizarUrl({ filtro: null });
+                                }}
+                                className="mt-3 text-xs font-semibold text-ink underline underline-offset-4 hover:text-ink-soft"
+                            >
+                                Mostrar todas as publicações
+                            </button>
+                        )}
+                    </div>
+                ) : (
+                    <div ref={listaPubRef} className="space-y-3">
+                    <ul className="divide-y divide-ink/10 overflow-hidden border border-ink/15 bg-card">
+                        {pagPub.itensPagina.map((pub, idx) => (
+                            <li key={`${pub.calc.id}-${pub.id}-${idx}`}>
+                                <button
+                                    type="button"
+                                    onClick={() => onAbrirProcesso(pub.calc)}
+                                    className={cn(
+                                        "grid w-full gap-x-6 gap-y-1.5 px-4 py-3 text-left transition-colors duration-150 hover:bg-ink/[0.03] sm:grid-cols-[9rem_minmax(0,1fr)]",
+                                        pub.nova && "bg-gold-light/15",
+                                    )}
+                                >
+                                    <div className="text-xs tabular-nums">
+                                        <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                                            {pub.dataBr}
+                                            {pub.nova && (
+                                                <span className="bg-gold-light px-1.5 py-0.5 text-[10px] font-semibold text-ink">
+                                                    Nova
+                                                </span>
+                                            )}
+                                        </p>
+                                        {pub.recebidaEm && (
+                                            <p className="text-muted-foreground" title="Quando a publicação entrou no sistema">
+                                                entrou {formatarRecebidaEm(pub.recebidaEm)}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="flex flex-wrap items-baseline gap-x-3">
+                                            <span className="truncate text-sm font-semibold text-ink">
+                                                {formatarNomeParte(pub.view.clienteNome)}
+                                            </span>
+                                            <span className="text-xs tabular-nums text-muted-foreground">
+                                                <span className="font-semibold text-ink/80">{pub.tribunal}</span>
+                                                {" · "}
+                                                {pub.tipo}
+                                                {pub.view.processoGlobal ? ` · ${pub.view.processoGlobal}` : ""}
+                                            </span>
+                                        </p>
+                                        <p className="mt-1 line-clamp-2 max-w-[90ch] text-xs leading-relaxed text-muted-foreground">
+                                            {pub.texto
+                                                ? resumirTeorPublicacao(pub.texto)
+                                                : "(Publicação sem teor textual disponibilizado)"}
+                                        </p>
+                                    </div>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                    <BarraPaginacao
+                        pagina={pagPub.pagina}
+                        totalPaginas={pagPub.totalPaginas}
+                        total={pagPub.total}
+                        inicio={pagPub.inicio}
+                        fim={pagPub.fim}
+                        onPagina={pagPub.irPara}
+                        porPagina={pagPub.porPagina}
+                        onPorPagina={pagPub.mudarPorPagina}
+                        rotulo="publicações"
+                        alvoRolagem={listaPubRef}
+                    />
+                    </div>
+                )
             ) : filtrados.length === 0 ? (
                 <div className="border border-ink/25 bg-card px-6 py-10 text-center">
                     <p className="text-sm font-semibold text-ink">Nenhum processo corresponde aos filtros.</p>
@@ -1172,46 +1507,75 @@ export const ProcessosSalvosDjen = ({
                 </div>
             ) : (
                 <>
+                    <div ref={listaProcRef} aria-hidden className="-mb-4 h-0" />
+                    {temFiltros && (
+                        <p className="-mt-2 text-xs text-muted-foreground">
+                            {plural(filtrados.length, "processo encontrado", "processos encontrados")} ·{" "}
+                            <button
+                                type="button"
+                                onClick={limparFiltros}
+                                className="font-semibold text-ink underline-offset-4 hover:underline"
+                            >
+                                Limpar filtros
+                            </button>
+                        </p>
+                    )}
+
                     {/* Tabela (desktop) */}
-                    <div className="hidden overflow-x-auto overscroll-x-contain border border-ink/25 bg-card lg:block">
-                        <table className="w-full border-collapse text-left text-sm">
-                            <thead className="border-b border-ink/25 bg-secondary/80 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <div className="hidden overflow-hidden border border-ink/15 bg-card xl:block">
+                        <table className="w-full table-fixed border-collapse text-left text-sm">
+                            <colgroup>
+                                <col />
+                                <col className="w-[15rem]" />
+                                <col className="w-[10.5rem]" />
+                                <col className="w-[11.5rem]" />
+                                <col className="w-[7.5rem]" />
+                                <col className="w-[3.5rem]" />
+                            </colgroup>
+                            <thead className="bg-ink text-xs text-paper/80">
                                 <tr>
-                                    <th scope="col" className="whitespace-nowrap py-2.5 pl-4 pr-3 font-semibold">
+                                    <th scope="col" className="py-2.5 pl-4 pr-2 font-semibold">
                                         Cliente
                                     </th>
-                                    <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-semibold">
+                                    <th scope="col" className="px-2.5 py-2.5 font-semibold">
                                         Processo
                                     </th>
-                                    <th scope="col" className="w-px whitespace-nowrap px-3 py-2.5 font-semibold">
+                                    <th scope="col" className="px-2.5 py-2.5 font-semibold">
                                         Última publicação
                                     </th>
-                                    <th scope="col" className="w-px whitespace-nowrap px-3 py-2.5 font-semibold">
-                                        Situação
+                                    <th scope="col" className="px-2.5 py-2.5 font-semibold">
+                                        Situação e fase
                                     </th>
-                                    <th scope="col" className="hidden w-px whitespace-nowrap px-3 py-2.5 font-semibold xl:table-cell">
-                                        Fase
-                                    </th>
-                                    <th scope="col" className="w-px whitespace-nowrap px-3 py-2.5 text-right font-semibold">
+                                    <th scope="col" className="px-2.5 py-2.5 text-right font-semibold">
                                         Valor citado
                                     </th>
-                                    <th scope="col" className="w-px whitespace-nowrap py-2.5 pl-3 pr-4 text-right font-semibold">
+                                    <th scope="col" className="py-2.5 pl-2 pr-4 text-right font-semibold">
                                         <span className="sr-only">Ações</span>
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-ink/12">
-                                {filtrados.map(({ calc, view }) => (
-                                    <tr key={calc.id} className="transition-colors hover:bg-ink/[0.025]">
-                                        <td className="min-w-[12rem] py-3 pl-4 pr-3 align-middle">
+                            <tbody className="divide-y divide-ink/10">
+                                {pagProc.itensPagina.map(({ calc, view }) => (
+                                    <tr
+                                        key={calc.id}
+                                        onClick={() => onAbrirProcesso(calc)}
+                                        className={cn(
+                                            "cursor-pointer align-top transition-colors duration-150 hover:bg-ink/[0.035]",
+                                            view.idsNovos.length > 0 && "bg-gold-light/15",
+                                        )}
+                                    >
+                                        <td className="py-3 pl-4 pr-2">
                                             <div className="flex min-w-0 items-start gap-1.5">
                                                 <button
                                                     type="button"
-                                                    onClick={() => onAbrirProcesso(calc)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onAbrirProcesso(calc);
+                                                    }}
                                                     title={view.clienteNome}
-                                                    className="line-clamp-2 break-words text-left font-semibold leading-snug text-ink hover:underline"
+                                                    className="line-clamp-2 text-left font-semibold leading-snug text-ink hover:underline"
                                                 >
-                                                    {view.clienteNome}
+                                                    {formatarNomeParte(view.clienteNome)}
                                                 </button>
                                                 {view.anotacoesInternas && (
                                                     <FileText
@@ -1222,48 +1586,35 @@ export const ProcessosSalvosDjen = ({
                                             </div>
                                             <p
                                                 title={view.parteContraria || undefined}
-                                                className="mt-0.5 line-clamp-1 break-all text-xs text-muted-foreground"
+                                                className="mt-0.5 truncate text-xs text-muted-foreground"
                                             >
                                                 {view.parteContraria ? `vs. ${view.parteContraria}` : "Parte contrária não identificada"}
                                             </p>
                                         </td>
-                                        <td className="max-w-[17rem] px-3 py-3 align-middle">
-                                            {renderCnj(calc, view)}
+                                        <td className="px-2.5 py-3">
+                                            <div className="text-[13px]" onClick={(e) => e.stopPropagation()}>
+                                                {renderCnj(calc, view)}
+                                            </div>
                                             {(view.classe || view.orgao) && (
                                                 <p
-                                                    title={[view.classe, view.orgao].filter(Boolean).join(" · ")}
-                                                    className="mt-0.5 line-clamp-1 break-all text-xs text-muted-foreground"
+                                                    title={[formatarClasseProcessual(view.classe), view.orgao].filter(Boolean).join(" · ")}
+                                                    className="mt-0.5 truncate text-xs text-muted-foreground"
                                                 >
-                                                    {[view.classe, view.orgao].filter(Boolean).join(" · ")}
+                                                    {[formatarClasseProcessual(view.classe), view.orgao].filter(Boolean).join(" · ")}
                                                 </p>
                                             )}
                                         </td>
-                                        <td className="whitespace-nowrap px-3 py-3 align-middle">
-                                            <span className="tabular-nums text-ink">
-                                                {view.dataUltimaPublicacaoBr || "—"}
-                                            </span>
-                                            {view.idsNovos.length > 0 && (
-                                                <span className="ml-2 bg-gold-light px-1.5 py-0.5 text-[11px] font-semibold text-ink">
-                                                    {view.idsNovos.length === 1 ? "1 nova" : `${view.idsNovos.length} novas`}
-                                                </span>
-                                            )}
-                                            <p className="mt-0.5 whitespace-nowrap text-xs text-muted-foreground">
-                                                {linhaPublicacao(view)}
-                                                {view.movimentacoes.length > 1 &&
-                                                    ` · ${plural(view.movimentacoes.length, "publicação", "publicações")}`}
-                                            </p>
-                                        </td>
-                                        <td className="px-3 py-3 align-middle">{renderSituacao(calc, view)}</td>
-                                        <td className="hidden px-3 py-3 align-middle xl:table-cell">{renderFase(calc, view)}</td>
-                                        <td className="whitespace-nowrap px-3 py-3 text-right align-middle tabular-nums">
+                                        <td className="px-2.5 py-3">{renderUltimaPublicacao(view)}</td>
+                                        <td className="px-2.5 py-2.5">{renderSituacaoFase(calc, view)}</td>
+                                        <td className="px-2.5 py-3 text-right tabular-nums">
                                             {view.valorCitado > 0 ? (
                                                 <span className="font-semibold text-ink">{brl(view.valorCitado)}</span>
                                             ) : (
                                                 <span className="text-muted-foreground">—</span>
                                             )}
                                         </td>
-                                        <td className="py-3 pl-3 pr-4 text-right align-middle">
-                                            {renderAcoes(calc, view, true)}
+                                        <td className="py-2.5 pl-1 pr-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                            {renderAcoes(calc, view)}
                                         </td>
                                     </tr>
                                 ))}
@@ -1272,17 +1623,17 @@ export const ProcessosSalvosDjen = ({
                     </div>
 
                     {/* Lista empilhada (celular e tablet) */}
-                    <ul className="divide-y divide-ink/12 border border-ink/25 bg-card lg:hidden">
-                        {filtrados.map(({ calc, view }) => (
-                            <li key={calc.id} className="space-y-3 p-4">
+                    <ul className="divide-y divide-ink/10 border border-ink/15 bg-card xl:hidden">
+                        {pagProc.itensPagina.map(({ calc, view }) => (
+                            <li key={calc.id} className={cn("space-y-3 p-4", view.idsNovos.length > 0 && "bg-gold-light/15")}>
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <button
                                             type="button"
                                             onClick={() => onAbrirProcesso(calc)}
-                                            className="line-clamp-2 break-words text-left font-semibold leading-snug text-ink hover:underline"
+                                            className="line-clamp-2 text-left font-semibold leading-snug text-ink hover:underline"
                                         >
-                                            {view.clienteNome}
+                                            {formatarNomeParte(view.clienteNome)}
                                         </button>
                                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                             {view.parteContraria ? `vs. ${view.parteContraria}` : "Parte contrária não identificada"}
@@ -1295,27 +1646,30 @@ export const ProcessosSalvosDjen = ({
                                     )}
                                 </div>
 
-                                <div className="space-y-0.5 text-sm">
+                                <div className="space-y-1 text-sm">
                                     {renderCnj(calc, view)}
-                                    <p className="text-xs text-muted-foreground">
-                                        {view.idsNovos.length > 0 && (
-                                            <span className="mr-2 bg-gold-light px-1.5 py-0.5 font-semibold text-ink">
-                                                {view.idsNovos.length === 1 ? "1 nova" : `${view.idsNovos.length} novas`}
-                                            </span>
-                                        )}
-                                        {[view.dataUltimaPublicacaoBr, linhaPublicacao(view)].filter(Boolean).join(" · ")}
-                                    </p>
+                                    {renderUltimaPublicacao(view)}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2">
-                                    {renderSituacao(calc, view)}
-                                    {renderFase(calc, view)}
+                                <div className="flex items-end justify-between gap-3">
+                                    {renderSituacaoFase(calc, view)}
+                                    {renderAcoes(calc, view)}
                                 </div>
-
-                                <div className="flex justify-end">{renderAcoes(calc, view)}</div>
                             </li>
                         ))}
                     </ul>
+                    <BarraPaginacao
+                        pagina={pagProc.pagina}
+                        totalPaginas={pagProc.totalPaginas}
+                        total={pagProc.total}
+                        inicio={pagProc.inicio}
+                        fim={pagProc.fim}
+                        onPagina={pagProc.irPara}
+                        porPagina={pagProc.porPagina}
+                        onPorPagina={pagProc.mudarPorPagina}
+                        rotulo="processos"
+                        alvoRolagem={listaProcRef}
+                    />
                 </>
             )}
         </div>

@@ -23,6 +23,9 @@ import {
     type ResultadoProcessoRevisional,
     type TarifaItem,
 } from "./juros/revisional-pro.ts";
+import { normalizarConfigPagina, sanitizarHtmlDocumento, type ConfigPagina } from "./documentos.ts";
+import { cnpjValido, cpfValido } from "./clientes.ts";
+import { configParaLinha, normalizarConfigEscritorio, type ConfigEscritorio } from "./config-escritorio.ts";
 
 const DEFAULT_SUPABASE_URL = "https://smeaktuuuxahmbzpjwqa.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY =
@@ -31,12 +34,20 @@ const DEFAULT_SUPABASE_ANON_KEY =
 const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
 export const SUPABASE_URL = metaEnv?.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = metaEnv?.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
-export const IS_LOCAL_SUPABASE = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(SUPABASE_URL);
+/** Supabase local: loopback ou IP da rede interna (ao abrir o dev server em outro PC do mesmo Wi-Fi). */
+export const IS_LOCAL_SUPABASE =
+    /^https?:\/\/(127\.0\.0\.1|localhost|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?(\/|$)/.test(
+        SUPABASE_URL,
+    );
 
 const SESSION_KEY = IS_LOCAL_SUPABASE ? "ig_revisional_session_local_v1" : "ig_revisional_session_v1";
 
 export type CategoriaCor = "gold" | "ink" | "crimson" | "emerald" | "slate";
 
+/**
+ * FASE do caso (etapa no fluxo: Triagem, Em análise, Ajuizado, Acordo / Concluído).
+ * O nome "Categoria" e a tabela revisional_categorias ficaram por compatibilidade.
+ */
 export interface Categoria {
     id: string;
     nome: string;
@@ -45,18 +56,28 @@ export interface Categoria {
     created_at: string;
 }
 
+/** CATEGORIA do caso no sentido de tipo da ação (Revisional, Busca e Apreensão...). Tabela revisional_tipos. */
+export type TipoAcao = Categoria;
+
 export interface FichaCliente {
     clienteNome: string;
     processoGlobal?: string;
     banco: string;
     documentoContrato: string;
     categoriaId: string | null;
+    /** Categoria (tipo da ação). Indefinido = não mexe na categoria ao salvar. */
+    tipoId?: string | null;
     observacoes: string;
 }
 
 export interface CalculoSalvo {
     id: string;
+    /** Fase do caso (revisional_categorias). */
     categoria_id: string | null;
+    /** Categoria / tipo da ação (revisional_tipos). Ausente em bancos sem a migração 20261119120000. */
+    tipo_id?: string | null;
+    /** Cliente cadastrado (revisional_clientes). Ligado automaticamente pelo nome no banco. */
+    cliente_id?: string | null;
     cliente_nome: string;
     processo_global: string;
     banco: string;
@@ -114,11 +135,23 @@ export interface RevisionalSession {
 
 export class RevisionalApiError extends Error {
     status: number;
-    constructor(message: string, status: number) {
+    code?: string;
+    constructor(message: string, status: number, code?: string) {
         super(message);
         this.name = "RevisionalApiError";
         this.status = status;
+        this.code = code;
     }
+}
+
+export function isTabelaTarefasAusente(err: unknown): boolean {
+    if (!(err instanceof RevisionalApiError)) return false;
+    return (
+        err.code === "42P01" ||
+        err.code === "PGRST205" ||
+        err.code === "TABELA_AUSENTE" ||
+        err.status === 404
+    );
 }
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
@@ -134,6 +167,7 @@ export function analiseParaPayload(a: Analise, ficha: FichaCliente): CalculoPayl
 
     return {
         categoria_id: ficha.categoriaId || null,
+        ...(ficha.tipoId !== undefined ? { tipo_id: ficha.tipoId || null } : {}),
         cliente_nome: clienteNome,
         processo_global: (ficha.processoGlobal ?? "").trim(),
         banco: ficha.banco.trim(),
@@ -300,6 +334,7 @@ export function fichaSemCalculoParaPayload(
 
     return {
         categoria_id: ficha.categoriaId || null,
+        ...(ficha.tipoId !== undefined ? { tipo_id: ficha.tipoId || null } : {}),
         cliente_nome: clienteNome,
         processo_global: (ficha.processoGlobal ?? "").trim().slice(0, 80),
         banco: ficha.banco.trim().slice(0, 100),
@@ -351,6 +386,7 @@ export function calculoParaProcesso(c: CalculoSalvo): {
         banco: c.banco ?? "",
         documentoContrato: c.documento_contrato ?? "",
         categoriaId: c.categoria_id,
+        tipoId: c.tipo_id ?? null,
         observacoes: c.observacoes ?? "",
     };
 
@@ -663,6 +699,7 @@ export function calculoParaFormulario(c: CalculoSalvo): FormularioRestaurado {
             banco: c.banco ?? "",
             documentoContrato: c.documento_contrato ?? "",
             categoriaId: c.categoria_id,
+            tipoId: c.tipo_id ?? null,
             observacoes: c.observacoes ?? "",
         },
     };
@@ -709,10 +746,14 @@ function readStoredSession(): RevisionalSession | null {
 function writeStoredSession(session: RevisionalSession | null) {
     const win = getBrowser();
     if (!win) return;
-    if (!session) {
-        win.localStorage.removeItem(SESSION_KEY);
-    } else {
-        win.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    try {
+        if (!session) {
+            win.localStorage.removeItem(SESSION_KEY);
+        } else {
+            win.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        }
+    } catch {
+        /* modo privado / quota excedida */
     }
 }
 
@@ -724,10 +765,12 @@ interface GoTrueTokenResponse {
 }
 
 function mapTokenResponse(data: GoTrueTokenResponse): RevisionalSession {
+    const expiresInSec = Number(data.expires_in);
+    const ttlMs = Number.isFinite(expiresInSec) && expiresInSec > 0 ? expiresInSec * 1000 : 3600 * 1000;
     return {
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
-        expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
+        expiresAt: Date.now() + ttlMs,
         user: {
             id: data.user.id,
             email: data.user.email ?? "",
@@ -753,33 +796,40 @@ export async function consumirHashRecuperacao(): Promise<{ session: RevisionalSe
     const params = new URLSearchParams(win.location.hash.replace(/^#/, ""));
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
-    const expiresIn = Number(params.get("expires_in") || "3600");
+    const rawExpires = Number(params.get("expires_in") || "3600");
+    const expiresIn = Number.isFinite(rawExpires) && rawExpires > 0 ? rawExpires : 3600;
     const type = params.get("type");
     win.history.replaceState(null, "", win.location.pathname + win.location.search);
 
     if (!accessToken || !refreshToken) return null;
 
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-        headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${accessToken}`,
-        },
-    });
-    if (!res.ok) return null;
-    const user = (await res.json()) as { id: string; email?: string };
-    const session: RevisionalSession = {
-        accessToken,
-        refreshToken,
-        expiresAt: Date.now() + expiresIn * 1000,
-        user: { id: user.id, email: user.email ?? "" },
-    };
-    writeStoredSession(session);
-    return { session, recovery: type === "recovery" };
+    try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+            signal: AbortSignal.timeout(10_000),
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+        if (!res.ok) return null;
+        const user = (await res.json()) as { id: string; email?: string };
+        const session: RevisionalSession = {
+            accessToken,
+            refreshToken,
+            expiresAt: Date.now() + expiresIn * 1000,
+            user: { id: user.id, email: user.email ?? "" },
+        };
+        writeStoredSession(session);
+        return { session, recovery: type === "recovery" };
+    } catch {
+        return null;
+    }
 }
 
 export async function entrarComSenha(email: string, password: string): Promise<RevisionalSession> {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
         method: "POST",
+        signal: AbortSignal.timeout(15_000),
         headers: {
             apikey: SUPABASE_ANON_KEY,
             "Content-Type": "application/json",
@@ -803,32 +853,58 @@ export async function entrarComSenha(email: string, password: string): Promise<R
     return session;
 }
 
-export async function obterSessaoAtiva(): Promise<RevisionalSession | null> {
+/** Deduplica chamadas concorrentes de refresh para evitar revogação por GoTrue Refresh Token Rotation. */
+let refreshEmAndamento: Promise<RevisionalSession | null> | null = null;
+
+export async function obterSessaoAtiva(forcarRefresh = false): Promise<RevisionalSession | null> {
     const current = readStoredSession();
     if (!current) return null;
-    if (current.expiresAt - 60_000 > Date.now()) {
+    if (!forcarRefresh && current.expiresAt - 60_000 > Date.now()) {
         return current;
     }
 
-    try {
-        const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-            method: "POST",
-            headers: {
-                apikey: SUPABASE_ANON_KEY,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ refresh_token: current.refreshToken }),
-        });
-        if (!res.ok) {
-            writeStoredSession(null);
-            return null;
+    if (refreshEmAndamento) return refreshEmAndamento;
+
+    refreshEmAndamento = (async () => {
+        // Releitura após aguardar microtask (outra aba pode já ter renovado).
+        const maisRecente = readStoredSession();
+        if (!maisRecente) return null;
+        if (!forcarRefresh && maisRecente.expiresAt - 60_000 > Date.now()) {
+            return maisRecente;
         }
-        const refreshed = mapTokenResponse((await res.json()) as GoTrueTokenResponse);
-        writeStoredSession(refreshed);
-        return refreshed;
-    } catch {
-        return current;
-    }
+        try {
+            const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+                method: "POST",
+                signal: AbortSignal.timeout(12_000),
+                headers: {
+                    apikey: SUPABASE_ANON_KEY,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ refresh_token: maisRecente.refreshToken }),
+            });
+            if (!res.ok) {
+                if (res.status === 400 || res.status === 401) {
+                    // Só limpa se outra aba não tiver acabado de gravar um token mais novo.
+                    const depois = readStoredSession();
+                    if (!depois || depois.refreshToken === maisRecente.refreshToken) {
+                        writeStoredSession(null);
+                    } else {
+                        return depois;
+                    }
+                }
+                return null;
+            }
+            const refreshed = mapTokenResponse((await res.json()) as GoTrueTokenResponse);
+            writeStoredSession(refreshed);
+            return refreshed;
+        } catch {
+            return forcarRefresh ? null : maisRecente;
+        }
+    })().finally(() => {
+        refreshEmAndamento = null;
+    });
+
+    return refreshEmAndamento;
 }
 
 export async function sairDaSessao(): Promise<void> {
@@ -894,14 +970,22 @@ export async function alterarSenha(novaSenha: string): Promise<void> {
 
 /* ----------------------------------------------------- PostgREST Data Layer */
 
-async function restRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const session = await obterSessaoAtiva();
+function firstOrThrow<T>(rows: T[] | undefined, mensagem = "Registro não encontrado ou já removido."): T {
+    if (!rows || rows.length === 0) {
+        throw new RevisionalApiError(mensagem, 404);
+    }
+    return rows[0];
+}
+
+async function restRequest<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
+    const session = await obterSessaoAtiva(retried);
     if (!session) {
         throw new RevisionalApiError("Sua sessão expirou. Entre novamente.", 401);
     }
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
         ...init,
+        signal: init.signal ?? AbortSignal.timeout(20_000),
         headers: {
             apikey: SUPABASE_ANON_KEY,
             Authorization: `Bearer ${session.accessToken}`,
@@ -911,6 +995,9 @@ async function restRequest<T>(path: string, init: RequestInit = {}): Promise<T> 
     });
 
     if (res.status === 401) {
+        if (!retried) {
+            return restRequest<T>(path, init, true);
+        }
         writeStoredSession(null);
         throw new RevisionalApiError("Sessão expirada. Entre novamente.", 401);
     }
@@ -918,17 +1005,82 @@ async function restRequest<T>(path: string, init: RequestInit = {}): Promise<T> 
     if (!res.ok) {
         const errBody = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
         if (errBody.code === "23505") {
-            throw new RevisionalApiError("Já existe uma categoria com este nome.", 409);
+            const msgDuplicado = path.startsWith("revisional_clientes")
+                ? "Já existe um cliente com este CPF/CNPJ."
+                : path.startsWith("revisional_tipos")
+                  ? "Já existe um tipo de ação com este nome."
+                  : path.startsWith("revisional_categorias")
+                    ? "Já existe uma fase com este nome."
+                    : "Já existe um registro com estes dados.";
+            throw new RevisionalApiError(msgDuplicado, 409, errBody.code);
         }
         if (res.status === 403 || errBody.code === "42501") {
-            throw new RevisionalApiError("Esta conta não tem permissão para acessar o histórico do escritório.", 403);
+            throw new RevisionalApiError(
+                "Esta conta não tem permissão para acessar o histórico do escritório.",
+                403,
+                errBody.code,
+            );
         }
-        throw new RevisionalApiError(errBody.message || "Erro ao comunicar com o banco de dados.", res.status);
+        if (
+            path.startsWith("revisional_tarefas") &&
+            (res.status === 404 || errBody.code === "42P01" || errBody.code === "PGRST205")
+        ) {
+            throw new RevisionalApiError(
+                "A agenda precisa da migração do banco.",
+                res.status,
+                errBody.code || "TABELA_AUSENTE",
+            );
+        }
+        if (
+            (path.startsWith("revisional_modelos") ||
+                path.startsWith("revisional_documentos") ||
+                path.startsWith("revisional_clientes") ||
+                path.startsWith("revisional_configuracoes")) &&
+            (res.status === 404 || errBody.code === "42P01" || errBody.code === "PGRST205")
+        ) {
+            throw new RevisionalApiError(
+                path.startsWith("revisional_clientes")
+                    ? "O cadastro de clientes precisa da migração do banco."
+                    : path.startsWith("revisional_configuracoes")
+                      ? "As configurações do escritório precisam da migração do banco."
+                      : "Os documentos precisam da migração do banco.",
+                res.status,
+                errBody.code || "TABELA_AUSENTE",
+            );
+        }
+        throw new RevisionalApiError(
+            errBody.message || "Erro ao comunicar com o banco de dados.",
+            res.status,
+            errBody.code,
+        );
     }
 
     if (res.status === 204) return undefined as T;
     const raw: unknown = await res.json();
-    return normalizeNumericRow(raw) as T;
+    return (path.startsWith("revisional_calculos") ? normalizeNumericRow(raw) : raw) as T;
+}
+
+const TAMANHO_PAGINA_POSTGREST = 1000;
+const MAX_PAGINAS_LISTAGEM = 20;
+
+/**
+ * Lê todas as páginas de uma tabela PostgREST sem truncamento silencioso em 1.000 linhas.
+ */
+async function restRequestList<T>(path: string): Promise<T[]> {
+    const acumulado: T[] = [];
+    for (let pagina = 0; pagina < MAX_PAGINAS_LISTAGEM; pagina++) {
+        const inicio = pagina * TAMANHO_PAGINA_POSTGREST;
+        const fim = inicio + TAMANHO_PAGINA_POSTGREST - 1;
+        const lote = await restRequest<T[]>(path, {
+            headers: {
+                "Range-Unit": "items",
+                Range: `${inicio}-${fim}`,
+            },
+        });
+        acumulado.push(...lote);
+        if (lote.length < TAMANHO_PAGINA_POSTGREST) break;
+    }
+    return acumulado;
 }
 
 const NUMERIC_CALCULO_KEYS = new Set([
@@ -965,7 +1117,7 @@ export function normalizeNumericRow(input: unknown): unknown {
 }
 
 export async function listarCategorias(): Promise<Categoria[]> {
-    return restRequest<Categoria[]>("revisional_categorias?select=*&order=ordem.asc,nome.asc");
+    return restRequestList<Categoria>("revisional_categorias?select=*&order=ordem.asc,nome.asc");
 }
 
 export async function criarCategoria(nome: string, cor: CategoriaCor = "gold", ordem = 10): Promise<Categoria> {
@@ -974,7 +1126,7 @@ export async function criarCategoria(nome: string, cor: CategoriaCor = "gold", o
         headers: { Prefer: "return=representation" },
         body: JSON.stringify({ nome: nome.trim(), cor, ordem }),
     });
-    return rows[0];
+    return firstOrThrow(rows);
 }
 
 export async function atualizarCategoria(
@@ -986,7 +1138,7 @@ export async function atualizarCategoria(
         headers: { Prefer: "return=representation" },
         body: JSON.stringify(patch),
     });
-    return rows[0];
+    return firstOrThrow(rows);
 }
 
 export async function excluirCategoria(id: string): Promise<void> {
@@ -995,8 +1147,49 @@ export async function excluirCategoria(id: string): Promise<void> {
     });
 }
 
+export async function listarTipos(): Promise<TipoAcao[]> {
+    return restRequestList<TipoAcao>("revisional_tipos?select=*&order=ordem.asc,nome.asc");
+}
+
+export async function criarTipo(nome: string, cor: CategoriaCor = "ink", ordem = 10): Promise<TipoAcao> {
+    const rows = await restRequest<TipoAcao[]>("revisional_tipos", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ nome: nome.trim(), cor, ordem }),
+    });
+    return firstOrThrow(rows);
+}
+
+export async function atualizarTipo(
+    id: string,
+    patch: Partial<Pick<TipoAcao, "nome" | "cor" | "ordem">>,
+): Promise<TipoAcao> {
+    const rows = await restRequest<TipoAcao[]>(`revisional_tipos?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(patch),
+    });
+    return firstOrThrow(rows);
+}
+
+export async function excluirTipo(id: string): Promise<void> {
+    await restRequest<void>(`revisional_tipos?id=eq.${encodeURIComponent(id)}`, {
+        method: "DELETE",
+    });
+}
+
+/** Já existe registro com este número de processo (exatamente como gravado)? Só leitura. */
+export async function existeCalculoComProcesso(processoGlobal: string): Promise<boolean> {
+    const numero = processoGlobal.trim();
+    if (!numero) return false;
+    const rows = await restRequest<Array<{ id: string }>>(
+        `revisional_calculos?select=id&processo_global=eq.${encodeURIComponent(numero)}&limit=1`,
+    );
+    return rows.length > 0;
+}
+
 export async function listarCalculos(): Promise<CalculoSalvo[]> {
-    return restRequest<CalculoSalvo[]>("revisional_calculos?select=*&order=updated_at.desc");
+    return restRequestList<CalculoSalvo>("revisional_calculos?select=*&order=updated_at.desc");
 }
 
 export async function criarCalculo(payload: CalculoPayload): Promise<CalculoSalvo> {
@@ -1005,7 +1198,7 @@ export async function criarCalculo(payload: CalculoPayload): Promise<CalculoSalv
         headers: { Prefer: "return=representation" },
         body: JSON.stringify(payload),
     });
-    return rows[0];
+    return firstOrThrow(rows);
 }
 
 export async function atualizarCalculo(id: string, payload: Partial<CalculoPayload>): Promise<CalculoSalvo> {
@@ -1014,11 +1207,545 @@ export async function atualizarCalculo(id: string, payload: Partial<CalculoPaylo
         headers: { Prefer: "return=representation" },
         body: JSON.stringify(payload),
     });
-    return rows[0];
+    return firstOrThrow(rows, "Caso não encontrado ou já removido.");
 }
 
 export async function excluirCalculo(id: string): Promise<void> {
     await restRequest<void>(`revisional_calculos?id=eq.${encodeURIComponent(id)}`, {
         method: "DELETE",
     });
+}
+
+/* ----------------------------------------------------- Agenda / Tarefas */
+
+export type TipoTarefa = "tarefa" | "prazo" | "audiencia" | "reuniao";
+
+export interface Tarefa {
+    id: string;
+    titulo: string;
+    tipo: TipoTarefa;
+    data: string;
+    hora: string | null;
+    calculo_id: string | null;
+    concluida: boolean;
+    observacoes: string;
+    created_by_email: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export type TarefaPayload = Pick<
+    Tarefa,
+    "titulo" | "tipo" | "data" | "hora" | "calculo_id" | "concluida" | "observacoes"
+>;
+
+const TIPOS_TAREFA_VALIDOS = new Set<TipoTarefa>(["tarefa", "prazo", "audiencia", "reuniao"]);
+
+function normalizarHoraTarefa(horaRaw: unknown): string | null {
+    if (typeof horaRaw !== "string") return null;
+    const limpo = horaRaw.trim();
+    if (!limpo) return null;
+    const match = limpo.match(/^(\d{2}:\d{2})/);
+    return match ? match[1] : null;
+}
+
+export function normalizarTarefaRow(raw: Record<string, unknown>): Tarefa {
+    const tipoRaw = String(raw.tipo ?? "tarefa").trim().toLowerCase() as TipoTarefa;
+    const tipo: TipoTarefa = TIPOS_TAREFA_VALIDOS.has(tipoRaw) ? tipoRaw : "tarefa";
+    return {
+        id: String(raw.id ?? ""),
+        titulo: String(raw.titulo ?? "").trim(),
+        tipo,
+        data: String(raw.data ?? "").slice(0, 10),
+        hora: normalizarHoraTarefa(raw.hora),
+        calculo_id: raw.calculo_id ? String(raw.calculo_id) : null,
+        concluida: Boolean(raw.concluida),
+        observacoes: String(raw.observacoes ?? ""),
+        created_by_email: String(raw.created_by_email ?? ""),
+        created_at: String(raw.created_at ?? ""),
+        updated_at: String(raw.updated_at ?? ""),
+    };
+}
+
+export function sanitizarTarefaPayload(payload: Partial<TarefaPayload>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    if (payload.titulo !== undefined) {
+        const titulo = payload.titulo.trim().slice(0, 200);
+        if (!titulo) {
+            throw new Error("Informe o título da tarefa ou prazo.");
+        }
+        out.titulo = titulo;
+    }
+    if (payload.tipo !== undefined) {
+        out.tipo = TIPOS_TAREFA_VALIDOS.has(payload.tipo) ? payload.tipo : "tarefa";
+    }
+    if (payload.data !== undefined) {
+        out.data = payload.data.slice(0, 10);
+    }
+    if (payload.hora !== undefined) {
+        out.hora = normalizarHoraTarefa(payload.hora);
+    }
+    if (payload.calculo_id !== undefined) {
+        out.calculo_id = payload.calculo_id || null;
+    }
+    if (payload.concluida !== undefined) {
+        out.concluida = Boolean(payload.concluida);
+    }
+    if (payload.observacoes !== undefined) {
+        out.observacoes = payload.observacoes.trim().slice(0, 2000);
+    }
+    return out;
+}
+
+export async function listarTarefas(): Promise<Tarefa[]> {
+    const rows = await restRequestList<Record<string, unknown>>(
+        "revisional_tarefas?select=*&order=data.asc,hora.asc.nullslast",
+    );
+    return rows.map(normalizarTarefaRow);
+}
+
+export async function criarTarefa(payload: TarefaPayload): Promise<Tarefa> {
+    const body = sanitizarTarefaPayload(payload);
+    const rows = await restRequest<Record<string, unknown>[]>("revisional_tarefas", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(body),
+    });
+    return normalizarTarefaRow(firstOrThrow(rows));
+}
+
+export async function atualizarTarefa(id: string, patch: Partial<TarefaPayload>): Promise<Tarefa> {
+    const body = sanitizarTarefaPayload(patch);
+    const rows = await restRequest<Record<string, unknown>[]>(
+        `revisional_tarefas?id=eq.${encodeURIComponent(id)}`,
+        {
+            method: "PATCH",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify(body),
+        },
+    );
+    return normalizarTarefaRow(firstOrThrow(rows, "Compromisso não encontrado ou já removido."));
+}
+
+export const ROTULO_TIPO_TAREFA: Record<TipoTarefa, string> = {
+    prazo: "Prazo",
+    audiencia: "Audiência",
+    reuniao: "Reunião",
+    tarefa: "Tarefa",
+};
+
+export function dataHojeLocalISO(ref: Date = new Date()): string {
+    try {
+        return new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Recife",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        }).format(ref);
+    } catch {
+        const ano = ref.getFullYear();
+        const mes = String(ref.getMonth() + 1).padStart(2, "0");
+        const dia = String(ref.getDate()).padStart(2, "0");
+        return `${ano}-${mes}-${dia}`;
+    }
+}
+
+export function somarDiasISO(dataIso: string, dias: number): string {
+    const [ano, mes, dia] = dataIso.slice(0, 10).split("-").map(Number);
+    const d = new Date(ano, (mes || 1) - 1, (dia || 1) + dias, 12, 0, 0);
+    return dataHojeLocalISO(d);
+}
+
+export function formatarDataDiaTitulo(dataIso: string, hojeIso: string): string {
+    if (dataIso === hojeIso) return `Hoje · ${dataIso.split("-").reverse().join("/")}`;
+    if (dataIso === somarDiasISO(hojeIso, 1)) return `Amanhã · ${dataIso.split("-").reverse().join("/")}`;
+    const [ano, mes, dia] = dataIso.split("-").map(Number);
+    const d = new Date(ano, (mes || 1) - 1, dia || 1, 12, 0, 0);
+    const diaSemana = d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+    return `${diaSemana.charAt(0).toUpperCase()}${diaSemana.slice(1)} · ${dataIso.split("-").reverse().join("/")}`;
+}
+
+/**
+ * Monta link de evento pré-preenchido no Google Agenda (zero-OAuth, gratuito).
+ * Eventos sem hora usam formato dia inteiro (data fim exclusiva no dia seguinte).
+ */
+export function gerarUrlGoogleCalendar(
+    tarefa: Pick<Tarefa, "titulo" | "tipo" | "data" | "hora" | "observacoes">,
+    caso?: Pick<CalculoSalvo, "cliente_nome" | "processo_global" | "banco"> | null,
+): string {
+    const dataLimpa = tarefa.data.slice(0, 10);
+    const dataCompacta = dataLimpa.replace(/-/g, "");
+    const rotuloTipo = ROTULO_TIPO_TAREFA[tarefa.tipo] ?? "Compromisso";
+    const titulo = `[${rotuloTipo}] ${tarefa.titulo}`.trim();
+
+    let dates: string;
+    const params = new URLSearchParams({
+        action: "TEMPLATE",
+        text: titulo,
+    });
+
+    if (tarefa.hora && /^\d{2}:\d{2}/.test(tarefa.hora)) {
+        const [hh, mm] = tarefa.hora.slice(0, 5).split(":").map(Number);
+        const inicio = `${dataCompacta}T${String(hh).padStart(2, "0")}${String(mm).padStart(2, "0")}00`;
+        const fimTotalMin = hh * 60 + mm + 60;
+        const diaFim =
+            fimTotalMin >= 24 * 60
+                ? somarDiasISO(dataLimpa, Math.floor(fimTotalMin / (24 * 60))).replace(/-/g, "")
+                : dataCompacta;
+        const hhFim = String(Math.floor((fimTotalMin % (24 * 60)) / 60)).padStart(2, "0");
+        const mmFim = String(fimTotalMin % 60).padStart(2, "0");
+        dates = `${inicio}/${diaFim}T${hhFim}${mmFim}00`;
+        params.set("dates", dates);
+        params.set("ctz", "America/Recife");
+    } else {
+        const diaSeguinte = somarDiasISO(dataLimpa, 1).replace(/-/g, "");
+        dates = `${dataCompacta}/${diaSeguinte}`;
+        params.set("dates", dates);
+    }
+
+    const linhasDetalhes: string[] = [];
+    if (caso?.cliente_nome) linhasDetalhes.push(`Cliente: ${caso.cliente_nome}`);
+    if (caso?.processo_global) linhasDetalhes.push(`Processo: ${caso.processo_global}`);
+    if (caso?.banco) linhasDetalhes.push(`Instituição: ${caso.banco}`);
+    if (tarefa.observacoes?.trim()) linhasDetalhes.push("", tarefa.observacoes.trim());
+    if (linhasDetalhes.length > 0) {
+        params.set("details", linhasDetalhes.join("\n"));
+    }
+
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export async function excluirTarefa(id: string): Promise<void> {
+    await restRequest<void>(`revisional_tarefas?id=eq.${encodeURIComponent(id)}`, {
+        method: "DELETE",
+    });
+}
+
+/* ----------------------------------------------------- Documentos e modelos */
+
+export interface ModeloDocumento {
+    id: string;
+    nome: string;
+    descricao: string;
+    conteudo_html: string;
+    /** Papel e margens; pode faltar em bancos sem a migração 20261120130000 (use normalizarConfigPagina). */
+    pagina?: ConfigPagina;
+    created_by_email: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface DocumentoGerado {
+    id: string;
+    titulo: string;
+    calculo_id: string | null;
+    /** Ausente em bancos sem a migração 20261120140000. */
+    cliente_id?: string | null;
+    modelo_id: string | null;
+    conteudo_html: string;
+    pagina?: ConfigPagina;
+    created_by_email: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export type ModeloPayload = Pick<ModeloDocumento, "nome" | "descricao" | "conteudo_html" | "pagina">;
+export type DocumentoPayload = Pick<
+    DocumentoGerado,
+    "titulo" | "calculo_id" | "cliente_id" | "modelo_id" | "conteudo_html" | "pagina"
+>;
+
+const LIMITE_HTML_DOCUMENTO = 500_000;
+
+export function sanitizarModeloPayload(p: Partial<ModeloPayload>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    if (p.nome !== undefined) {
+        const nome = p.nome.trim().slice(0, 160);
+        if (!nome) throw new Error("Dê um nome ao modelo.");
+        out.nome = nome;
+    }
+    if (p.descricao !== undefined) out.descricao = p.descricao.trim().slice(0, 500);
+    if (p.conteudo_html !== undefined) {
+        const limpo = sanitizarHtmlDocumento(p.conteudo_html);
+        if (limpo.length > LIMITE_HTML_DOCUMENTO) {
+            throw new Error("O modelo ficou grande demais para salvar (limite de cerca de 500 mil caracteres).");
+        }
+        out.conteudo_html = limpo;
+    }
+    if (p.pagina !== undefined) out.pagina = normalizarConfigPagina(p.pagina);
+    return out;
+}
+
+export function sanitizarDocumentoPayload(p: Partial<DocumentoPayload>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    if (p.titulo !== undefined) {
+        const titulo = p.titulo.trim().slice(0, 200);
+        if (!titulo) throw new Error("Dê um título ao documento.");
+        out.titulo = titulo;
+    }
+    if (p.calculo_id !== undefined) out.calculo_id = p.calculo_id || null;
+    if (p.cliente_id !== undefined) out.cliente_id = p.cliente_id || null;
+    if (p.modelo_id !== undefined) out.modelo_id = p.modelo_id || null;
+    if (p.conteudo_html !== undefined) {
+        const limpo = sanitizarHtmlDocumento(p.conteudo_html);
+        if (limpo.length > LIMITE_HTML_DOCUMENTO) {
+            throw new Error("O documento ficou grande demais para salvar (limite de cerca de 500 mil caracteres).");
+        }
+        out.conteudo_html = limpo;
+    }
+    if (p.pagina !== undefined) out.pagina = normalizarConfigPagina(p.pagina);
+    return out;
+}
+
+export async function listarModelos(): Promise<ModeloDocumento[]> {
+    return restRequestList<ModeloDocumento>("revisional_modelos?select=*&order=nome.asc");
+}
+
+export async function criarModelo(payload: ModeloPayload): Promise<ModeloDocumento> {
+    const rows = await restRequest<ModeloDocumento[]>("revisional_modelos", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(sanitizarModeloPayload(payload)),
+    });
+    return firstOrThrow(rows);
+}
+
+export async function atualizarModelo(id: string, patch: Partial<ModeloPayload>): Promise<ModeloDocumento> {
+    const rows = await restRequest<ModeloDocumento[]>(`revisional_modelos?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(sanitizarModeloPayload(patch)),
+    });
+    return firstOrThrow(rows, "Modelo não encontrado ou já removido.");
+}
+
+export async function excluirModelo(id: string): Promise<void> {
+    await restRequest<void>(`revisional_modelos?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function listarDocumentos(): Promise<DocumentoGerado[]> {
+    return restRequestList<DocumentoGerado>("revisional_documentos?select=*&order=updated_at.desc");
+}
+
+export async function criarDocumento(payload: DocumentoPayload): Promise<DocumentoGerado> {
+    const rows = await restRequest<DocumentoGerado[]>("revisional_documentos", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(sanitizarDocumentoPayload(payload)),
+    });
+    return firstOrThrow(rows);
+}
+
+export async function atualizarDocumento(id: string, patch: Partial<DocumentoPayload>): Promise<DocumentoGerado> {
+    const rows = await restRequest<DocumentoGerado[]>(`revisional_documentos?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(sanitizarDocumentoPayload(patch)),
+    });
+    return firstOrThrow(rows, "Documento não encontrado ou já removido.");
+}
+
+export async function excluirDocumento(id: string): Promise<void> {
+    await restRequest<void>(`revisional_documentos?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/* ----------------------------------------------------- Clientes */
+
+export type TipoPessoaCliente = "pf" | "pj";
+
+export interface Cliente {
+    id: string;
+    tipo_pessoa: TipoPessoaCliente;
+    nome: string;
+    /** Só dígitos (11 = CPF, 14 = CNPJ) ou vazio. */
+    cpf_cnpj: string;
+    rg: string;
+    rg_orgao: string;
+    nacionalidade: string;
+    /** Id de ESTADOS_CIVIS (src/lib/clientes.ts) ou vazio. */
+    estado_civil: string;
+    profissao: string;
+    genero: "" | "m" | "f";
+    data_nascimento: string | null;
+    email: string;
+    telefone: string;
+    /** Só dígitos (8) ou vazio. */
+    cep: string;
+    logradouro: string;
+    numero: string;
+    complemento: string;
+    bairro: string;
+    cidade: string;
+    uf: string;
+    representante_nome: string;
+    representante_cpf: string;
+    observacoes: string;
+    created_by_email: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export type ClientePayload = Omit<Cliente, "id" | "created_by_email" | "created_at" | "updated_at">;
+
+const LIMITES_TEXTO_CLIENTE: Partial<Record<keyof ClientePayload, number>> = {
+    nome: 200,
+    rg: 40,
+    rg_orgao: 40,
+    nacionalidade: 60,
+    estado_civil: 40,
+    profissao: 100,
+    email: 200,
+    telefone: 40,
+    logradouro: 200,
+    numero: 20,
+    complemento: 100,
+    bairro: 100,
+    cidade: 100,
+    representante_nome: 200,
+};
+
+export function clienteEmBranco(): ClientePayload {
+    return {
+        tipo_pessoa: "pf",
+        nome: "",
+        cpf_cnpj: "",
+        rg: "",
+        rg_orgao: "",
+        nacionalidade: "brasileiro",
+        estado_civil: "",
+        profissao: "",
+        genero: "",
+        data_nascimento: null,
+        email: "",
+        telefone: "",
+        cep: "",
+        logradouro: "",
+        numero: "",
+        complemento: "",
+        bairro: "",
+        cidade: "",
+        uf: "",
+        representante_nome: "",
+        representante_cpf: "",
+        observacoes: "",
+    };
+}
+
+/** Limpa e valida antes de gravar (o banco também confere formato e tamanho). */
+export function sanitizarClientePayload(p: Partial<ClientePayload>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [chave, limite] of Object.entries(LIMITES_TEXTO_CLIENTE) as Array<[keyof ClientePayload, number]>) {
+        const v = p[chave];
+        if (v !== undefined) out[chave] = String(v ?? "").trim().replace(/\s+/g, " ").slice(0, limite);
+    }
+    if (p.observacoes !== undefined) out.observacoes = String(p.observacoes ?? "").trim().slice(0, 4000);
+    if (p.nome !== undefined && !out.nome) throw new Error("Informe o nome do cliente.");
+    if (p.tipo_pessoa !== undefined) out.tipo_pessoa = p.tipo_pessoa === "pj" ? "pj" : "pf";
+    if (p.genero !== undefined) out.genero = p.genero === "m" || p.genero === "f" ? p.genero : "";
+    if (p.cpf_cnpj !== undefined) {
+        const d = String(p.cpf_cnpj ?? "").replace(/\D+/g, "");
+        if (d && d.length !== 11 && d.length !== 14) throw new Error("CPF deve ter 11 dígitos e CNPJ, 14.");
+        if (d.length === 11 && !cpfValido(d)) throw new Error("CPF inválido (confira os dígitos verificadores).");
+        if (d.length === 14 && !cnpjValido(d)) throw new Error("CNPJ inválido (confira os dígitos verificadores).");
+        if (out.tipo_pessoa === "pf" && d.length === 14) throw new Error("Pessoa física deve informar CPF (11 dígitos).");
+        if (out.tipo_pessoa === "pj" && d.length === 11) throw new Error("Pessoa jurídica deve informar CNPJ (14 dígitos).");
+        out.cpf_cnpj = d;
+    }
+    if (p.representante_cpf !== undefined) {
+        const d = String(p.representante_cpf ?? "").replace(/\D+/g, "");
+        if (d && d.length !== 11) throw new Error("O CPF do representante deve ter 11 dígitos.");
+        if (d && !cpfValido(d)) throw new Error("CPF do representante inválido.");
+        out.representante_cpf = d;
+    }
+    if (p.cep !== undefined) {
+        const d = String(p.cep ?? "").replace(/\D+/g, "");
+        if (d && d.length !== 8) throw new Error("O CEP deve ter 8 dígitos.");
+        out.cep = d;
+    }
+    if (p.uf !== undefined) {
+        const uf = String(p.uf ?? "").trim().toUpperCase();
+        if (uf && !/^[A-Z]{2}$/.test(uf)) throw new Error("UF deve ter 2 letras (ex.: PE).");
+        out.uf = uf;
+    }
+    if (p.data_nascimento !== undefined) {
+        const d = String(p.data_nascimento ?? "").slice(0, 10);
+        out.data_nascimento = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+    }
+    return out;
+}
+
+function erroCliente(err: unknown): never {
+    if (err instanceof RevisionalApiError && err.code === "23505") {
+        throw new RevisionalApiError("Já existe um cliente com este CPF/CNPJ.", 409, err.code);
+    }
+    throw err;
+}
+
+export async function listarClientes(): Promise<Cliente[]> {
+    return restRequestList<Cliente>("revisional_clientes?select=*&order=nome.asc");
+}
+
+export async function criarCliente(payload: Partial<ClientePayload>): Promise<Cliente> {
+    try {
+        const rows = await restRequest<Cliente[]>("revisional_clientes", {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify(sanitizarClientePayload(payload)),
+        });
+        return firstOrThrow(rows);
+    } catch (err) {
+        return erroCliente(err);
+    }
+}
+
+export async function atualizarCliente(id: string, patch: Partial<ClientePayload>): Promise<Cliente> {
+    try {
+        const rows = await restRequest<Cliente[]>(`revisional_clientes?id=eq.${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify(sanitizarClientePayload(patch)),
+        });
+        return firstOrThrow(rows, "Cliente não encontrado ou já removido.");
+    } catch (err) {
+        return erroCliente(err);
+    }
+}
+
+export async function excluirCliente(id: string): Promise<void> {
+    await restRequest<void>(`revisional_clientes?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** Liga um caso a outro cliente (o gatilho do banco respeita a escolha) e alinha o nome do caso. */
+export async function vincularCasoAoCliente(calculoId: string, cliente: Pick<Cliente, "id" | "nome">): Promise<CalculoSalvo> {
+    const rows = await restRequest<CalculoSalvo[]>(`revisional_calculos?id=eq.${encodeURIComponent(calculoId)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ cliente_id: cliente.id, cliente_nome: cliente.nome }),
+    });
+    return firstOrThrow(rows, "Caso não encontrado ou já removido.");
+}
+
+/* ----------------------------------------------------- Configurações do escritório */
+
+/**
+ * Nome, OAB e cidade salvos em Configurações. `null` se a tabela ainda não existe no banco
+ * (migração 20261120150000): aí o sistema segue com os valores padrão.
+ */
+export async function obterConfigEscritorio(): Promise<ConfigEscritorio | null> {
+    try {
+        const rows = await restRequest<Record<string, unknown>[]>("revisional_configuracoes?id=eq.escritorio&select=*");
+        return rows[0] ? normalizarConfigEscritorio(rows[0]) : null;
+    } catch (err) {
+        if (isTabelaTarefasAusente(err)) return null;
+        throw err;
+    }
+}
+
+export async function salvarConfigEscritorio(c: ConfigEscritorio): Promise<ConfigEscritorio> {
+    const rows = await restRequest<Record<string, unknown>[]>("revisional_configuracoes?on_conflict=id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify(configParaLinha(c)),
+    });
+    return normalizarConfigEscritorio(firstOrThrow(rows));
 }

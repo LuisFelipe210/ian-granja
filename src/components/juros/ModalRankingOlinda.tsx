@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Building2, Check, Loader2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODALIDADES, num } from "@/lib/juros";
@@ -8,6 +7,7 @@ import {
     type TaxaOlindaRegistro,
     type TaxaOlindaSelecao,
 } from "@/lib/juros/revisional-pro";
+import { ModalDialog } from "@/components/juros/ModalDialog";
 
 interface ModalRankingOlindaProps {
     aberto: boolean;
@@ -48,36 +48,10 @@ export const ModalRankingOlinda = ({
 
     useEffect(() => {
         if (!aberto) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onFechar();
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [aberto, onFechar]);
-
-    useEffect(() => {
-        if (!aberto) return;
-        const prevOverflow = document.body.style.overflow;
-        const prevPaddingRight = document.body.style.paddingRight;
-        const prevOverscroll = document.documentElement.style.overscrollBehavior;
-        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-        document.body.style.overflow = "hidden";
-        if (scrollbarWidth > 0) {
-            document.body.style.paddingRight = `${scrollbarWidth}px`;
-        }
-        document.documentElement.style.overscrollBehavior = "none";
-
         const raf = requestAnimationFrame(() => {
             buscaInputRef.current?.focus({ preventScroll: true });
         });
-
-        return () => {
-            cancelAnimationFrame(raf);
-            document.body.style.overflow = prevOverflow;
-            document.body.style.paddingRight = prevPaddingRight;
-            document.documentElement.style.overscrollBehavior = prevOverscroll;
-        };
+        return () => cancelAnimationFrame(raf);
     }, [aberto]);
 
     useEffect(() => {
@@ -101,6 +75,11 @@ export const ModalRankingOlinda = ({
                     setErro("Não foi possível obter a tabela do BCB Olinda neste momento. Tente novamente em instantes.");
                 }
             })
+            .catch(() => {
+                if (!ativo) return;
+                setRegistros([]);
+                setErro("Não foi possível consultar a tabela do BCB Olinda agora. Tente novamente em instantes.");
+            })
             .finally(() => {
                 if (ativo) setCarregando(false);
             });
@@ -119,33 +98,30 @@ export const ModalRankingOlinda = ({
         );
     }, [busca, registros]);
 
-    if (!aberto || typeof document === "undefined") return null;
+    if (!aberto) return null;
 
     const periodo = registros[0]
         ? `${registros[0].inicioPeriodo.split("-").reverse().join("/")} a ${registros[0].fimPeriodo.split("-").reverse().join("/")}`
         : "";
     const bancoAtualNorm = normalizarTextoBanco(bancoAtual);
 
-    return createPortal(
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-olinda"
-            onMouseDown={(e) => {
-                if (e.target === e.currentTarget) onFechar();
-            }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-deep/80 p-3 sm:p-6 overscroll-contain"
+    return (
+        <ModalDialog
+            aberto={aberto}
+            onFechar={onFechar}
+            ariaLabelledBy="titulo-olinda"
+            tituloAcessivel="Taxas por instituição financeira"
+            contentClassName="flex h-[85vh] max-h-[44rem] w-[calc(100vw-1.5rem)] max-w-4xl flex-col overflow-hidden border border-ink/30 bg-card shadow-2xl sm:w-[calc(100vw-3rem)]"
         >
-            <div className="sheet flex h-[85vh] max-h-[44rem] w-full max-w-4xl flex-col overflow-hidden">
-                <div className="shrink-0 flex items-start justify-between gap-4 border-b border-ink/20 bg-card px-5 py-4 sm:px-6 sm:py-5">
+                <div className="shrink-0 flex items-start justify-between gap-4 border-b border-ink/20 bg-card px-5 py-4">
                     <div>
-                        <p className="rubric text-gold-deep">Banco Central · API Olinda</p>
-                        <h2 id="titulo-olinda" className="subdisplay mt-1 text-2xl text-ink">
+                        <h2 id="titulo-olinda" className="sys-title text-ink">
                             Taxas por instituição financeira
                         </h2>
                         <p className="mt-1 text-sm text-muted-foreground">
                             {mod?.nome} ({mod?.pessoa.toUpperCase()})
                             {periodo ? ` · Período de referência: ${periodo}` : ""}
+                            {" · Banco Central (API Olinda)"}
                         </p>
                     </div>
                     <button
@@ -289,8 +265,6 @@ export const ModalRankingOlinda = ({
                         Fechar
                     </button>
                 </div>
-            </div>
-        </div>,
-        document.body,
+        </ModalDialog>
     );
 };

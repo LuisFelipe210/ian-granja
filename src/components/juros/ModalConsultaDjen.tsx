@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
     BookmarkPlus,
     Calculator,
@@ -16,15 +15,19 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { configEscritorioAtual } from "@/lib/config-escritorio";
+import { BarraPaginacao } from "@/components/juros/PaginacaoLista";
+import { usePaginacao } from "@/lib/use-paginacao";
 import { brl } from "@/lib/juros";
 import {
-    OAB_ESCRITORIO_PADRAO,
     consultarDjen,
     cruzarComunicacoesComCarteira,
     extrairDadosCarteiraDeDjen,
+    urlHttpSegura,
     type DjenComunicacao,
 } from "@/lib/juros/djen";
 import { isCalculoPendente, type CalculoSalvo, type Categoria } from "@/lib/revisional-db";
+import { ModalDialog } from "@/components/juros/ModalDialog";
 
 export interface ContextoInicialDjen {
     modoInicial?: "processo" | "oab";
@@ -77,8 +80,8 @@ export const ModalConsultaDjen = ({
     const [aba, setAba] = useState<AbaDjen>("oab");
     const [numeroProcesso, setNumeroProcesso] = useState("");
     const [nomeParte, setNomeParte] = useState("");
-    const [numeroOab, setNumeroOab] = useState<string>(OAB_ESCRITORIO_PADRAO.numeroOab);
-    const [ufOab, setUfOab] = useState<string>(OAB_ESCRITORIO_PADRAO.ufOab);
+    const [numeroOab, setNumeroOab] = useState<string>(() => configEscritorioAtual().oabNumero);
+    const [ufOab, setUfOab] = useState<string>(() => configEscritorioAtual().oabUf);
     const [siglaTribunal, setSiglaTribunal] = useState("");
     const [janelaDias, setJanelaDias] = useState<JanelaDias>("recentes");
     const [apenasCarteira, setApenasCarteira] = useState(false);
@@ -93,6 +96,8 @@ export const ModalConsultaDjen = ({
     const [salvandoCarteiraId, setSalvandoCarteiraId] = useState<number | null>(null);
     const [salvandoLote, setSalvandoLote] = useState(false);
 
+    const buscaReqRef = useRef(0);
+
     const executarBusca = useCallback(
         async (params: {
             modo: AbaDjen;
@@ -103,6 +108,7 @@ export const ModalConsultaDjen = ({
             tribunal: string;
             dias: JanelaDias;
         }) => {
+            const reqId = ++buscaReqRef.current;
             setErro(null);
             setCarregando(true);
             try {
@@ -121,11 +127,11 @@ export const ModalConsultaDjen = ({
                     nomeParte: params.modo === "processo" && !params.proc ? params.parte || undefined : undefined,
                     numeroOab:
                         params.modo === "oab" || (params.modo === "processo" && !params.proc && params.parte)
-                            ? params.oab || OAB_ESCRITORIO_PADRAO.numeroOab
+                            ? params.oab || configEscritorioAtual().oabNumero
                             : undefined,
                     ufOab:
                         params.modo === "oab" || (params.modo === "processo" && !params.proc && params.parte)
-                            ? params.uf || OAB_ESCRITORIO_PADRAO.ufOab
+                            ? params.uf || configEscritorioAtual().oabUf
                             : undefined,
                     siglaTribunal: params.tribunal.trim() || undefined,
                     dataDisponibilizacaoInicio: dataInicio,
@@ -133,21 +139,26 @@ export const ModalConsultaDjen = ({
                     itensPorPagina: 100,
                 });
 
+                if (reqId !== buscaReqRef.current) return;
                 setTotalNoDjen(res.totalRegistros);
                 setResultadosBrutos(res.items);
             } catch (e) {
+                if (reqId !== buscaReqRef.current) return;
                 setErro(e instanceof Error ? e.message : "Erro ao consultar publicações no DJEN.");
                 setResultadosBrutos([]);
                 setTotalNoDjen(0);
             } finally {
-                setCarregando(false);
+                if (reqId === buscaReqRef.current) setCarregando(false);
             }
         },
         [],
     );
 
     useEffect(() => {
-        if (!aberto) return;
+        if (!aberto) {
+            buscaReqRef.current += 1;
+            return;
+        }
         const modoInicial: AbaDjen = contexto?.modoInicial ?? "oab";
         const procInicial = contexto?.processoGlobal?.trim() ?? "";
         const parteInicial = contexto?.clienteNome?.trim() ?? "";
@@ -157,14 +168,18 @@ export const ModalConsultaDjen = ({
         setNomeParte(parteInicial);
         setFiltroTextoLocal("");
         setErro(null);
+        // Ao abrir, parte da OAB salva em Configurações.
+        const oabEscritorio = configEscritorioAtual();
+        setNumeroOab(oabEscritorio.oabNumero);
+        setUfOab(oabEscritorio.oabUf);
 
         if (modoInicial === "processo" && (procInicial || parteInicial)) {
             void executarBusca({
                 modo: "processo",
                 proc: procInicial,
                 parte: parteInicial,
-                oab: numeroOab,
-                uf: ufOab,
+                oab: oabEscritorio.oabNumero,
+                uf: oabEscritorio.oabUf,
                 tribunal: siglaTribunal,
                 dias: "recentes",
             });
@@ -173,23 +188,14 @@ export const ModalConsultaDjen = ({
                 modo: "oab",
                 proc: "",
                 parte: "",
-                oab: numeroOab,
-                uf: ufOab,
+                oab: oabEscritorio.oabNumero,
+                uf: oabEscritorio.oabUf,
                 tribunal: siglaTribunal,
                 dias: janelaDias,
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aberto, contexto]);
-
-    useEffect(() => {
-        if (!aberto) return;
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onFechar();
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [aberto, onFechar]);
 
     const resultadosCruzados = useMemo(
         () => cruzarComunicacoesComCarteira(resultadosBrutos, calculos, categorias),
@@ -233,6 +239,16 @@ export const ModalConsultaDjen = ({
         }
         return lista;
     }, [resultadosExibidos]);
+
+    const listaResultadosRef = useRef<HTMLDivElement>(null);
+    const pagRes = usePaginacao(resultadosExibidos, {
+        porPaginaPadrao: 20,
+        reiniciarCom: [filtroTextoLocal, apenasCarteira, resultadosBrutos.length],
+    });
+    const irParaPaginaResultados = (p: number) => {
+        pagRes.irPara(p);
+        listaResultadosRef.current?.scrollTo({ top: 0 });
+    };
 
     if (!aberto) return null;
 
@@ -328,23 +344,20 @@ export const ModalConsultaDjen = ({
         }
     };
 
-    return createPortal(
-        <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-deep/80 p-3 sm:p-5 backdrop-blur-[1px]"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="djen-modal-title"
-            onClick={(e) => {
-                if (e.target === e.currentTarget) onFechar();
-            }}
+    return (
+        <ModalDialog
+            aberto={aberto}
+            onFechar={onFechar}
+            ariaLabelledBy="djen-modal-title"
+            tituloAcessivel="Consulta Oficial DJEN · CNJ"
+            contentClassName="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-4xl flex-col overflow-hidden border border-ink/30 bg-card shadow-2xl sm:w-[calc(100vw-2.5rem)]"
         >
-            <div className="flex max-h-[92vh] w-full max-w-4xl flex-col border-2 border-ink bg-card shadow-2xl">
                 {/* Cabeçalho */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/20 bg-ink px-5 py-4 text-paper">
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-ink/20 bg-ink px-5 py-4 text-paper">
                     <div className="flex items-center gap-2.5">
                         <Gavel className="size-4 text-gold-light" />
                         <div>
-                            <h2 id="djen-modal-title" className="subdisplay text-lg text-paper">
+                            <h2 id="djen-modal-title" className="sys-title text-paper">
                                 Consulta Oficial DJEN · CNJ
                             </h2>
                             <p className="text-[11px] text-paper/75">
@@ -558,7 +571,7 @@ export const ModalConsultaDjen = ({
                 </form>
 
                 {/* Lista de publicações */}
-                <div className="flex-1 space-y-3 overflow-y-auto p-5">
+                <div ref={listaResultadosRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-5">
                     {carregando ? (
                         <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
                             <Loader2 className="size-6 animate-spin text-gold-deep" />
@@ -570,7 +583,7 @@ export const ModalConsultaDjen = ({
                         </div>
                     ) : resultadosExibidos.length === 0 ? (
                         <div className="border border-ink/20 bg-background/60 p-8 text-center">
-                            <p className="subdisplay text-lg text-ink">Nenhuma publicação exibida.</p>
+                            <p className="sys-section text-ink">Nenhuma publicação exibida.</p>
                             <p className="mt-1 text-xs text-muted-foreground">
                                 {apenasCarteira && resultadosBrutos.length > 0
                                     ? "Há publicações no DJEN, mas nenhuma vinculada aos processos já cadastrados na carteira."
@@ -578,7 +591,8 @@ export const ModalConsultaDjen = ({
                             </p>
                         </div>
                     ) : (
-                        resultadosExibidos.map((item) => {
+                        <>
+                        {pagRes.itensPagina.map((item) => {
                             const vinc = item.clienteVinculado;
                             const casoObj = vinc ? calculos.find((c) => c.id === vinc.id) ?? null : null;
                             const podeVincularNaFicha = Boolean(
@@ -721,9 +735,9 @@ export const ModalConsultaDjen = ({
                                             {copiadoId === item.id ? "Copiado" : "Copiar teor"}
                                         </button>
 
-                                        {item.link && (
+                                        {urlHttpSegura(item.link) && (
                                             <a
-                                                href={item.link}
+                                                href={urlHttpSegura(item.link)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="inline-flex h-8 items-center gap-1.5 border border-ink/25 px-2.5 text-[11px] font-semibold text-ink hover:bg-ink/5"
@@ -796,11 +810,22 @@ export const ModalConsultaDjen = ({
                                     </div>
                                 </article>
                             );
-                        })
+                        })}
+                        <BarraPaginacao
+                            pagina={pagRes.pagina}
+                            totalPaginas={pagRes.totalPaginas}
+                            total={pagRes.total}
+                            inicio={pagRes.inicio}
+                            fim={pagRes.fim}
+                            onPagina={irParaPaginaResultados}
+                            porPagina={pagRes.porPagina}
+                            onPorPagina={pagRes.mudarPorPagina}
+                            rotulo="publicações"
+                            className="pt-2"
+                        />
+                        </>
                     )}
                 </div>
-            </div>
-        </div>,
-        document.body,
+        </ModalDialog>
     );
 };
