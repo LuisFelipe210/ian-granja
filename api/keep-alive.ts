@@ -1,8 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-
-const DEFAULT_SUPABASE_URL = "https://smeaktuuuxahmbzpjwqa.supabase.co";
-const DEFAULT_SUPABASE_ANON_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtZWFrdHV1dXhhaG1ienBqd3FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1MDkwNDYsImV4cCI6MjExMDA4NTA0Nn0.w9BajnZKcF3wgzCxxK45QfZAzayKNCYK_ynqyG17Rb4";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/lib/revisional-db.ts";
+import { getHeader, timingSafeEqualStr } from "./_http.ts";
 
 export interface KeepAliveRequest {
     method?: string;
@@ -11,6 +9,7 @@ export interface KeepAliveRequest {
 
 export interface KeepAliveResponse {
     status: (code: number) => KeepAliveResponse;
+    setHeader?: (name: string, value: string) => void;
     json: (body: unknown) => unknown;
 }
 
@@ -19,28 +18,36 @@ export async function handleKeepAlive(
     response: KeepAliveResponse,
     fetchFn: typeof fetch = fetch,
 ) {
+    response.setHeader?.("Cache-Control", "no-store, max-age=0");
+
     if (request.method !== "GET" && request.method !== "POST") {
         return response.status(405).json({ ok: false, message: "Method not allowed" });
     }
 
-    const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret) {
-        const auth = request.headers.authorization;
-        const headerVal = Array.isArray(auth) ? auth[0] : auth;
-        if (headerVal !== `Bearer ${cronSecret}`) {
-            return response.status(401).json({ ok: false, message: "Unauthorized" });
-        }
+    const cronSecret = (process.env.CRON_SECRET || "").trim();
+    if (!cronSecret) {
+        return response.status(503).json({
+            ok: false,
+            message: "Configure CRON_SECRET na Vercel para habilitar o keep-alive.",
+        });
     }
 
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-    const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+    const headerVal = getHeader(request.headers, "authorization").trim();
+    if (!timingSafeEqualStr(headerVal, `Bearer ${cronSecret}`)) {
+        return response.status(401).json({ ok: false, message: "Unauthorized" });
+    }
+
+    const supabaseUrl = (process.env.VITE_SUPABASE_URL || SUPABASE_URL).replace(/\/+$/, "");
+    const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+    const apiKey = serviceKey || process.env.VITE_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
 
     try {
         const res = await fetchFn(`${supabaseUrl}/rest/v1/rpc/keep_alive_ping`, {
             method: "POST",
+            signal: AbortSignal.timeout(10_000),
             headers: {
-                apikey: supabaseAnonKey,
-                Authorization: `Bearer ${supabaseAnonKey}`,
+                apikey: apiKey,
+                Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
             },
             body: "{}",

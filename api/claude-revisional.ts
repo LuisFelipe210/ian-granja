@@ -8,6 +8,7 @@ import {
     type EstadoAtualCalculadora,
 } from "../src/lib/juros/claude-revisional.ts";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/lib/revisional-db.ts";
+import { aplicarHeadersApiSeguros, getHeader, verificarUsuarioAutorizado } from "./_http.ts";
 
 const ALLOWED_MIMES = new Set<ClaudeMimeType>([
     "application/pdf",
@@ -16,6 +17,9 @@ const ALLOWED_MIMES = new Set<ClaudeMimeType>([
     "image/webp",
     "text/plain",
 ]);
+
+const MAX_COMANDO_CHARS = 8_000;
+const MAX_ESTADO_ATUAL_BYTES = 120_000;
 
 export interface ApiHttpRequest {
     method?: string;
@@ -31,48 +35,12 @@ export interface ApiHttpResponse {
     end?: () => unknown;
 }
 
-function getHeader(headers: Record<string, string | string[] | undefined>, name: string): string {
-    const val = headers[name.toLowerCase()] ?? headers[name];
-    if (Array.isArray(val)) return val[0] ?? "";
-    return val ?? "";
-}
-
 /**
  * Opções de confiança dos handlers HTTP. `conexaoLocalVerificada` só deve ser `true` quando quem chama
- * conferiu o endereço remoto do socket (loopback), como faz o plugin de API do Vite em dev. O header
- * `Host` e o `NODE_ENV` nunca bastam: o primeiro é controlado pelo cliente e o segundo vale para
- * qualquer máquina que alcance o dev server pela rede.
+ * conferiu o endereço remoto do socket (loopback) e a origem local, como faz o plugin de API do Vite em dev.
  */
 export interface OpcoesConfiancaApi {
     conexaoLocalVerificada?: boolean;
-}
-
-/**
- * Confirma que o token é uma sessão válida E que o e-mail está na whitelist do escritório
- * (`public.is_escritorio_autorizado()`, a mesma regra do RLS). Só checar o JWT deixaria qualquer conta
- * do projeto Supabase gastar a ANTHROPIC_API_KEY do escritório.
- */
-async function verificarUsuarioAutorizado(
-    token: string,
-    supabaseUrl: string,
-    anonKey: string,
-    fetchFn: typeof fetch,
-): Promise<boolean> {
-    try {
-        const res = await fetchFn(`${supabaseUrl.replace(/\/+$/, "")}/rest/v1/rpc/is_escritorio_autorizado`, {
-            method: "POST",
-            headers: {
-                apikey: anonKey,
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-            },
-            body: "{}",
-        });
-        if (!res.ok) return false;
-        return (await res.json()) === true;
-    } catch {
-        return false;
-    }
 }
 
 export async function handleClaudeRevisionalRequest(
@@ -84,9 +52,7 @@ export async function handleClaudeRevisionalRequest(
         skipAuthCheck?: boolean;
     } = {},
 ) {
-    response.setHeader?.("Access-Control-Allow-Origin", "*");
-    response.setHeader?.("Access-Control-Allow-Methods", "POST, OPTIONS");
-    response.setHeader?.("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    aplicarHeadersApiSeguros(request.headers, response, "POST, OPTIONS", "Content-Type, Authorization");
 
     if (request.method === "OPTIONS") {
         response.status(204);
@@ -145,6 +111,26 @@ export async function handleClaudeRevisionalRequest(
     };
 
     const comando = typeof payload.comando === "string" ? payload.comando.trim() : "";
+    if (comando.length > MAX_COMANDO_CHARS) {
+        return response.status(413).json({
+            ok: false,
+            message: `O comando excede o limite de ${MAX_COMANDO_CHARS} caracteres.`,
+        });
+    }
+
+    if (payload.estadoAtual !== undefined) {
+        try {
+            if (JSON.stringify(payload.estadoAtual).length > MAX_ESTADO_ATUAL_BYTES) {
+                return response.status(413).json({
+                    ok: false,
+                    message: "O contexto do caso atual excede o limite permitido.",
+                });
+            }
+        } catch {
+            return response.status(400).json({ ok: false, message: "Contexto do caso inválido." });
+        }
+    }
+
     const arquivosRaw = Array.isArray(payload.arquivos) ? payload.arquivos : [];
 
     if (arquivosRaw.length > 8) {
@@ -186,7 +172,10 @@ export async function handleClaudeRevisionalRequest(
 
     const clientApiKey = typeof payload.anthropicApiKey === "string" ? payload.anthropicApiKey.trim() : "";
     const apiKey = options.apiKey || clientApiKey || process.env.ANTHROPIC_API_KEY || "";
-    const model = typeof payload.model === "string" && payload.model.trim() ? payload.model.trim() : undefined;
+    const usandoChaveServidor = !clientApiKey;
+    const rawModel = typeof payload.model === "string" && payload.model.trim() ? payload.model.trim() : undefined;
+    // Evita que o cliente escale o custo para modelos Opus usando a ANTHROPIC_API_KEY do servidor.
+    const model = usandoChaveServidor && rawModel?.includes("opus") ? undefined : rawModel;
 
     try {
         const result = await executarExtracaoClaudeServer({
@@ -202,8 +191,15 @@ export async function handleClaudeRevisionalRequest(
             ...result,
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Erro ao processar contrato com Claude.";
-        const statusCode = message.includes("ANTHROPIC_API_KEY") ? 400 : 500;
+        console.error("[claude-revisional] Erro:", error);
+        const rawMsg = error instanceof Error ? error.message : "";
+        const statusCode = rawMsg.includes("ANTHROPIC_API_KEY") ? 400 : 500;
+        const message =
+            statusCode === 400
+                ? rawMsg
+                : rawMsg.startsWith("O Claude recusou") || rawMsg.startsWith("O documento")
+                  ? rawMsg
+                  : "Não foi possível processar o contrato com o assistente agora. Tente novamente.";
         return response.status(statusCode).json({ ok: false, message });
     }
 }

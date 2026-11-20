@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { INTERVALO_VERIFICACAO_DJEN_HORAS, verificarPublicacoesDjen } from "../src/lib/juros/djen.ts";
+import {
+    INTERVALO_VERIFICACAO_DJEN_HORAS,
+    OAB_ESCRITORIO_PADRAO,
+    verificarPublicacoesDjen,
+} from "../src/lib/juros/djen.ts";
 import { RevisionalServerDb, type RevisionalDbAdapter } from "../src/lib/mcp/revisional-mcp-core.ts";
+import { definirConfigEscritorio } from "../src/lib/config-escritorio.ts";
 import type { ApiHttpRequest, ApiHttpResponse, OpcoesConfiancaApi } from "./claude-revisional.ts";
-
-function getHeader(headers: Record<string, string | string[] | undefined>, name: string): string {
-    const val = headers[name.toLowerCase()] ?? headers[name];
-    if (Array.isArray(val)) return val[0] ?? "";
-    return val ?? "";
-}
+import { getHeader, timingSafeEqualStr } from "./_http.ts";
 
 /**
  * Verificação agendada de novas publicações do DJEN para os processos salvos (Vercel Cron).
@@ -23,6 +23,8 @@ export async function handleDjenSync(
         esperar?: (ms: number) => Promise<void>;
     } = {},
 ) {
+    response.setHeader?.("Cache-Control", "no-store, max-age=0");
+
     if (request.method !== "GET" && request.method !== "POST") {
         return response.status(405).json({ ok: false, message: "Method not allowed" });
     }
@@ -35,7 +37,8 @@ export async function handleDjenSync(
                 message: "Configure CRON_SECRET na Vercel para habilitar a verificação automática do DJEN.",
             });
         }
-        if (getHeader(request.headers, "authorization") !== `Bearer ${segredo}`) {
+        const auth = getHeader(request.headers, "authorization").trim();
+        if (!timingSafeEqualStr(auth, `Bearer ${segredo}`)) {
             return response.status(401).json({ ok: false, message: "Unauthorized" });
         }
     }
@@ -46,10 +49,30 @@ export async function handleDjenSync(
         Number.isFinite(intervaloEnv) && intervaloEnv >= 0 ? intervaloEnv : INTERVALO_VERIFICACAO_DJEN_HORAS;
 
     try {
-        const calculos = await db.listarCalculos();
+        const [calculos, categorias, tipos, cfgEscritorio] = await Promise.all([
+            db.listarCalculos(),
+            db.listarCategorias(),
+            db.listarTipos ? db.listarTipos() : Promise.resolve([]),
+            db.obterConfigEscritorio ? db.obterConfigEscritorio().catch(() => null) : Promise.resolve(null),
+        ]);
+        // Nome do advogado salvo em Configurações: usado para reconhecer as intimações dele.
+        if (cfgEscritorio) definirConfigEscritorio(cfgEscritorio);
         const resultado = await verificarPublicacoesDjen({
             calculos,
             atualizar: (id, patch) => db.atualizarCalculo(id, patch),
+            // Também varre pela OAB do escritório e cadastra em Processos os processos novos.
+            varreduraOab: {
+                numeroOab:
+                    process.env.DJEN_OAB_NUMERO?.trim() || cfgEscritorio?.oabNumero || OAB_ESCRITORIO_PADRAO.numeroOab,
+                ufOab: process.env.DJEN_OAB_UF?.trim() || cfgEscritorio?.oabUf || OAB_ESCRITORIO_PADRAO.ufOab,
+                criar: (payload) => db.criarCalculo(payload),
+                listarAtuais: () => db.listarCalculos(),
+                ...(db.existeCalculoComProcesso
+                    ? { existeProcesso: (cnj: string) => db.existeCalculoComProcesso!(cnj) }
+                    : {}),
+                categorias,
+                tipos,
+            },
             fetchFn: options.fetchFn,
             esperar: options.esperar,
             intervaloHoras,
@@ -58,16 +81,16 @@ export async function handleDjenSync(
             orcamentoMs: 45_000,
         });
 
-        const { atualizados: _atualizados, ...resumo } = resultado;
+        const { atualizados: _atualizados, criados, ...resumo } = resultado;
         if (resumo.erros.length > 0) {
             console.error("[djen-sync] Falhas em processos:", resumo.erros);
         }
-        return response.status(200).json({ ok: true, ...resumo });
+        return response.status(200).json({ ok: true, ...resumo, processosNovos: criados.length });
     } catch (error) {
         console.error("[djen-sync] Erro:", error);
         return response.status(500).json({
             ok: false,
-            message: error instanceof Error ? error.message : "Erro ao verificar publicações do DJEN.",
+            message: "Erro ao verificar publicações do DJEN.",
         });
     }
 }

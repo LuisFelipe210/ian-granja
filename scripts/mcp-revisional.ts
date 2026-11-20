@@ -6,6 +6,7 @@ import {
     RevisionalServerDb,
     handleMcpJsonRpc,
     type JsonRpcRequest,
+    type RevisionalDbAdapter,
 } from "../src/lib/mcp/revisional-mcp-core.ts";
 
 function parseEnvFile(filePath: string): Record<string, string> {
@@ -51,12 +52,7 @@ async function createDbFromProjectEnv(): Promise<RevisionalServerDb> {
     let supabaseUrl = explicitUrl;
     let anonKey = process.env.VITE_SUPABASE_ANON_KEY;
     let serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.LOCAL_SUPABASE_SERVICE_ROLE_KEY;
-    const password =
-        process.env.REVISIONAL_PASSWORD ||
-        process.env.INITIAL_PASS_IAN ||
-        envProd.INITIAL_PASS_IAN ||
-        process.env.INITIAL_PASS_DEV ||
-        envProd.INITIAL_PASS_DEV;
+    let password = process.env.REVISIONAL_PASSWORD || process.env.INITIAL_PASS_IAN || process.env.INITIAL_PASS_DEV;
 
     if (!supabaseUrl) {
         const localUrl = envDev.VITE_SUPABASE_URL || "http://127.0.0.1:54321";
@@ -82,6 +78,7 @@ async function createDbFromProjectEnv(): Promise<RevisionalServerDb> {
             supabaseUrl = envProd.VITE_SUPABASE_URL;
             anonKey = anonKey || envProd.VITE_SUPABASE_ANON_KEY;
             serviceRoleKey = serviceRoleKey || envProd.SUPABASE_SERVICE_ROLE_KEY;
+            password = password || envProd.INITIAL_PASS_IAN || envProd.INITIAL_PASS_DEV;
         }
     }
 
@@ -94,8 +91,45 @@ async function createDbFromProjectEnv(): Promise<RevisionalServerDb> {
     });
 }
 
+/**
+ * Resolve o banco só quando uma tool precisa dele. Assim o servidor sobe e responde ao
+ * handshake mesmo com o Supabase local parado (o app do Claude marcava "Server disconnected");
+ * o erro aparece na chamada da tool e a próxima chamada tenta de novo, sem reiniciar o conector.
+ */
+function createLazyDb(): RevisionalDbAdapter {
+    let pending: Promise<RevisionalServerDb> | null = null;
+    const get = () => {
+        if (!pending) {
+            pending = createDbFromProjectEnv().catch((err) => {
+                pending = null;
+                throw err;
+            });
+        }
+        return pending;
+    };
+    return {
+        listarCategorias: async () => (await get()).listarCategorias(),
+        criarCategoria: async (nome, cor, ordem) => (await get()).criarCategoria(nome, cor, ordem),
+        listarCalculos: async () => (await get()).listarCalculos(),
+        criarCalculo: async (payload) => (await get()).criarCalculo(payload),
+        atualizarCalculo: async (id, payload) => (await get()).atualizarCalculo(id, payload),
+        listarTipos: async () => (await get()).listarTipos(),
+        criarTipo: async (nome, cor, ordem) => (await get()).criarTipo(nome, cor, ordem),
+        listarTarefas: async () => (await get()).listarTarefas(),
+        criarTarefa: async (payload) => (await get()).criarTarefa(payload),
+        atualizarTarefa: async (id, patch) => (await get()).atualizarTarefa(id, patch),
+        excluirTarefa: async (id) => (await get()).excluirTarefa(id),
+        obterConfigEscritorio: async () => (await get()).obterConfigEscritorio(),
+        existeCalculoComProcesso: async (cnj) => (await get()).existeCalculoComProcesso(cnj),
+    };
+}
+
 async function main() {
-    const db = await createDbFromProjectEnv();
+    const db = createLazyDb();
+    // Pré-aquece a mesma instância lazy para registrar no log qual banco será usado.
+    db.obterConfigEscritorio?.().catch((err) => {
+        console.error(`[mcp-revisional] Aviso: ${err instanceof Error ? err.message : String(err)}`);
+    });
 
     const rl = readline.createInterface({
         input: process.stdin,
