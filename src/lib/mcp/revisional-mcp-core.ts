@@ -25,6 +25,7 @@ import {
     type TaxaOlindaSelecao,
 } from "../juros/revisional-pro.ts";
 import {
+    DESCRICAO_VALOR_FINANCIADO,
     normalizarBancoInput,
     normalizarModalidadeInput,
     normalizarTipoTarifa,
@@ -614,6 +615,7 @@ async function localizarCasoExistente(
 
 /* ----------------------------------------------------- Definição das Tools MCP */
 
+
 export const MCP_TOOLS = [
     {
         name: "calcular_e_cadastrar_caso_revisional",
@@ -656,7 +658,7 @@ export const MCP_TOOLS = [
                             },
                             dataContrato: { type: "string", description: "YYYY-MM-DD ou YYYY-MM" },
                             primeiroVencimento: { type: "string", description: "YYYY-MM-DD" },
-                            valorFinanciado: { type: "number" },
+                            valorFinanciado: { type: "number", description: DESCRICAO_VALOR_FINANCIADO },
                             valorParcela: { type: "number" },
                             parcelas: { type: "integer" },
                             pagas: {
@@ -749,7 +751,7 @@ export const MCP_TOOLS = [
                             pessoa: { type: "string", enum: ["pf", "pj"] },
                             modalidadeId: { type: "string" },
                             dataContrato: { type: "string" },
-                            valorFinanciado: { type: "number" },
+                            valorFinanciado: { type: "number", description: DESCRICAO_VALOR_FINANCIADO },
                             valorParcela: { type: "number" },
                             parcelas: { type: "integer" },
                             pagas: {

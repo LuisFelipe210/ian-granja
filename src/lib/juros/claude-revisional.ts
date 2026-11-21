@@ -855,6 +855,18 @@ export function interpretarComandoLocalFallback(
     };
 }
 
+/**
+ * Base dos juros = Valor Total Financiado da CCB (líquido do crédito + tarifas, seguros e IOF
+ * financiados). A entrada não é financiada: pôr o preço do bem subestima a taxa e esconde o abuso;
+ * pôr só o líquido do crédito superestima a taxa (vira o CET) e conta as tarifas duas vezes,
+ * porque elas já vão separadas em `tarifas`.
+ * Ex. real (CCB PAN, moto): bem 23.590 − entrada 5.000 = líquido 18.590 + tarifas/seguro/IOF 2.243,14
+ * = total financiado 20.833,14 → 24 × 1.232,79 a 3,02% a.m., exatamente a taxa do contrato.
+ * Usada no leitor da calculadora e nas ferramentas do conector MCP.
+ */
+export const DESCRICAO_VALOR_FINANCIADO =
+    "Valor Total Financiado da CCB em R$ (a base sobre a qual incidem os juros): crédito líquido + tarifas, seguros e IOF financiados. NÃO use o preço do bem (a entrada não é financiada) nem só o 'Valor líquido do crédito' quando houver total financiado (tarifas/IOF vão separadas em tarifas[]). Sem 'total financiado' no contrato: preço do bem − entrada + despesas financiadas. Confira: com este valor, a parcela e o prazo, a taxa implícita deve bater com a taxa de juros da operação (não com o CET).";
+
 const TOOL_CLAUDE_EXTRATOR = {
     name: "preencher_calculo_revisional",
     description:
@@ -904,7 +916,7 @@ const TOOL_CLAUDE_EXTRATOR = {
                         },
                         dataContrato: { type: "string", description: "YYYY-MM-DD" },
                         primeiroVencimento: { type: "string", description: "YYYY-MM-DD" },
-                        valorFinanciado: { type: "number", description: "Valor líquido/principal financiado em R$" },
+                        valorFinanciado: { type: "number", description: DESCRICAO_VALOR_FINANCIADO },
                         valorParcela: { type: "number", description: "Valor da parcela mensal em R$" },
                         parcelas: { type: "integer" },
                         pagas: { type: "integer" },
@@ -1060,7 +1072,7 @@ export async function executarExtracaoClaudeServer(
             ? `Fases do Kanban disponíveis no escritório: ${categoriasDisponiveis.join(", ")}.`
             : "",
         "Regras de extração de contratos bancários:",
-        "1. Em CCBs, identifique separadamente o valor principal/financiado líquido (ou valor total financiado se não discriminado), o valor da parcela mensal, a quantidade de parcelas, a data da contratação (YYYY-MM-DD), o 1º vencimento e a taxa de juros mensal/anual pactuada.",
+        "1. Em CCBs, identifique o Valor Total Financiado (base dos juros: crédito líquido + tarifas, seguros e IOF financiados; nunca o preço do bem, pois a entrada não é financiada, nem só o valor líquido do crédito quando houver total financiado), o valor da parcela mensal, a quantidade de parcelas, a data da contratação (YYYY-MM-DD), o 1º vencimento e a taxa de juros mensal/anual pactuada.",
         "2. Extraia separadamente despesas embutidas/tarifas no quadro `tarifas`: Seguro Prestamista, Tarifa de Avaliação do Bem, Registro de Contrato, TAC, TEC, Serviços de Terceiros e IOF Financiado. Quando o comando mencionar 'em dobro' ou Art. 42 CDC, defina emDobro: true (por padrão tarifas abusivas costumam ser em dobro salvo se o comando disser simples).",
         "3. Se houver um caso carregado na calculadora e o comando pedir para atualizar, renovar para hoje ou incluir alvará/tarifa/CNJ, use modoOperacao='atualizar_caso_atual' e preencha apenas o que deve ser alterado ou adicionado. Só preencha parametros.dataBaseAtualizacao quando o comando pedir para atualizar/renovar a correção (use a data de hoje se não houver outra); ao apenas incluir tarifa, alvará ou CNJ, deixe esse campo vazio para manter a data-base atual.",
         "4. Responda sempre e somente chamando a ferramenta preencher_calculo_revisional com os dados estruturados; nunca responda apenas em texto.",
