@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Scale, ShieldAlert, Trash2 } from "lucide-react";
 import { labelClass } from "@/components/juros/Campos";
+import { CampoData } from "@/components/juros/CampoData";
 import { lerDecimal, lerMoeda, mascaraMoeda, num } from "@/lib/juros";
 import {
     INDICES_CORRECAO_OPCOES,
@@ -216,17 +217,17 @@ export const SecoesPericiaisExtras = ({
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-ink">Data da cobrança</label>
-                                    <input
-                                        type="date"
+                                    <CampoData
                                         value={t.dataCobranca}
-                                        onChange={(e) =>
+                                        aria-label="Data da cobrança"
+                                        onChange={(iso) =>
                                             onTarifasChange(
                                                 tarifas.map((x) =>
-                                                    x.id === t.id ? { ...x, dataCobranca: e.target.value } : x,
+                                                    x.id === t.id ? { ...x, dataCobranca: iso } : x,
                                                 ),
                                             )
                                         }
-                                        className="field py-2 text-xs tabular-nums"
+                                        className="field py-2 text-xs"
                                     />
                                 </div>
                             </div>
@@ -377,12 +378,11 @@ export const SecoesPericiaisExtras = ({
                             <label htmlFor="dec-data-fixa" className={labelClass}>
                                 Data fixa inicial da correção
                             </label>
-                            <input
+                            <CampoData
                                 id="dec-data-fixa"
-                                type="date"
                                 value={parametros.dataFixaCorrecao}
-                                onChange={(e) => patchParam({ dataFixaCorrecao: e.target.value })}
-                                className="field tabular-nums"
+                                onChange={(iso) => patchParam({ dataFixaCorrecao: iso })}
+                                className="field"
                             />
                         </div>
                     )}
@@ -392,12 +392,11 @@ export const SecoesPericiaisExtras = ({
                             <label htmlFor="dec-data-cit" className={labelClass}>
                                 Data da citação
                             </label>
-                            <input
+                            <CampoData
                                 id="dec-data-cit"
-                                type="date"
                                 value={parametros.dataCitacao}
-                                onChange={(e) => patchParam({ dataCitacao: e.target.value })}
-                                className="field tabular-nums"
+                                onChange={(iso) => patchParam({ dataCitacao: iso })}
+                                className="field"
                             />
                         </div>
                     )}
@@ -406,12 +405,11 @@ export const SecoesPericiaisExtras = ({
                         <label htmlFor="dec-data-base" className={labelClass}>
                             Atualizar até qual data?
                         </label>
-                        <input
+                        <CampoData
                             id="dec-data-base"
-                            type="date"
                             value={parametros.dataBaseAtualizacao}
-                            onChange={(e) => patchParam({ dataBaseAtualizacao: e.target.value })}
-                            className="field tabular-nums"
+                            onChange={(iso) => patchParam({ dataBaseAtualizacao: iso })}
+                            className="field"
                         />
                     </div>
 
@@ -517,15 +515,15 @@ export const SecoesPericiaisExtras = ({
                                         }}
                                         className="field py-1.5 text-sm tabular-nums"
                                     />
-                                    <input
-                                        type="date"
+                                    <CampoData
                                         value={d.data}
-                                        onChange={(e) =>
+                                        aria-label="Data da dedução"
+                                        onChange={(iso) =>
                                             onDeducoesChange(
-                                                deducoes.map((x) => (x.id === d.id ? { ...x, data: e.target.value } : x)),
+                                                deducoes.map((x) => (x.id === d.id ? { ...x, data: iso } : x)),
                                             )
                                         }
-                                        className="field py-1.5 text-xs tabular-nums"
+                                        className="field py-1.5 text-xs"
                                     />
                                 </div>
                                 <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-ink">

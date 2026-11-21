@@ -1,6 +1,8 @@
 import { Building2, CalendarDays, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Campo, ModalidadeSelect, PessoaToggle, labelClass } from "@/components/juros/Campos";
+import { CampoData } from "@/components/juros/CampoData";
+import { hojeIsoLocal } from "@/lib/campo-data";
 import { MODALIDADES, lerMoeda, mascaraMoeda, num } from "@/lib/juros";
 import {
     BANCOS_USUAIS,
@@ -185,25 +187,23 @@ export const FormContratoRevisional = ({
                         <label htmlFor={`${idP}-data`} className={labelClass}>
                             Data da contratação
                         </label>
-                        <input
+                        <CampoData
                             id={`${idP}-data`}
-                            type="date"
                             value={form.dataContrato}
-                            max={new Date().toISOString().slice(0, 10)}
-                            onChange={(e) => handleDataContrato(e.target.value)}
-                            className="field py-2 text-sm tabular-nums"
+                            max={hojeIsoLocal()}
+                            onChange={handleDataContrato}
+                            className="field py-2 text-sm"
                         />
                     </div>
                     <div>
                         <label htmlFor={`${idP}-venc1`} className={labelClass}>
                             1º vencimento
                         </label>
-                        <input
+                        <CampoData
                             id={`${idP}-venc1`}
-                            type="date"
                             value={form.primeiroVencimento}
-                            onChange={(e) => patch({ primeiroVencimento: e.target.value })}
-                            className="field py-2 text-sm tabular-nums"
+                            onChange={(iso) => patch({ primeiroVencimento: iso })}
+                            className="field py-2 text-sm"
                         />
                     </div>
                 </div>
@@ -402,14 +402,15 @@ export const FormContratoRevisional = ({
                                             </td>
                                             <td className="px-2.5 py-1.5 font-semibold">{item.numero}</td>
                                             <td className="px-2.5 py-1.5">
-                                                <input
-                                                    type="date"
+                                                <CampoData
                                                     value={item.vencimento}
                                                     aria-label={`Vencimento parcela ${item.numero}`}
-                                                    onChange={(e) =>
-                                                        atualizarParcelaGrade(item.numero, { vencimento: e.target.value })
+                                                    onChange={(iso) =>
+                                                        atualizarParcelaGrade(item.numero, { vencimento: iso })
                                                     }
-                                                    className="border-b border-ink/25 bg-transparent py-0.5 text-xs"
+                                                    permitirLimpar={false}
+                                                    classNameContainer="w-[7.5rem]"
+                                                    className="w-full border-b border-ink/25 bg-transparent py-0.5 text-xs focus:border-ink focus:outline-none"
                                                 />
                                             </td>
                                             <td className="px-2.5 py-1.5 text-right">
@@ -472,13 +473,13 @@ export const FormContratoRevisional = ({
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-ink">Data</label>
-                                    <input
-                                        type="date"
+                                    <CampoData
                                         value={ex.data}
-                                        onChange={(e) =>
+                                        aria-label="Data do pagamento extra"
+                                        onChange={(iso) =>
                                             patch({
                                                 pagamentosExtras: form.pagamentosExtras.map((x) =>
-                                                    x.id === ex.id ? { ...x, data: e.target.value } : x,
+                                                    x.id === ex.id ? { ...x, data: iso } : x,
                                                 ),
                                             })
                                         }
