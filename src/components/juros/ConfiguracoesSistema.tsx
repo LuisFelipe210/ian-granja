@@ -5,9 +5,11 @@ import {
     AlertTriangle,
     ChevronRight,
     Check,
+    ImagePlus,
     Loader2,
     LogOut,
     Plug,
+    Trash2,
     UserRoundCog,
     X,
 } from "lucide-react";
@@ -24,6 +26,7 @@ import {
 } from "@/lib/config-escritorio";
 import { useConfigEscritorio } from "@/lib/use-config-escritorio";
 import { dataPorExtenso } from "@/lib/documentos";
+import { prepararImagemTimbradoA4 } from "@/lib/timbrado-imagem";
 import { alterarSenha, obterConfigEscritorio, salvarConfigEscritorio } from "@/lib/revisional-db";
 import {
     ErroGoogleDrive,
@@ -101,7 +104,24 @@ function AbaPerfil() {
     const salvo = useConfigEscritorio();
     const [form, setForm] = useState<ConfigEscritorio>(salvo);
     const [salvando, setSalvando] = useState(false);
+    const [processandoTimbrado, setProcessandoTimbrado] = useState(false);
     const [semTabela, setSemTabela] = useState(false);
+    const inputTimbradoRef = useRef<HTMLInputElement>(null);
+
+    const selecionarImagemTimbrado = async (arquivo?: File) => {
+        if (!arquivo) return;
+        setProcessandoTimbrado(true);
+        try {
+            const dataUrl = await prepararImagemTimbradoA4(arquivo);
+            setForm((f) => ({ ...f, timbradoImagemUrl: dataUrl }));
+            toast.info("Imagem carregada. Clique em “Salvar alterações” para aplicar em todos os documentos.");
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Não foi possível ler a imagem.");
+        } finally {
+            setProcessandoTimbrado(false);
+            if (inputTimbradoRef.current) inputTimbradoRef.current.value = "";
+        }
+    };
 
     // Busca a versão mais nova do banco ao abrir a aba.
     useEffect(() => {
@@ -286,6 +306,77 @@ function AbaPerfil() {
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                    </div>
+                </Linha>
+
+                <Linha
+                    titulo="Papel timbrado (A4)"
+                    descricao="Importe a imagem A4 do seu papel timbrado (PNG, JPG ou WebP). Ela aparece no fundo de todas as folhas em Documentos, no PDF e no Word."
+                >
+                    <div className="flex flex-wrap items-start gap-4">
+                        <div className="relative h-36 w-[6.35rem] shrink-0 overflow-hidden border border-ink/20 bg-white shadow-sm">
+                            {form.timbradoImagemUrl ? (
+                                <img
+                                    src={form.timbradoImagemUrl}
+                                    alt="Prévia do papel timbrado A4"
+                                    className="size-full object-fill"
+                                />
+                            ) : (
+                                <div className="flex size-full flex-col justify-between p-2 text-center">
+                                    <div className="border-b border-[#061237] pb-1">
+                                        <div className="text-[7px] font-bold tracking-wider text-[#061237]">IAN GRANJA</div>
+                                        <div className="text-[5px] tracking-[0.25em] text-[#8b6d3b]">ADVOGADOS</div>
+                                    </div>
+                                    <span className="text-[9px] text-muted-foreground">Padrão</span>
+                                    <div className="border-t border-[#b6a182] pt-1 text-[5px] text-muted-foreground">
+                                        {cidadeAssinatura(previa)}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="space-y-2.5">
+                            <input
+                                id="input-timbrado-config"
+                                ref={inputTimbradoRef}
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                                className="sr-only"
+                                disabled={processandoTimbrado}
+                                onChange={(e) => void selecionarImagemTimbrado(e.target.files?.[0])}
+                            />
+                            <div className="flex flex-wrap items-center gap-2">
+                                <label
+                                    htmlFor="input-timbrado-config"
+                                    className={cn(
+                                        classeBotaoContorno,
+                                        "cursor-pointer",
+                                        processandoTimbrado && "pointer-events-none opacity-50",
+                                    )}
+                                >
+                                    {processandoTimbrado ? (
+                                        <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                                    ) : (
+                                        <ImagePlus aria-hidden className="size-3.5 text-gold-deep" />
+                                    )}
+                                    {form.timbradoImagemUrl ? "Trocar imagem A4" : "Importar timbrado A4"}
+                                </label>
+                                {form.timbradoImagemUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm((f) => ({ ...f, timbradoImagemUrl: "" }))}
+                                        className="inline-flex h-8 items-center gap-1.5 border border-ink/20 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                                    >
+                                        <Trash2 aria-hidden className="size-3.5" />
+                                        Usar padrão
+                                    </button>
+                                )}
+                            </div>
+                            <p className="max-w-sm text-[11px] leading-relaxed text-muted-foreground">
+                                {form.timbradoImagemUrl
+                                    ? "Timbrado próprio carregado. Você pode ativar ou desativar folha por folha no botão “Timbrado” do editor."
+                                    : "Envie sua arte em proporção A4 (21 × 29,7 cm), em PNG ou JPG. O sistema otimiza automaticamente para manter nitidez na impressão."}
+                            </p>
                         </div>
                     </div>
                 </Linha>

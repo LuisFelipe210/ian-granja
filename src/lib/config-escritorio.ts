@@ -14,6 +14,8 @@ export interface ConfigEscritorio {
     oabUf: string;
     cidade: string;
     uf: string;
+    /** Imagem A4 do papel timbrado próprio em data URI (vazio = timbrado padrão do sistema). */
+    timbradoImagemUrl?: string;
 }
 
 export const CONFIG_ESCRITORIO_PADRAO: ConfigEscritorio = {
@@ -22,7 +24,18 @@ export const CONFIG_ESCRITORIO_PADRAO: ConfigEscritorio = {
     oabUf: "PE",
     cidade: "Petrolina",
     uf: "PE",
+    timbradoImagemUrl: "",
 };
+
+const MAX_TIMBRADO_DATA_URL = 2_500_000;
+const REGEX_TIMBRADO_DATA_URL = /^data:image\/(?:png|jpeg|jpg|webp);base64,[a-zA-Z0-9+/=]+$/i;
+
+export function sanitizarTimbradoImagemUrl(raw: unknown): string {
+    if (typeof raw !== "string") return "";
+    const limpo = raw.trim();
+    if (!limpo || limpo.length > MAX_TIMBRADO_DATA_URL) return "";
+    return REGEX_TIMBRADO_DATA_URL.test(limpo) ? limpo : "";
+}
 
 const uf2 = (v: unknown) => {
     const s = String(v ?? "").trim().toUpperCase();
@@ -47,13 +60,14 @@ export function normalizarConfigEscritorio(raw: unknown): ConfigEscritorio {
         oabUf: uf2(o.oabUf ?? o.oab_uf) || p.oabUf,
         cidade: texto("cidade") || p.cidade,
         uf: uf2(o.uf) || p.uf,
+        timbradoImagemUrl: sanitizarTimbradoImagemUrl(o.timbradoImagemUrl ?? o.timbrado_imagem_url),
     };
 }
 
 /** Linha para gravar em revisional_configuracoes. */
 export function configParaLinha(c: ConfigEscritorio): Record<string, string> {
     const n = normalizarConfigEscritorio(c);
-    return {
+    const linha: Record<string, string> = {
         id: "escritorio",
         nome_advogado: n.nomeAdvogado.slice(0, 200),
         oab_numero: n.oabNumero.slice(0, 10),
@@ -61,6 +75,10 @@ export function configParaLinha(c: ConfigEscritorio): Record<string, string> {
         cidade: n.cidade.slice(0, 100),
         uf: n.uf,
     };
+    if (c.timbradoImagemUrl !== undefined) {
+        linha.timbrado_imagem_url = n.timbradoImagemUrl ?? "";
+    }
+    return linha;
 }
 
 /** "OAB/PE 61.107" */

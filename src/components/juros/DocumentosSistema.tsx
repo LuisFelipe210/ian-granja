@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
+import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
     AlertTriangle,
     ArrowLeft,
     Check,
+    ChevronDown,
     ClipboardCopy,
     CopyPlus,
+    Download,
     FilePlus2,
     FileText,
     FileType2,
@@ -14,6 +18,7 @@ import {
     Pencil,
     Printer,
     RefreshCw,
+    Save,
     Search,
     Trash2,
     UserRound,
@@ -21,15 +26,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import logoTimbrado from "@/assets/logo.png";
 import { EditorDocumento } from "@/components/juros/EditorDocumento";
 import {
     CONFIG_PAGINA_PADRAO,
     acharCampoConhecido,
-    escaparHtml,
-    estiloPaginaDocumento,
     extrairCampos,
     htmlParaTextoSimples,
     montarArquivoWord,
+    montarHtmlImpressaoDocumento,
     nomeArquivoDocumento,
     normalizarChaveCampo,
     normalizarConfigPagina,
@@ -61,9 +66,33 @@ import { formatarCpfCnpj, pendenciasCadastro } from "@/lib/clientes";
 
 /* ------------------------------------------------------- Exportação */
 
-function baixarWord(titulo: string, html: string, pagina: ConfigPagina) {
+let logoDataUrlPromise: Promise<string> | null = null;
+
+/** Converte o emblema local em data URI (embute no Word e funciona dentro do iframe sandbox de impressão). */
+function obterLogoTimbradoDataUrl(): Promise<string> {
+    if (logoDataUrlPromise) return logoDataUrlPromise;
+    logoDataUrlPromise = fetch(logoTimbrado)
+        .then((res) => (res.ok ? res.blob() : null))
+        .then(
+            (blob) =>
+                new Promise<string>((resolve) => {
+                    if (!blob) return resolve("");
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : "");
+                    reader.onerror = () => resolve("");
+                    reader.readAsDataURL(blob);
+                }),
+        )
+        .catch(() => "");
+    return logoDataUrlPromise;
+}
+
+async function baixarWord(titulo: string, html: string, pagina: ConfigPagina) {
+    const logoSrc = pagina.timbrado ? await obterLogoTimbradoDataUrl() : "";
     // BOM: faz o Word reconhecer o arquivo como UTF-8 (acentos).
-    const blob = new Blob(["\ufeff", montarArquivoWord(titulo, html, pagina)], { type: "application/msword" });
+    const blob = new Blob(["\ufeff", montarArquivoWord(titulo, html, pagina, { logoSrc })], {
+        type: "application/msword",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -74,8 +103,9 @@ function baixarWord(titulo: string, html: string, pagina: ConfigPagina) {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function imprimirDocumento(titulo: string, html: string, pagina: ConfigPagina) {
-    const htmlSeguro = sanitizarHtmlDocumento(html);
+async function imprimirDocumento(titulo: string, html: string, pagina: ConfigPagina) {
+    const logoSrc = pagina.timbrado ? await obterLogoTimbradoDataUrl() : "";
+    const htmlCompleto = montarHtmlImpressaoDocumento(titulo, html, pagina, { logoSrc });
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
     // Sem allow-scripts: bloqueia execução de JS no iframe mesmo em navegadores/ambientes sem CSP.
@@ -90,18 +120,21 @@ function imprimirDocumento(titulo: string, html: string, pagina: ConfigPagina) {
         return;
     }
     doc.open();
-    doc.write(
-        `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';"><title>${escaparHtml(titulo)}</title><style>${estiloPaginaDocumento(pagina)}</style></head><body>${htmlSeguro}</body></html>`,
-    );
+    doc.write(htmlCompleto);
     doc.close();
     const remover = () => setTimeout(() => iframe.remove(), 500);
     win.addEventListener("afterprint", remover, { once: true });
+    // Aguarda fontes web (ex.: Montserrat, Lato) terminarem de carregar no iframe antes de abrir o PDF.
+    const esperarFontes = doc.fonts?.ready
+        ? Promise.race([doc.fonts.ready, new Promise((r) => setTimeout(r, 1500))])
+        : Promise.resolve();
+    await esperarFontes;
     setTimeout(() => {
         win.focus();
         win.print();
         // Safari não dispara afterprint de forma confiável.
         setTimeout(() => iframe.isConnected && iframe.remove(), 60_000);
-    }, 150);
+    }, 180);
 }
 
 async function copiarDocumento(html: string) {
@@ -480,9 +513,230 @@ function PainelGerarDocumento({
     );
 }
 
+/* ------------------------------------------------------- Modais centralizados e ilustração SVG */
+
+interface AlvoExclusao {
+    tipo: "modelo" | "documento";
+    id: string;
+    nome: string;
+}
+
+function ModalConfirmarExclusao({
+    alvo,
+    excluindo,
+    onCancelar,
+    onConfirmar,
+}: {
+    alvo: AlvoExclusao | null;
+    excluindo: boolean;
+    onCancelar: () => void;
+    onConfirmar: () => void;
+}) {
+    return (
+        <Dialog.Root
+            open={Boolean(alvo)}
+            onOpenChange={(aberto) => {
+                if (!aberto && !excluindo) onCancelar();
+            }}
+        >
+            <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-ink-deep/45 backdrop-blur-[2px]" />
+                <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 border border-ink/20 bg-card p-6 shadow-2xl focus:outline-none">
+                    <div className="flex flex-col items-center text-center">
+                        <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                            <Trash2 aria-hidden className="size-5" />
+                        </div>
+                        <Dialog.Title className="text-base font-semibold tracking-tight text-ink">
+                            Tem certeza que você deseja apagar?
+                        </Dialog.Title>
+                        <Dialog.Description className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                            {alvo ? (
+                                <>
+                                    {alvo.tipo === "modelo" ? "O modelo" : "O documento"}{" "}
+                                    <strong className="font-semibold text-ink">“{alvo.nome}”</strong> será apagado
+                                    permanentemente e não poderá ser recuperado.
+                                </>
+                            ) : null}
+                        </Dialog.Description>
+                    </div>
+                    <div className="mt-6 flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={excluindo}
+                            onClick={onCancelar}
+                            className="inline-flex h-9 items-center border border-ink/25 bg-card px-4 text-xs font-semibold text-ink transition-colors hover:bg-ink/5 disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            disabled={excluindo}
+                            onClick={onConfirmar}
+                            className="inline-flex h-9 items-center gap-1.5 bg-destructive px-4 text-xs font-semibold text-white transition-colors hover:bg-destructive/90 disabled:opacity-60"
+                        >
+                            {excluindo ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                            Sim, apagar
+                        </button>
+                    </div>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
+    );
+}
+
+function ModalSairSemSalvar({
+    aberto,
+    salvando,
+    onCancelar,
+    onSairSemSalvar,
+    onSalvarESair,
+}: {
+    aberto: boolean;
+    salvando: boolean;
+    onCancelar: () => void;
+    onSairSemSalvar: () => void;
+    onSalvarESair: () => void;
+}) {
+    return (
+        <Dialog.Root
+            open={aberto}
+            onOpenChange={(open) => {
+                if (!open && !salvando) onCancelar();
+            }}
+        >
+            <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-ink-deep/45 backdrop-blur-[2px]" />
+                <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 border border-ink/20 bg-card p-6 shadow-2xl focus:outline-none">
+                    <div className="flex flex-col items-center text-center">
+                        <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-gold/25 text-gold-deep">
+                            <AlertTriangle aria-hidden className="size-5" />
+                        </div>
+                        <Dialog.Title className="text-base font-semibold tracking-tight text-ink">
+                            Tem certeza que deseja sair sem salvar o documento?
+                        </Dialog.Title>
+                        <Dialog.Description className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                            Você tem alterações não salvas. Se sair agora sem salvar, tudo o que mudou será descartado.
+                        </Dialog.Description>
+                    </div>
+                    <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={salvando}
+                            onClick={onCancelar}
+                            className="inline-flex h-9 items-center border border-ink/20 bg-card px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-ink/5 hover:text-ink disabled:opacity-50"
+                        >
+                            Continuar editando
+                        </button>
+                        <button
+                            type="button"
+                            disabled={salvando}
+                            onClick={onSairSemSalvar}
+                            className="inline-flex h-9 items-center border border-destructive/35 bg-card px-3.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/5 disabled:opacity-50"
+                        >
+                            Sair sem salvar
+                        </button>
+                        <button
+                            type="button"
+                            disabled={salvando}
+                            onClick={onSalvarESair}
+                            className="inline-flex h-9 items-center gap-1.5 bg-ink px-4 text-xs font-semibold text-paper transition-colors hover:bg-ink-deep disabled:opacity-60"
+                        >
+                            {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                            Salvar e sair
+                        </button>
+                    </div>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
+    );
+}
+
+function IlustracaoDocumentoModelo({ temCampos, timbrado }: { temCampos: boolean; timbrado: boolean }) {
+    return (
+        <div className="relative mx-auto flex h-44 w-32 items-center justify-center">
+            {/* Folha sutil atrás para dar profundidade de papel sobre a mesa */}
+            <div
+                aria-hidden
+                className="pointer-events-none absolute h-[148px] w-[112px] rotate-[4deg] rounded-[4px] border border-ink/10 bg-[#f6f3ec] shadow-sm transition-transform duration-300 group-hover:rotate-[6deg] group-hover:translate-x-0.5"
+            />
+            <svg
+                viewBox="0 0 112 144"
+                fill="none"
+                aria-hidden
+                className="relative h-[152px] w-[118px] -rotate-[3deg] drop-shadow-[0_10px_18px_rgba(6,18,55,0.13)] transition-all duration-300 group-hover:-translate-y-2 group-hover:rotate-0 group-hover:scale-[1.03] group-hover:drop-shadow-[0_16px_26px_rgba(6,18,55,0.20)]"
+            >
+                {/* Folha A4 com canto superior direito dobrado */}
+                <path
+                    d="M8 2H82L104 24V136C104 139.314 101.314 142 98 142H8C4.68629 142 2 139.314 2 136V8C2 4.68629 4.68629 2 8 2Z"
+                    fill="#FFFFFF"
+                    stroke="#061237"
+                    strokeOpacity="0.16"
+                    strokeWidth="1.5"
+                />
+                <path
+                    d="M82 2V20C82 22.2091 83.7909 24 86 24H104L82 2Z"
+                    fill="#ECE8DF"
+                    stroke="#061237"
+                    strokeOpacity="0.14"
+                    strokeWidth="1.2"
+                    strokeLinejoin="round"
+                />
+                {/* Cabeçalho de papel timbrado */}
+                {timbrado && (
+                    <>
+                        <rect x="14" y="13" width="10" height="10" rx="1.5" fill="#061237" />
+                        <path d="M19 15.8V20.2M17 17.6H21" stroke="#C5B08E" strokeWidth="1.2" strokeLinecap="round" />
+                        <rect x="28" y="15" width="32" height="2.6" rx="1.3" fill="#061237" fillOpacity="0.78" />
+                        <rect x="28" y="20" width="20" height="1.8" rx="0.9" fill="#B6A182" />
+                        <line x1="14" y1="29" x2="92" y2="29" stroke="#061237" strokeOpacity="0.35" strokeWidth="1" />
+                        <line x1="14" y1="31.5" x2="92" y2="31.5" stroke="#B6A182" strokeOpacity="0.85" strokeWidth="0.8" />
+                    </>
+                )}
+                {/* Título centralizado */}
+                <rect x="28" y={timbrado ? 40 : 28} width="50" height="4" rx="2" fill="#061237" fillOpacity="0.78" />
+                {/* Parágrafo 1 */}
+                <rect x="14" y={timbrado ? 52 : 42} width="78" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.18" />
+                <rect x="14" y={timbrado ? 59 : 49} width="46" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.18" />
+                {temCampos ? (
+                    <rect x="63" y={timbrado ? 58 : 48} width="26" height="4.8" rx="1.5" fill="#C5B08E" fillOpacity="0.6" />
+                ) : (
+                    <rect x="63" y={timbrado ? 59 : 49} width="26" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.18" />
+                )}
+                <rect x="14" y={timbrado ? 66 : 56} width="72" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.18" />
+                <rect x="14" y={timbrado ? 73 : 63} width="58" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.18" />
+                {/* Parágrafo 2 */}
+                <rect x="22" y={timbrado ? 85 : 75} width="70" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.15" />
+                {temCampos ? (
+                    <rect x="14" y={timbrado ? 91 : 81} width="30" height="4.8" rx="1.5" fill="#C5B08E" fillOpacity="0.6" />
+                ) : (
+                    <rect x="14" y={timbrado ? 92 : 82} width="30" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.15" />
+                )}
+                <rect x="48" y={timbrado ? 92 : 82} width="44" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.15" />
+                <rect x="14" y={timbrado ? 99 : 89} width="64" height="2.8" rx="1.4" fill="#061237" fillOpacity="0.15" />
+                {/* Assinatura no rodapé */}
+                <line x1="34" y1="122" x2="78" y2="122" stroke="#061237" strokeOpacity="0.32" strokeWidth="1" />
+                <rect x="42" y="126" width="28" height="2.2" rx="1.1" fill="#061237" fillOpacity="0.24" />
+            </svg>
+        </div>
+    );
+}
+
 /* ------------------------------------------------------- Tela de edição */
 
+interface RascunhoNovoModelo {
+    chave: string;
+    nome: string;
+    descricao: string;
+    conteudo_html: string;
+    pagina: ConfigPagina;
+}
+
 type ItemEmEdicao =
+    | { tipo: "modelo"; registro: ModeloDocumento; novo?: false }
+    | { tipo: "modelo"; registro: null; novo: true; rascunho: RascunhoNovoModelo }
+    | { tipo: "documento"; registro: DocumentoGerado; novo?: false };
+
+type ItemSalvo =
     | { tipo: "modelo"; registro: ModeloDocumento }
     | { tipo: "documento"; registro: DocumentoGerado };
 
@@ -502,105 +756,165 @@ function TelaEdicao({
     calculos: CalculoSalvo[];
     modelos: ModeloDocumento[];
     onVoltar: () => void;
-    onSalvo: (item: ItemEmEdicao) => void;
+    onSalvo: (item: ItemSalvo) => void;
     onGerarComModelo: (modeloId: string) => void;
 }) {
     const ehModelo = item.tipo === "modelo";
-    const [titulo, setTitulo] = useState(ehModelo ? item.registro.nome : item.registro.titulo);
-    const [descricao, setDescricao] = useState(ehModelo ? item.registro.descricao : "");
-    const [html, setHtml] = useState(item.registro.conteudo_html);
-    const [pagina, setPagina] = useState<ConfigPagina>(() => normalizarConfigPagina(item.registro.pagina));
-    const [status, setStatus] = useState<StatusSalvo>("salvo");
+    const ehNovoModelo = item.tipo === "modelo" && Boolean(item.novo);
+    const chaveInicial = item.tipo === "modelo" && item.novo ? item.rascunho.chave : item.registro.id;
+    const conteudoInicial = item.tipo === "modelo" && item.novo ? item.rascunho.conteudo_html : item.registro.conteudo_html;
 
-    const pendenteRef = useRef(false);
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [titulo, setTitulo] = useState(() =>
+        item.tipo === "modelo" ? (item.novo ? item.rascunho.nome : item.registro.nome) : item.registro.titulo,
+    );
+    const [descricao, setDescricao] = useState(() =>
+        item.tipo === "modelo" ? (item.novo ? item.rascunho.descricao : item.registro.descricao) : "",
+    );
+    const [html, setHtml] = useState(conteudoInicial);
+    const [pagina, setPagina] = useState<ConfigPagina>(() =>
+        normalizarConfigPagina(item.tipo === "modelo" && item.novo ? item.rascunho.pagina : item.registro.pagina),
+    );
+    // Novo modelo começa pendente para obrigar o salvamento explícito ao sair.
+    const [status, setStatus] = useState<StatusSalvo>(ehNovoModelo ? "pendente" : "salvo");
+    const [confirmarSaida, setConfirmarSaida] = useState(false);
+
+    const idRegistroRef = useRef<string | null>(item.novo ? null : item.registro.id);
+    const pendenteRef = useRef(ehNovoModelo);
     const ultimoRef = useRef({ titulo, descricao, html, pagina });
     ultimoRef.current = { titulo, descricao, html, pagina };
-    const itemRef = useRef(item);
-    itemRef.current = item;
     const onSalvoRef = useRef(onSalvo);
     onSalvoRef.current = onSalvo;
-
-    const montadoRef = useRef(true);
     const salvandoEmVooRef = useRef(false);
+    // Conta cada edição: o salvamento só marca "Salvo" se nada mudou enquanto a requisição estava em voo.
+    const versaoRef = useRef(0);
+    // Pedido de salvar que chegou com outro salvamento em voo (ex.: tela desmontando): roda logo depois.
+    const salvarDeNovoRef = useRef(false);
+    // Houve edição real do usuário (novo modelo intocado não é criado só por sair da tela).
+    const editadoRef = useRef(false);
 
-    useEffect(() => {
-        montadoRef.current = true;
-        return () => {
-            montadoRef.current = false;
-        };
+    const marcarPendente = useCallback(() => {
+        pendenteRef.current = true;
+        editadoRef.current = true;
+        versaoRef.current += 1;
+        setStatus("pendente");
     }, []);
 
-    const salvarAgora = useCallback(async () => {
-        if (timerRef.current) {
-            clearTimeout(timerRef.current);
-            timerRef.current = null;
+    const salvarAgora = useCallback(async (): Promise<string | null> => {
+        if (salvandoEmVooRef.current) {
+            salvarDeNovoRef.current = true;
+            return idRegistroRef.current;
         }
-        if (!pendenteRef.current || salvandoEmVooRef.current) return;
         salvandoEmVooRef.current = true;
+        setStatus("salvando");
+        const versaoSalva = versaoRef.current;
+        let sucesso = false;
+        // Fecha o ciclo: só fica "Salvo" se ninguém editou durante a requisição.
+        const concluir = () => {
+            sucesso = true;
+            const mudouNoMeioTempo = versaoRef.current !== versaoSalva;
+            pendenteRef.current = mudouNoMeioTempo;
+            setStatus(mudouNoMeioTempo ? "pendente" : "salvo");
+        };
         try {
-            while (pendenteRef.current) {
-                pendenteRef.current = false;
-                const { titulo: t, descricao: d, html: h, pagina: pg } = ultimoRef.current;
-                const atual = itemRef.current;
-                if (montadoRef.current) setStatus("salvando");
-                try {
-                    if (atual.tipo === "modelo") {
-                        const reg = await atualizarModelo(atual.registro.id, {
-                            nome: t.trim() || "Modelo sem nome",
-                            descricao: d,
-                            conteudo_html: h,
-                            pagina: pg,
-                        });
-                        if (montadoRef.current) onSalvoRef.current({ tipo: "modelo", registro: reg });
-                    } else {
-                        const reg = await atualizarDocumento(atual.registro.id, {
-                            titulo: t.trim() || "Documento sem título",
-                            conteudo_html: h,
-                            pagina: pg,
-                        });
-                        if (montadoRef.current) onSalvoRef.current({ tipo: "documento", registro: reg });
-                    }
-                    if (montadoRef.current && !pendenteRef.current) setStatus("salvo");
-                } catch (err) {
-                    pendenteRef.current = true;
-                    if (montadoRef.current) {
-                        setStatus("erro");
-                        toast.error(err instanceof Error ? err.message : "Não foi possível salvar.");
-                    }
-                    break;
-                }
+            const { titulo: t, descricao: d, html: h, pagina: pg } = ultimoRef.current;
+            if (ehModelo) {
+                const nomeFinal = t.trim() || "Modelo sem nome";
+                const reg = idRegistroRef.current
+                    ? await atualizarModelo(idRegistroRef.current, {
+                          nome: nomeFinal,
+                          descricao: d,
+                          conteudo_html: h,
+                          pagina: pg,
+                      })
+                    : await criarModelo({
+                          nome: nomeFinal,
+                          descricao: d,
+                          conteudo_html: h,
+                          pagina: pg,
+                      });
+                idRegistroRef.current = reg.id;
+                if (versaoRef.current === versaoSalva) setTitulo(reg.nome);
+                concluir();
+                onSalvoRef.current({ tipo: "modelo", registro: reg });
+                toast.success("Modelo salvo.");
+                return reg.id;
             }
+            const idDoc = idRegistroRef.current;
+            if (!idDoc) return null;
+            const reg = await atualizarDocumento(idDoc, {
+                titulo: t.trim() || "Documento sem título",
+                conteudo_html: h,
+                pagina: pg,
+            });
+            if (versaoRef.current === versaoSalva) setTitulo(reg.titulo);
+            concluir();
+            onSalvoRef.current({ tipo: "documento", registro: reg });
+            toast.success("Documento salvo.");
+            return reg.id;
+        } catch (err) {
+            pendenteRef.current = true;
+            setStatus("erro");
+            toast.error(err instanceof Error ? err.message : "Não foi possível salvar.");
+            return null;
         } finally {
             salvandoEmVooRef.current = false;
+            const repetir = salvarDeNovoRef.current;
+            salvarDeNovoRef.current = false;
+            // Edições feitas durante o voo (ou pedido feito ao desmontar) entram num novo salvamento.
+            if (repetir && sucesso && pendenteRef.current) void salvarAgoraRef.current();
         }
-    }, []);
+    }, [ehModelo]);
+    const salvarAgoraRef = useRef(salvarAgora);
+    salvarAgoraRef.current = salvarAgora;
 
-    const agendarSalvamento = useCallback(() => {
-        pendenteRef.current = true;
-        setStatus("pendente");
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => void salvarAgora(), 1200);
-    }, [salvarAgora]);
+    // Sair da tela por outro caminho (outra aba do sistema, voltar do navegador) com alteração
+    // pendente: salva antes de desmontar, como fazia o salvamento automático.
+    useEffect(
+        () => () => {
+            if (pendenteRef.current && (idRegistroRef.current || editadoRef.current)) {
+                void salvarAgoraRef.current();
+            }
+        },
+        [],
+    );
 
-    // Sai da tela (voltar, trocar de aba) com alteração pendente: salva antes.
+    // Aviso nativo se tentar fechar/recarregar a aba do navegador sem salvar + atalho Ctrl+S.
     useEffect(() => {
         const antesDeSair = (e: BeforeUnloadEvent) => {
             if (pendenteRef.current) {
-                void salvarAgora();
                 e.preventDefault();
             }
         };
+        const onKey = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+                e.preventDefault();
+                void salvarAgora();
+            }
+        };
         window.addEventListener("beforeunload", antesDeSair);
+        window.addEventListener("keydown", onKey);
         return () => {
             window.removeEventListener("beforeunload", antesDeSair);
-            void salvarAgora();
+            window.removeEventListener("keydown", onKey);
         };
     }, [salvarAgora]);
 
-    const calculo = !ehModelo && item.registro.calculo_id ? calculos.find((c) => c.id === item.registro.calculo_id) : null;
+    const tentarVoltar = () => {
+        if (pendenteRef.current) {
+            setConfirmarSaida(true);
+            return;
+        }
+        onVoltar();
+    };
+
+    const calculo =
+        item.tipo === "documento" && item.registro.calculo_id
+            ? calculos.find((c) => c.id === item.registro.calculo_id)
+            : null;
     const modeloOrigem =
-        !ehModelo && item.registro.modelo_id ? modelos.find((m) => m.id === item.registro.modelo_id) : null;
+        item.tipo === "documento" && item.registro.modelo_id
+            ? modelos.find((m) => m.id === item.registro.modelo_id)
+            : null;
     const pendentes = ehModelo ? 0 : contarCamposPendentes(html);
     const camposModelo = ehModelo ? extrairCampos(html) : [];
     const tituloExport = titulo.trim() || (ehModelo ? "Modelo" : "Documento");
@@ -629,10 +943,7 @@ function TelaEdicao({
                 <div className="min-w-0 flex-1">
                     <button
                         type="button"
-                        onClick={() => {
-                            void salvarAgora();
-                            onVoltar();
-                        }}
+                        onClick={tentarVoltar}
                         className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-ink"
                     >
                         <ArrowLeft className="size-3.5" />
@@ -642,9 +953,8 @@ function TelaEdicao({
                         value={titulo}
                         onChange={(e) => {
                             setTitulo(e.target.value);
-                            agendarSalvamento();
+                            marcarPendente();
                         }}
-                        onBlur={() => void salvarAgora()}
                         maxLength={ehModelo ? 160 : 200}
                         aria-label={ehModelo ? "Nome do modelo" : "Título do documento"}
                         className="w-full border-0 border-b border-transparent bg-transparent px-0 py-1 text-xl font-semibold tracking-tight text-ink hover:border-ink/20 focus:border-ink focus:outline-none"
@@ -654,6 +964,7 @@ function TelaEdicao({
                             className={cn(
                                 "inline-flex items-center gap-1 font-medium",
                                 status === "erro" && "text-destructive",
+                                status === "pendente" && "text-gold-deep",
                                 status === "salvo" && "text-emerald-700",
                             )}
                             aria-live="polite"
@@ -688,41 +999,72 @@ function TelaEdicao({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        disabled={status === "salvando"}
+                        onClick={() => void salvarAgora()}
+                        title="Salvar alterações (Ctrl+S)"
+                        className={cn(
+                            "inline-flex h-9 items-center gap-1.5 px-3.5 text-xs font-semibold transition-colors duration-150 disabled:opacity-60",
+                            status === "pendente" || status === "erro"
+                                ? "bg-ink text-paper hover:bg-ink-deep"
+                                : "border border-ink/25 bg-card text-ink hover:bg-ink/5",
+                        )}
+                    >
+                        {status === "salvando" ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                        Salvar
+                    </button>
                     {ehModelo && (
                         <button
                             type="button"
-                            onClick={() => {
-                                void salvarAgora().then(() => onGerarComModelo(item.registro.id));
+                            disabled={status === "salvando"}
+                            onClick={async () => {
+                                const id = pendenteRef.current || !idRegistroRef.current ? await salvarAgora() : idRegistroRef.current;
+                                if (id) onGerarComModelo(id);
                             }}
-                            className="inline-flex h-9 items-center gap-1.5 bg-gold px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-gold-light"
+                            className="inline-flex h-9 items-center gap-1.5 bg-gold px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-gold-light disabled:opacity-60"
                         >
                             <FilePlus2 className="size-3.5" />
                             Gerar documento
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            avisarPendentes();
-                            baixarWord(tituloExport, html, pagina);
-                        }}
-                        className={botaoAcao}
-                    >
-                        <FileType2 className="size-3.5" />
-                        Word
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            avisarPendentes();
-                            imprimirDocumento(tituloExport, html, pagina);
-                        }}
-                        className={botaoAcao}
-                        title="Imprimir ou salvar em PDF"
-                    >
-                        <Printer className="size-3.5" />
-                        PDF / Imprimir
-                    </button>
+                    <DropdownMenu.Root>
+                        <DropdownMenu.Trigger asChild>
+                            <button type="button" className={botaoAcao}>
+                                <Download className="size-3.5" />
+                                Exportar
+                                <ChevronDown className="size-3 text-ink/60" />
+                            </button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Portal>
+                            <DropdownMenu.Content
+                                align="end"
+                                sideOffset={4}
+                                className="z-40 min-w-[11.5rem] border border-ink/20 bg-card py-1 shadow-xl"
+                            >
+                                <DropdownMenu.Item
+                                    onSelect={() => {
+                                        avisarPendentes();
+                                        void imprimirDocumento(tituloExport, html, pagina);
+                                    }}
+                                    className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-medium text-ink outline-none hover:bg-ink/5 focus:bg-ink/5"
+                                >
+                                    <Printer className="size-3.5 text-ink/70" />
+                                    Salvar como PDF
+                                </DropdownMenu.Item>
+                                <DropdownMenu.Item
+                                    onSelect={() => {
+                                        avisarPendentes();
+                                        void baixarWord(tituloExport, html, pagina);
+                                    }}
+                                    className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-medium text-ink outline-none hover:bg-ink/5 focus:bg-ink/5"
+                                >
+                                    <FileType2 className="size-3.5 text-ink/70" />
+                                    Salvar como Word
+                                </DropdownMenu.Item>
+                            </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                     <button type="button" onClick={() => void copiarDocumento(html)} className={botaoAcao}>
                         <ClipboardCopy className="size-3.5" />
                         Copiar
@@ -741,9 +1083,8 @@ function TelaEdicao({
                             value={descricao}
                             onChange={(e) => {
                                 setDescricao(e.target.value);
-                                agendarSalvamento();
+                                marcarPendente();
                             }}
-                            onBlur={() => void salvarAgora()}
                             maxLength={500}
                             placeholder="Ex.: usar quando o juiz designar audiência de conciliação"
                             className="field py-1.5 text-sm"
@@ -767,17 +1108,35 @@ function TelaEdicao({
             )}
 
             <EditorDocumento
-                chave={item.registro.id}
+                chave={chaveInicial}
                 modo={item.tipo}
-                conteudoInicial={item.registro.conteudo_html}
+                conteudoInicial={conteudoInicial}
                 pagina={pagina}
                 onPaginaChange={(nova) => {
                     setPagina(nova);
-                    agendarSalvamento();
+                    marcarPendente();
                 }}
                 onChange={(novo) => {
                     setHtml(novo);
-                    agendarSalvamento();
+                    marcarPendente();
+                }}
+            />
+
+            <ModalSairSemSalvar
+                aberto={confirmarSaida}
+                salvando={status === "salvando"}
+                onCancelar={() => setConfirmarSaida(false)}
+                onSairSemSalvar={() => {
+                    setConfirmarSaida(false);
+                    pendenteRef.current = false;
+                    onVoltar();
+                }}
+                onSalvarESair={async () => {
+                    const id = await salvarAgora();
+                    if (id) {
+                        setConfirmarSaida(false);
+                        onVoltar();
+                    }
                 }}
             />
         </div>
@@ -799,8 +1158,9 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     const [indisponivel, setIndisponivel] = useState(false);
     const [busca, setBusca] = useState("");
     const [alvoGerar, setAlvoGerar] = useState<AlvoGerar | null>(null);
-    const [confirmarExclusao, setConfirmarExclusao] = useState<string | null>(null);
-    const [criandoModelo, setCriandoModelo] = useState(false);
+    const [alvoExclusao, setAlvoExclusao] = useState<AlvoExclusao | null>(null);
+    const [excluindo, setExcluindo] = useState(false);
+    const [rascunhoNovoModelo, setRascunhoNovoModelo] = useState<RascunhoNovoModelo | null>(null);
 
     const docId = params.get("doc");
     const modeloEditId = params.get("modelo");
@@ -859,6 +1219,9 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     const nomePorModelo = useMemo(() => new Map(modelos.map((m) => [m.id, m.nome])), [modelos]);
 
     const itemEdicao: ItemEmEdicao | null = useMemo(() => {
+        if (rascunhoNovoModelo) {
+            return { tipo: "modelo", registro: null, novo: true, rascunho: rascunhoNovoModelo };
+        }
         if (docId) {
             const d = documentos.find((x) => x.id === docId);
             return d ? { tipo: "documento", registro: d } : null;
@@ -869,51 +1232,50 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
         }
         return null;
         // O registro só é lido ao abrir: o editor é recriado apenas quando o id muda.
-    }, [docId, modeloEditId, documentos, modelos]);
+    }, [rascunhoNovoModelo, docId, modeloEditId, documentos, modelos]);
 
-    const aoSalvar = useCallback((salvo: ItemEmEdicao) => {
+    const aoSalvar = useCallback((salvo: ItemSalvo) => {
         if (salvo.tipo === "modelo") {
-            setModelos((prev) =>
-                prev.map((m) => (m.id === salvo.registro.id ? salvo.registro : m)).sort((a, b) => a.nome.localeCompare(b.nome)),
-            );
+            setModelos((prev) => {
+                const sem = prev.filter((m) => m.id !== salvo.registro.id);
+                return [...sem, salvo.registro].sort((a, b) => a.nome.localeCompare(b.nome));
+            });
         } else {
             setDocumentos((prev) => [salvo.registro, ...prev.filter((d) => d.id !== salvo.registro.id)]);
         }
     }, []);
 
-    const novoModelo = async (base?: ModeloDocumento) => {
-        setCriandoModelo(true);
-        try {
-            const m = await criarModelo({
-                nome: base ? `${base.nome} (cópia)` : "Novo modelo",
-                descricao: base?.descricao ?? "",
-                conteudo_html: base?.conteudo_html ?? "",
-                pagina: base ? normalizarConfigPagina(base.pagina) : CONFIG_PAGINA_PADRAO,
-            });
-            setModelos((prev) => [...prev, m].sort((a, b) => a.nome.localeCompare(b.nome)));
-            irPara({ modelo: m.id });
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Não foi possível criar o modelo.");
-        } finally {
-            setCriandoModelo(false);
-        }
+    const abrirNovoModelo = (base?: ModeloDocumento) => {
+        const chave = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `novo-${Date.now()}`;
+        setRascunhoNovoModelo({
+            chave,
+            nome: base ? `${base.nome} (cópia)` : "Novo modelo",
+            descricao: base?.descricao ?? "",
+            conteudo_html: base?.conteudo_html ?? "",
+            pagina: base ? normalizarConfigPagina(base.pagina) : CONFIG_PAGINA_PADRAO,
+        });
+        window.scrollTo({ top: 0 });
     };
 
-    const excluir = async (tipo: "modelo" | "documento", id: string) => {
+    const confirmarExcluirAtual = async () => {
+        if (!alvoExclusao) return;
+        const { tipo, id } = alvoExclusao;
+        setExcluindo(true);
         try {
             if (tipo === "modelo") {
                 await excluirModelo(id);
                 setModelos((prev) => prev.filter((m) => m.id !== id));
-                toast.success("Modelo excluído.");
+                toast.success("Modelo apagado.");
             } else {
                 await excluirDocumento(id);
                 setDocumentos((prev) => prev.filter((d) => d.id !== id));
-                toast.success("Documento excluído.");
+                toast.success("Documento apagado.");
             }
+            setAlvoExclusao(null);
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Não foi possível excluir.");
+            toast.error(err instanceof Error ? err.message : "Não foi possível apagar.");
         } finally {
-            setConfirmarExclusao(null);
+            setExcluindo(false);
         }
     };
 
@@ -949,6 +1311,7 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
             onGerado={(doc) => {
                 setDocumentos((prev) => [doc, ...prev]);
                 setAlvoGerar(null);
+                setRascunhoNovoModelo(null);
                 irPara({ doc: doc.id });
                 toast.success("Documento gerado. Revise e baixe em Word ou PDF.");
             }}
@@ -984,7 +1347,7 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
         );
     }
 
-    if ((docId || modeloEditId) && carregando) {
+    if ((docId || modeloEditId) && !rascunhoNovoModelo && carregando) {
         return (
             <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" /> Abrindo…
@@ -992,7 +1355,7 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
         );
     }
 
-    if (docId || modeloEditId) {
+    if (rascunhoNovoModelo || docId || modeloEditId) {
         if (!itemEdicao) {
             return (
                 <div className="border border-ink/15 bg-card p-6 text-sm text-muted-foreground">
@@ -1007,15 +1370,19 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                 </div>
             );
         }
+        const chaveTela = itemEdicao.novo ? itemEdicao.rascunho.chave : itemEdicao.registro.id;
         return (
             <>
                 <TelaEdicao
-                    key={itemEdicao.registro.id}
+                    key={chaveTela}
                     item={itemEdicao}
                     nomeCliente={itemEdicao.tipo === "documento" ? nomeClienteDoc(itemEdicao.registro) : null}
                     calculos={calculos}
                     modelos={modelos}
-                    onVoltar={() => irPara(itemEdicao.tipo === "modelo" ? { aba: "modelos" } : {})}
+                    onVoltar={() => {
+                        setRascunhoNovoModelo(null);
+                        irPara(itemEdicao.tipo === "modelo" ? { aba: "modelos" } : {});
+                    }}
                     onSalvo={aoSalvar}
                     onGerarComModelo={(id) => setAlvoGerar({ modeloId: id, clienteId: null, calculoId: null })}
                 />
@@ -1025,26 +1392,6 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     }
 
     /* ---------- Listas */
-
-    const linhaConfirmar = (tipo: "modelo" | "documento", id: string) => (
-        <span className="inline-flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-destructive">Excluir?</span>
-            <button
-                type="button"
-                onClick={() => void excluir(tipo, id)}
-                className="inline-flex h-7 items-center bg-destructive px-2 text-[11px] font-semibold text-white"
-            >
-                Excluir
-            </button>
-            <button
-                type="button"
-                onClick={() => setConfirmarExclusao(null)}
-                className="inline-flex h-7 items-center border border-ink/25 px-2 text-[11px] font-semibold text-ink"
-            >
-                Cancelar
-            </button>
-        </span>
-    );
 
     const botaoIcone =
         "inline-flex size-8 items-center justify-center text-muted-foreground transition-colors duration-150 hover:bg-ink/[0.06] hover:text-ink";
@@ -1085,11 +1432,10 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                 <div className="flex flex-wrap items-center gap-2">
                     <button
                         type="button"
-                        onClick={() => void novoModelo()}
-                        disabled={criandoModelo}
-                        className="inline-flex h-9 items-center gap-1.5 border border-ink/25 bg-card px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink/5 disabled:opacity-60"
+                        onClick={() => abrirNovoModelo()}
+                        className="inline-flex h-9 items-center gap-1.5 border border-ink/25 bg-card px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink/5"
                     >
-                        {criandoModelo ? <Loader2 className="size-3.5 animate-spin" /> : <Pencil className="size-3.5" />}
+                        <Pencil className="size-3.5" />
                         Novo modelo
                     </button>
                     <button
@@ -1171,41 +1517,37 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                                             {pendentes} {pendentes === 1 ? "campo" : "campos"} a preencher
                                         </span>
                                     )}
-                                    {confirmarExclusao === d.id ? (
-                                        linhaConfirmar("documento", d.id)
-                                    ) : (
-                                        <span className="flex items-center">
-                                            <button
-                                                type="button"
-                                                onClick={() => baixarWord(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))}
-                                                className={botaoIcone}
-                                                title="Baixar em Word"
-                                                aria-label={`Baixar ${d.titulo} em Word`}
-                                            >
-                                                <FileType2 className="size-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    imprimirDocumento(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))
-                                                }
-                                                className={botaoIcone}
-                                                title="Imprimir ou salvar em PDF"
-                                                aria-label={`Imprimir ou salvar ${d.titulo} em PDF`}
-                                            >
-                                                <Printer className="size-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setConfirmarExclusao(d.id)}
-                                                className={cn(botaoIcone, "hover:text-destructive")}
-                                                title="Excluir"
-                                                aria-label={`Excluir ${d.titulo}`}
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </button>
-                                        </span>
-                                    )}
+                                    <span className="flex items-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => baixarWord(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))}
+                                            className={botaoIcone}
+                                            title="Baixar em Word"
+                                            aria-label={`Baixar ${d.titulo} em Word`}
+                                        >
+                                            <FileType2 className="size-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                imprimirDocumento(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))
+                                            }
+                                            className={botaoIcone}
+                                            title="Imprimir ou salvar em PDF"
+                                            aria-label={`Imprimir ou salvar ${d.titulo} em PDF`}
+                                        >
+                                            <Printer className="size-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAlvoExclusao({ tipo: "documento", id: d.id, nome: d.titulo })}
+                                            className={cn(botaoIcone, "hover:text-destructive")}
+                                            title="Apagar"
+                                            aria-label={`Apagar ${d.titulo}`}
+                                        >
+                                            <Trash2 className="size-4" />
+                                        </button>
+                                    </span>
                                 </li>
                             );
                         })}
@@ -1238,90 +1580,71 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                     )}
                 </div>
             ) : (
-                <div className="space-y-3">
-                <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="space-y-6">
+                <ul className="grid grid-cols-2 gap-x-6 gap-y-8 pt-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                     {pagModelos.itensPagina.map((m) => {
                         const campos = extrairCampos(m.conteudo_html);
+                        const cfgPag = normalizarConfigPagina(m.pagina);
                         return (
-                            <li key={m.id} className="flex flex-col border border-ink/15 bg-card">
+                            <li key={m.id} className="group flex flex-col items-center text-center">
+                                <div className="relative flex flex-col items-center">
+                                    {/* Folha SVG inclinada (clicar abre para editar) */}
+                                    <button
+                                        type="button"
+                                        onClick={() => irPara({ modelo: m.id })}
+                                        title={m.descricao || `Abrir modelo ${m.nome}`}
+                                        className="rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/40"
+                                    >
+                                        <IlustracaoDocumentoModelo temCampos={campos.length > 0} timbrado={cfgPag.timbrado} />
+                                    </button>
+
+                                    {/* Barra flutuante discreta de ações ao passar o mouse */}
+                                    <div className="absolute -bottom-1 z-10 flex items-center gap-0.5 rounded-full bg-card/95 px-1.5 py-1 shadow-md ring-1 ring-ink/15 backdrop-blur-sm transition-all duration-200 sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:focus-within:translate-y-0 sm:focus-within:opacity-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setAlvoGerar({ modeloId: m.id, clienteId: null, calculoId: null })}
+                                            className="inline-flex h-6 items-center gap-1 rounded-full bg-gold px-2.5 text-[11px] font-semibold text-ink transition-colors hover:bg-gold-light"
+                                            title="Gerar documento com este modelo"
+                                        >
+                                            <FilePlus2 className="size-3" />
+                                            Usar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => abrirNovoModelo(m)}
+                                            className="inline-flex size-6 items-center justify-center rounded-full text-ink/70 transition-colors hover:bg-ink/10 hover:text-ink"
+                                            title="Duplicar modelo"
+                                            aria-label={`Duplicar ${m.nome}`}
+                                        >
+                                            <CopyPlus className="size-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAlvoExclusao({ tipo: "modelo", id: m.id, nome: m.nome })}
+                                            className="inline-flex size-6 items-center justify-center rounded-full text-ink/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                            title="Apagar modelo"
+                                            aria-label={`Apagar ${m.nome}`}
+                                        >
+                                            <Trash2 className="size-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Nome embaixo do desenho */}
                                 <button
                                     type="button"
                                     onClick={() => irPara({ modelo: m.id })}
-                                    className="flex-1 px-4 pb-3 pt-4 text-left hover:bg-ink/[0.02]"
+                                    className="mt-3 max-w-[11.5rem] text-center focus:outline-none"
                                 >
-                                    <span className="block text-sm font-semibold text-ink">{m.nome}</span>
-                                    {m.descricao && (
-                                        <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-                                            {m.descricao}
-                                        </span>
-                                    )}
-                                    <span className="mt-2.5 flex flex-wrap gap-1">
-                                        {campos.slice(0, 5).map((c) => (
-                                            <span
-                                                key={c}
-                                                className={cn(
-                                                    "px-1.5 py-0.5 text-[10px] font-medium text-ink",
-                                                    acharCampoConhecido(c) ? "bg-gold/25" : "border border-dashed border-gold-deep/70",
-                                                )}
-                                            >
-                                                [{c}]
-                                            </span>
-                                        ))}
-                                        {campos.length > 5 && (
-                                            <span className="px-1 py-0.5 text-[10px] text-muted-foreground">
-                                                +{campos.length - 5}
-                                            </span>
-                                        )}
-                                        {campos.length === 0 && (
-                                            <span className="text-[11px] text-muted-foreground">Sem campos</span>
-                                        )}
+                                    <span className="line-clamp-2 block text-sm font-semibold leading-snug text-ink transition-colors group-hover:text-gold-deep">
+                                        {m.nome}
+                                    </span>
+                                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                                        {campos.length > 0
+                                            ? `${campos.length} ${campos.length === 1 ? "campo" : "campos"}`
+                                            : "Texto livre"}
                                     </span>
                                 </button>
-                                <div className="flex items-center justify-between gap-2 border-t border-ink/10 px-2 py-1.5">
-                                    {confirmarExclusao === m.id ? (
-                                        linhaConfirmar("modelo", m.id)
-                                    ) : (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => setAlvoGerar({ modeloId: m.id, clienteId: null, calculoId: null })}
-                                                className="inline-flex h-8 items-center gap-1.5 px-2 text-xs font-semibold text-ink hover:bg-ink/[0.06]"
-                                            >
-                                                <FilePlus2 className="size-3.5" />
-                                                Usar modelo
-                                            </button>
-                                            <span className="flex items-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => irPara({ modelo: m.id })}
-                                                    className={botaoIcone}
-                                                    title="Editar"
-                                                    aria-label={`Editar ${m.nome}`}
-                                                >
-                                                    <Pencil className="size-4" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void novoModelo(m)}
-                                                    className={botaoIcone}
-                                                    title="Duplicar"
-                                                    aria-label={`Duplicar ${m.nome}`}
-                                                >
-                                                    <CopyPlus className="size-4" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setConfirmarExclusao(m.id)}
-                                                    className={cn(botaoIcone, "hover:text-destructive")}
-                                                    title="Excluir"
-                                                    aria-label={`Excluir ${m.nome}`}
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                </button>
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
                             </li>
                         );
                     })}
@@ -1343,6 +1666,12 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
             )}
 
             {painelGerar}
+            <ModalConfirmarExclusao
+                alvo={alvoExclusao}
+                excluindo={excluindo}
+                onCancelar={() => setAlvoExclusao(null)}
+                onConfirmar={() => void confirmarExcluirAtual()}
+            />
         </div>
     );
 };

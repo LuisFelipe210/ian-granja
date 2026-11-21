@@ -25,7 +25,13 @@ import {
 } from "./juros/revisional-pro.ts";
 import { normalizarConfigPagina, sanitizarHtmlDocumento, type ConfigPagina } from "./documentos.ts";
 import { cnpjValido, cpfValido } from "./clientes.ts";
-import { configParaLinha, normalizarConfigEscritorio, type ConfigEscritorio } from "./config-escritorio.ts";
+import {
+    configEscritorioAtual,
+    configParaLinha,
+    normalizarConfigEscritorio,
+    sanitizarTimbradoImagemUrl,
+    type ConfigEscritorio,
+} from "./config-escritorio.ts";
 
 const DEFAULT_SUPABASE_URL = "https://smeaktuuuxahmbzpjwqa.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY =
@@ -1741,11 +1747,63 @@ export async function obterConfigEscritorio(): Promise<ConfigEscritorio | null> 
     }
 }
 
-export async function salvarConfigEscritorio(c: ConfigEscritorio): Promise<ConfigEscritorio> {
+const MSG_MIGRACAO_TIMBRADO =
+    "O papel timbrado próprio precisa da migração do banco (20261120170000_timbrado_escritorio).";
+
+/** Banco sem a coluna `timbrado_imagem_url` (migração 20261120170000 ainda não aplicada). */
+export function isColunaTimbradoAusente(err: unknown): boolean {
+    return (
+        err instanceof RevisionalApiError &&
+        (err.code === "PGRST204" || err.code === "42703") &&
+        /timbrado_imagem_url/.test(err.message)
+    );
+}
+
+async function upsertConfigEscritorio(linha: Record<string, string>): Promise<ConfigEscritorio> {
     const rows = await restRequest<Record<string, unknown>[]>("revisional_configuracoes?on_conflict=id", {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-        body: JSON.stringify(configParaLinha(c)),
+        body: JSON.stringify(linha),
     });
     return normalizarConfigEscritorio(firstOrThrow(rows));
+}
+
+export async function salvarConfigEscritorio(c: ConfigEscritorio): Promise<ConfigEscritorio> {
+    const linha = configParaLinha(c);
+    try {
+        return await upsertConfigEscritorio(linha);
+    } catch (err) {
+        if (!isColunaTimbradoAusente(err) || !("timbrado_imagem_url" in linha)) throw err;
+        // Sem timbrado próprio não há nada a perder: grava nome/OAB/cidade sem a coluna nova.
+        if (linha.timbrado_imagem_url) {
+            throw new RevisionalApiError(MSG_MIGRACAO_TIMBRADO, 400, "TABELA_AUSENTE");
+        }
+        const { timbrado_imagem_url: _semColuna, ...semTimbrado } = linha;
+        return upsertConfigEscritorio(semTimbrado);
+    }
+}
+
+/**
+ * Grava só o papel timbrado próprio ("" = volta ao padrão), sem tocar em nome/OAB/cidade:
+ * evita sobrescrever os dados do escritório com valores ainda não carregados na tela.
+ */
+export async function salvarTimbradoEscritorio(timbradoImagemUrl: string): Promise<ConfigEscritorio> {
+    const valor = sanitizarTimbradoImagemUrl(timbradoImagemUrl);
+    if (timbradoImagemUrl.trim() && !valor) {
+        throw new Error("A imagem do timbrado é inválida ou grande demais. Envie um PNG, JPG ou WebP.");
+    }
+    try {
+        const rows = await restRequest<Record<string, unknown>[]>("revisional_configuracoes?id=eq.escritorio", {
+            method: "PATCH",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify({ timbrado_imagem_url: valor }),
+        });
+        if (rows[0]) return normalizarConfigEscritorio(rows[0]);
+    } catch (err) {
+        if (isColunaTimbradoAusente(err)) throw new RevisionalApiError(MSG_MIGRACAO_TIMBRADO, 400, "TABELA_AUSENTE");
+        throw err;
+    }
+    // Linha do escritório ainda não existe: cria a partir do que está no banco (ou dos padrões).
+    const base = (await obterConfigEscritorio()) ?? configEscritorioAtual();
+    return salvarConfigEscritorio({ ...base, timbradoImagemUrl: valor });
 }

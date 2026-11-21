@@ -4,6 +4,8 @@ import {
     criarCategoria,
     listarCalculos,
     obterSessaoAtiva,
+    salvarConfigEscritorio,
+    salvarTimbradoEscritorio,
     type RevisionalSession,
 } from "../src/lib/revisional-db.ts";
 
@@ -153,5 +155,131 @@ describe("revisional-db camada HTTP (single-flight refresh, paginação Range e 
             globalThis.fetch = prevFetch;
             g.window = prevWindow;
         }
+    });
+});
+
+describe("revisional-db configurações do escritório e papel timbrado", () => {
+    const sessao: RevisionalSession = {
+        accessToken: "tok-ok",
+        refreshToken: "ref-1",
+        expiresAt: Date.now() + 3600_000,
+        user: { id: "u1", email: "ian@iangranja.adv.br" },
+    };
+    const json = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    const linhaBanco = {
+        id: "escritorio",
+        nome_advogado: "Fulano de Tal",
+        oab_numero: "12345",
+        oab_uf: "BA",
+        cidade: "Juazeiro",
+        uf: "BA",
+    };
+
+    async function comFetch(
+        responder: (url: string, init: RequestInit | undefined) => Response,
+        fn: () => Promise<void>,
+    ) {
+        const g = globalThis as unknown as { window?: unknown };
+        const prevWindow = g.window;
+        const prevFetch = globalThis.fetch;
+        g.window = criarMockBrowser(sessao);
+        globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
+            responder(String(input), init)) as typeof fetch;
+        try {
+            await fn();
+        } finally {
+            globalThis.fetch = prevFetch;
+            g.window = prevWindow;
+        }
+    }
+
+    it("salva nome/OAB/cidade mesmo em banco sem a coluna timbrado_imagem_url", async () => {
+        const corpos: Array<Record<string, unknown>> = [];
+        await comFetch(
+            (_url, init) => {
+                const corpo = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+                corpos.push(corpo);
+                if ("timbrado_imagem_url" in corpo) {
+                    return json(
+                        {
+                            code: "PGRST204",
+                            message: "Could not find the 'timbrado_imagem_url' column of 'revisional_configuracoes' in the schema cache",
+                        },
+                        400,
+                    );
+                }
+                return json([{ ...linhaBanco, ...corpo }], 201);
+            },
+            async () => {
+                const salvo = await salvarConfigEscritorio({
+                    nomeAdvogado: "Fulano de Tal",
+                    oabNumero: "12345",
+                    oabUf: "BA",
+                    cidade: "Juazeiro",
+                    uf: "BA",
+                    timbradoImagemUrl: "",
+                });
+                assert.equal(salvo.nomeAdvogado, "Fulano de Tal");
+            },
+        );
+        assert.equal(corpos.length, 2, "tenta com a coluna e repete sem ela");
+        assert.ok(!("timbrado_imagem_url" in corpos[1]));
+    });
+
+    it("com timbrado próprio e sem a coluna, avisa da migração em vez de descartar a imagem", async () => {
+        await comFetch(
+            () =>
+                json(
+                    { code: "PGRST204", message: "Could not find the 'timbrado_imagem_url' column" },
+                    400,
+                ),
+            async () => {
+                await assert.rejects(
+                    () =>
+                        salvarConfigEscritorio({
+                            nomeAdvogado: "A",
+                            oabNumero: "1",
+                            oabUf: "PE",
+                            cidade: "C",
+                            uf: "PE",
+                            timbradoImagemUrl: "data:image/png;base64,iVBORw0KGgo=",
+                        }),
+                    /migração do banco/,
+                );
+            },
+        );
+    });
+
+    it("salvarTimbradoEscritorio grava só a coluna do timbrado (PATCH), sem tocar em nome/OAB", async () => {
+        const chamadas: Array<{ url: string; metodo: string; corpo: Record<string, unknown> }> = [];
+        await comFetch(
+            (url, init) => {
+                const corpo = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+                chamadas.push({ url, metodo: String(init?.method ?? "GET"), corpo });
+                return json([{ ...linhaBanco, ...corpo }]);
+            },
+            async () => {
+                const salvo = await salvarTimbradoEscritorio("data:image/png;base64,iVBORw0KGgo=");
+                assert.equal(salvo.nomeAdvogado, "Fulano de Tal");
+                assert.equal(salvo.timbradoImagemUrl, "data:image/png;base64,iVBORw0KGgo=");
+            },
+        );
+        assert.equal(chamadas.length, 1);
+        assert.equal(chamadas[0].metodo, "PATCH");
+        assert.match(chamadas[0].url, /revisional_configuracoes\?id=eq\.escritorio$/);
+        assert.deepEqual(Object.keys(chamadas[0].corpo), ["timbrado_imagem_url"]);
+    });
+
+    it("salvarTimbradoEscritorio recusa imagem inválida em vez de gravar vazio em silêncio", async () => {
+        await comFetch(
+            () => json([]),
+            async () => {
+                await assert.rejects(
+                    () => salvarTimbradoEscritorio("data:application/octet-stream;base64,AAAA"),
+                    /inválida/,
+                );
+            },
+        );
     });
 });

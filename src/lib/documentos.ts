@@ -15,6 +15,7 @@ import {
     formatarOab,
     type ConfigEscritorio,
 } from "./config-escritorio.ts";
+import { urlGoogleFontsParaHtml } from "./fontes-editor.ts";
 import type { CalculoSalvo, Cliente } from "./revisional-db.ts";
 import {
     enderecoCompleto,
@@ -551,6 +552,20 @@ function sanitizarEstiloSeguro(rawStyle: string): string {
         } else if (prop === "font-family" && /^[a-zA-Z0-9\s,'"-]{1,120}$/.test(val)) {
             declaracoes.push(`font-family: ${val}`);
         } else if (
+            (prop === "margin-left" ||
+                prop === "margin-right" ||
+                prop === "margin-top" ||
+                prop === "margin-bottom" ||
+                prop === "padding-left" ||
+                prop === "padding-right") &&
+            /^(?:0|\d+(?:\.\d+)?(?:cm|mm|pt|px|em|rem))$/i.test(val)
+        ) {
+            declaracoes.push(`${prop}: ${val.toLowerCase()}`);
+        } else if (prop === "text-indent" && /^(?:0|-?\d+(?:\.\d+)?(?:cm|mm|pt|px|em|rem))$/i.test(val)) {
+            declaracoes.push(`text-indent: ${val.toLowerCase()}`);
+        } else if (prop === "line-height" && /^\d+(?:\.\d+)?(?:em|pt|px|%)?$/i.test(val)) {
+            declaracoes.push(`line-height: ${val.toLowerCase()}`);
+        } else if (
             (prop === "color" || prop === "background-color") &&
             /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)|[a-z]{3,20})$/i.test(
                 val,
@@ -745,10 +760,12 @@ export interface MargensPagina {
     direita: number;
 }
 
-/** Papel e margens (em cm) de um modelo ou documento. */
+/** Papel, margens (em cm) e papel timbrado de um modelo ou documento. */
 export interface ConfigPagina {
     formato: FormatoPapel;
     margens: MargensPagina;
+    /** Exibe o cabeçalho e o rodapé timbrados do escritório em todas as páginas. */
+    timbrado: boolean;
 }
 
 export const FORMATOS_PAPEL: Record<FormatoPapel, { rotulo: string; curto: string; larguraCm: number; alturaCm: number }> = {
@@ -757,16 +774,26 @@ export const FORMATOS_PAPEL: Record<FormatoPapel, { rotulo: string; curto: strin
     carta: { rotulo: "Carta (21,6 × 27,9 cm)", curto: "Carta", larguraCm: 21.59, alturaCm: 27.94 },
 };
 
-export const PREDEFINICOES_MARGEM: Array<{ id: string; rotulo: string; margens: MargensPagina }> = [
-    { id: "abnt", rotulo: "ABNT (3 cm sup./esq., 2 cm inf./dir.)", margens: { superior: 3, inferior: 2, esquerda: 3, direita: 2 } },
-    { id: "normal", rotulo: "Normal do Word (2,5 cm)", margens: { superior: 2.5, inferior: 2.5, esquerda: 2.5, direita: 2.5 } },
-    { id: "estreita", rotulo: "Estreita (1,27 cm)", margens: { superior: 1.27, inferior: 1.27, esquerda: 1.27, direita: 1.27 } },
+export const PREDEFINICOES_MARGEM: Array<{ id: string; rotulo: string; curto: string; margens: MargensPagina }> = [
+    { id: "abnt", rotulo: "ABNT / Forense (3 cm sup./esq., 2 cm inf./dir.)", curto: "ABNT", margens: { superior: 3, inferior: 2, esquerda: 3, direita: 2 } },
+    { id: "normal", rotulo: "Normal do Word (2,5 cm)", curto: "Normal", margens: { superior: 2.5, inferior: 2.5, esquerda: 2.5, direita: 2.5 } },
+    { id: "moderada", rotulo: "Moderada (2,54 cm sup./inf., 1,91 cm lat.)", curto: "Moderada", margens: { superior: 2.54, inferior: 2.54, esquerda: 1.91, direita: 1.91 } },
+    { id: "larga", rotulo: "Larga (2,54 cm sup./inf., 5,08 cm lat.)", curto: "Larga", margens: { superior: 2.54, inferior: 2.54, esquerda: 5.08, direita: 5.08 } },
+    { id: "estreita", rotulo: "Estreita (1,27 cm)", curto: "Estreita", margens: { superior: 1.27, inferior: 1.27, esquerda: 1.27, direita: 1.27 } },
+    { id: "encadernacao", rotulo: "Autos físicos / Encadernação (3,5 cm esq.)", curto: "Autos", margens: { superior: 3, inferior: 2, esquerda: 3.5, direita: 2 } },
 ];
 
-export const CONFIG_PAGINA_PADRAO: ConfigPagina = { formato: "a4", margens: { ...PREDEFINICOES_MARGEM[0].margens } };
+export const CONFIG_PAGINA_PADRAO: ConfigPagina = {
+    formato: "a4",
+    margens: { ...PREDEFINICOES_MARGEM[0].margens },
+    timbrado: true,
+};
 
 const MARGEM_MIN_CM = 0.5;
 const MARGEM_MAX_CM = 6;
+/** Espaço mínimo reservado no topo e na base quando o papel timbrado está ativo (em cm). */
+export const MARGEM_SUP_TIMBRADO_CM = 3.2;
+export const MARGEM_INF_TIMBRADO_CM = 2.4;
 
 function margemValida(v: unknown, padrao: number): number {
     const n = typeof v === "number" ? v : typeof v === "string" ? Number(v.replace(",", ".")) : NaN;
@@ -789,6 +816,45 @@ export function normalizarConfigPagina(raw: unknown): ConfigPagina {
             esquerda: margemValida(m.esquerda, p.esquerda),
             direita: margemValida(m.direita, p.direita),
         },
+        // Sem configuração nenhuma (novo modelo) vale o padrão com timbrado; registros salvos antes do
+        // timbrado existir não têm o campo e continuam em folha limpa, sem mudar layout nem paginação.
+        timbrado: raw && typeof raw === "object" ? obj.timbrado === true : CONFIG_PAGINA_PADRAO.timbrado,
+    };
+}
+
+/**
+ * Margens efetivas de texto considerando o timbrado:
+ * - No timbrado padrão do sistema, garante espaço mínimo para o cabeçalho/rodapé desenhados.
+ * - Com imagem A4 importada pelo escritório, respeita exatamente as margens escolhidas pelo usuário.
+ */
+export function margensEfetivas(c: ConfigPagina, temImagemPersonalizada = false): MargensPagina {
+    if (!c.timbrado || temImagemPersonalizada) return c.margens;
+    return {
+        superior: Math.max(c.margens.superior, MARGEM_SUP_TIMBRADO_CM),
+        inferior: Math.max(c.margens.inferior, MARGEM_INF_TIMBRADO_CM),
+        esquerda: c.margens.esquerda,
+        direita: c.margens.direita,
+    };
+}
+
+export interface DadosTimbrado {
+    tituloEscritorio: string;
+    subtituloEscritorio: string;
+    advogado: string;
+    oab: string;
+    endereco: string;
+    contato: string;
+}
+
+/** Textos exibidos no cabeçalho e rodapé do papel timbrado (acompanha Configurações do escritório). */
+export function dadosTimbradoEscritorio(cfg: ConfigEscritorio = configEscritorioAtual()): DadosTimbrado {
+    return {
+        tituloEscritorio: "IAN GRANJA",
+        subtituloEscritorio: "ADVOGADOS",
+        advogado: cfg.nomeAdvogado,
+        oab: formatarOab(cfg),
+        endereco: `Av. Cardoso de Sá, 860, sala 5 · Centro Empresarial Sergio Cabral · ${cidadeAssinatura(cfg)}`,
+        contato: "(87) 9 8844-8690 · contato@iangranja.adv.br · www.iangranja.adv.br",
     };
 }
 
@@ -808,14 +874,10 @@ const fmtCm = (n: number) => String(n).replace(".", ",");
 /** "A4 · ABNT" / "Ofício · 2,5 / 2,5 / 2,5 / 2,5 cm". */
 export function resumoConfigPagina(c: ConfigPagina): string {
     const id = idPredefinicaoMargem(c.margens);
+    const achada = PREDEFINICOES_MARGEM.find((p) => p.id === id);
     const margens =
-        id === "abnt"
-            ? "ABNT"
-            : id === "normal"
-              ? "Normal"
-              : id === "estreita"
-                ? "Estreita"
-                : `${fmtCm(c.margens.superior)}/${fmtCm(c.margens.direita)}/${fmtCm(c.margens.inferior)}/${fmtCm(c.margens.esquerda)} cm`;
+        achada?.curto ??
+        `${fmtCm(c.margens.superior)}/${fmtCm(c.margens.direita)}/${fmtCm(c.margens.inferior)}/${fmtCm(c.margens.esquerda)} cm`;
     return `${FORMATOS_PAPEL[c.formato].curto} · ${margens}`;
 }
 
@@ -833,15 +895,20 @@ export interface GeometriaPagina {
     intervalo: number;
 }
 
-export function geometriaDaPagina(c: ConfigPagina, intervalo = 32): GeometriaPagina {
+export function geometriaDaPagina(
+    c: ConfigPagina,
+    intervalo = 32,
+    temImagemPersonalizada = false,
+): GeometriaPagina {
     const papel = FORMATOS_PAPEL[c.formato];
+    const m = margensEfetivas(c, temImagemPersonalizada);
     return {
         largura: papel.larguraCm * PX_POR_CM,
         altura: papel.alturaCm * PX_POR_CM,
-        margemSuperior: c.margens.superior * PX_POR_CM,
-        margemInferior: c.margens.inferior * PX_POR_CM,
-        margemEsquerda: c.margens.esquerda * PX_POR_CM,
-        margemDireita: c.margens.direita * PX_POR_CM,
+        margemSuperior: m.superior * PX_POR_CM,
+        margemInferior: m.inferior * PX_POR_CM,
+        margemEsquerda: m.esquerda * PX_POR_CM,
+        margemDireita: m.direita * PX_POR_CM,
         intervalo,
     };
 }
@@ -857,8 +924,11 @@ const ESTILO_TEXTO_DOCUMENTO = `
   ul, ol { margin: 0 0 0 1.5cm; padding: 0; }
   blockquote { margin: 0 0 0 4cm; font-size: 10pt; line-height: 1.15; }
   hr { border: 0; border-top: 1px solid #000; margin: 12pt 0; }
-  table { border-collapse: collapse; width: 100%; }
-  td, th { border: 1px solid #000; padding: 4pt 6pt; vertical-align: top; }
+  .doc-corpo table { border-collapse: collapse; width: 100%; }
+  .doc-corpo td, .doc-corpo th { border: 1px solid #000; padding: 4pt 6pt; vertical-align: top; }
+  sup, sub { font-size: 75%; line-height: 0; position: relative; vertical-align: baseline; }
+  sup { top: -0.45em; }
+  sub { bottom: -0.25em; }
   div[data-quebra-pagina] { break-after: page; page-break-after: always; height: 0; }
 `;
 
@@ -868,32 +938,240 @@ function regraPagina(c: ConfigPagina): string {
     return `size: ${papel.larguraCm}cm ${papel.alturaCm}cm; margin: ${m.superior}cm ${m.direita}cm ${m.inferior}cm ${m.esquerda}cm;`;
 }
 
+/** Aceita apenas data:image/* ou URL http(s)/relativa para o emblema do timbrado. */
+function logoSrcSeguro(raw?: string): string {
+    const s = (raw ?? "").trim();
+    if (!s) return "";
+    if (/^data:image\/(?:png|jpeg|jpg|webp);base64,[a-zA-Z0-9+/=]+$/i.test(s)) return s;
+    if (/^\/[a-zA-Z0-9._/-]+$/.test(s)) return s;
+    return "";
+}
+
 /** CSS da impressão / PDF com o papel e as margens escolhidos. */
 export function estiloPaginaDocumento(c: ConfigPagina = CONFIG_PAGINA_PADRAO): string {
     return `@page { ${regraPagina(c)} }\n${ESTILO_TEXTO_DOCUMENTO}`;
 }
 
+export interface OpcoesExportacaoDocumento {
+    logoSrc?: string;
+    /** Imagem A4 de folha inteira importada pelo escritório (data URI); sobrescreve o timbrado padrão. */
+    timbradoImagemUrl?: string;
+    escritorio?: ConfigEscritorio;
+}
+
+/**
+ * Monta o documento HTML completo pronto para impressão / Salvar em PDF no iframe isolado.
+ * Quando `c.timbrado` está ativo, repete o timbrado (imagem A4 própria ou cabeçalho/rodapé padrão)
+ * em todas as páginas impressas.
+ */
+export function montarHtmlImpressaoDocumento(
+    titulo: string,
+    corpoHtml: string,
+    c: ConfigPagina = CONFIG_PAGINA_PADRAO,
+    opcoes: OpcoesExportacaoDocumento = {},
+): string {
+    const htmlSeguro = sanitizarHtmlDocumento(corpoHtml);
+    const urlFontes = urlGoogleFontsParaHtml(htmlSeguro);
+    const linkFontes = urlFontes ? `<link rel="stylesheet" href="${escaparHtml(urlFontes)}">` : "";
+    const csp = urlFontes
+        ? "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:;"
+        : "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:;";
+
+    if (!c.timbrado) {
+        return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>${escaparHtml(titulo)}</title>${linkFontes}<style>${estiloPaginaDocumento(c)}</style></head><body><div class="doc-corpo">${htmlSeguro}</div></body></html>`;
+    }
+
+    const papel = FORMATOS_PAPEL[c.formato];
+    const cfg = opcoes.escritorio ?? configEscritorioAtual();
+    const imgPersonalizada = logoSrcSeguro(opcoes.timbradoImagemUrl ?? cfg.timbradoImagemUrl);
+
+    if (imgPersonalizada) {
+        const m = margensEfetivas(c, true);
+        const cssA4 = `
+  @page { size: ${papel.larguraCm}cm ${papel.alturaCm}cm; margin: 0; }
+  html, body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  ${ESTILO_TEXTO_DOCUMENTO}
+  .timbrado-fundo-a4 {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: ${papel.larguraCm}cm;
+    height: ${papel.alturaCm}cm;
+    object-fit: fill;
+    z-index: -1;
+    pointer-events: none;
+  }
+  table.timbrado-layout {
+    width: 100%;
+    border-collapse: collapse;
+    border: 0;
+  }
+  table.timbrado-layout > thead > tr > td,
+  table.timbrado-layout > tfoot > tr > td,
+  table.timbrado-layout > tbody > tr > td {
+    border: 0;
+    padding: 0;
+  }
+  .timbrado-espaco-topo { height: ${m.superior}cm; }
+  .timbrado-espaco-rodape { height: ${m.inferior}cm; }
+  .timbrado-corpo { padding: 0 ${m.direita}cm 0 ${m.esquerda}cm; }
+`;
+        return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>${escaparHtml(titulo)}</title>${linkFontes}<style>${cssA4}</style></head><body><img class="timbrado-fundo-a4" src="${escaparHtml(imgPersonalizada)}" alt="" /><table class="timbrado-layout"><thead><tr><td><div class="timbrado-espaco-topo">&nbsp;</div></td></tr></thead><tfoot><tr><td><div class="timbrado-espaco-rodape">&nbsp;</div></td></tr></tfoot><tbody><tr><td><div class="timbrado-corpo doc-corpo">${htmlSeguro}</div></td></tr></tbody></table></body></html>`;
+    }
+
+    const m = margensEfetivas(c, false);
+    const dados = dadosTimbradoEscritorio(cfg);
+    const logo = logoSrcSeguro(opcoes.logoSrc);
+    const logoImg = logo
+        ? `<img src="${escaparHtml(logo)}" alt="" style="width:0.95cm;height:0.95cm;object-fit:cover;display:block;flex-shrink:0;" />`
+        : `<div style="width:0.95cm;height:0.95cm;background:#061237;color:#c5b08e;font-family:Georgia,serif;font-size:15pt;font-weight:700;line-height:0.95cm;text-align:center;flex-shrink:0;">G</div>`;
+
+    const css = `
+  @page { size: ${papel.larguraCm}cm ${papel.alturaCm}cm; margin: 0; }
+  html, body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  ${ESTILO_TEXTO_DOCUMENTO}
+  .timbrado-cabecalho {
+    position: fixed;
+    top: 0.65cm;
+    left: ${m.esquerda}cm;
+    right: ${m.direita}cm;
+    padding-bottom: 0.22cm;
+    border-bottom: 1.5pt solid #061237;
+    box-shadow: 0 2.5pt 0 0 #ffffff, 0 3.5pt 0 0 #b6a182;
+    font-family: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12pt;
+    background: #ffffff;
+  }
+  .timbrado-marca {
+    display: flex;
+    align-items: center;
+    gap: 8pt;
+  }
+  .timbrado-nome {
+    font-size: 11.5pt;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #061237;
+    line-height: 1.1;
+  }
+  .timbrado-sub {
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.34em;
+    color: #8b6d3b;
+    margin-top: 2pt;
+    line-height: 1.1;
+  }
+  .timbrado-adv {
+    text-align: right;
+    line-height: 1.3;
+  }
+  .timbrado-adv-nome {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #061237;
+  }
+  .timbrado-adv-oab {
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #8b6d3b;
+  }
+  .timbrado-rodape {
+    position: fixed;
+    bottom: 0.55cm;
+    left: ${m.esquerda}cm;
+    right: ${m.direita}cm;
+    padding-top: 0.2cm;
+    border-top: 0.75pt solid #b6a182;
+    text-align: center;
+    font-family: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    font-size: 7.5pt;
+    line-height: 1.4;
+    color: #475273;
+    background: #ffffff;
+  }
+  table.timbrado-layout {
+    width: 100%;
+    border-collapse: collapse;
+    border: 0;
+  }
+  table.timbrado-layout > thead > tr > td,
+  table.timbrado-layout > tfoot > tr > td,
+  table.timbrado-layout > tbody > tr > td {
+    border: 0;
+    padding: 0;
+  }
+  .timbrado-espaco-topo { height: ${m.superior}cm; }
+  .timbrado-espaco-rodape { height: ${m.inferior}cm; }
+  .timbrado-corpo { padding: 0 ${m.direita}cm 0 ${m.esquerda}cm; }
+`;
+
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>${escaparHtml(titulo)}</title>${linkFontes}<style>${css}</style></head><body><header class="timbrado-cabecalho"><div class="timbrado-marca">${logoImg}<div><div class="timbrado-nome">${escaparHtml(dados.tituloEscritorio)}</div><div class="timbrado-sub">${escaparHtml(dados.subtituloEscritorio)}</div></div></div><div class="timbrado-adv"><div class="timbrado-adv-nome">${escaparHtml(dados.advogado)}</div><div class="timbrado-adv-oab">${escaparHtml(dados.oab)}</div></div></header><footer class="timbrado-rodape"><div>${escaparHtml(dados.endereco)}</div><div>${escaparHtml(dados.contato)}</div></footer><table class="timbrado-layout"><thead><tr><td><div class="timbrado-espaco-topo">&nbsp;</div></td></tr></thead><tfoot><tr><td><div class="timbrado-espaco-rodape">&nbsp;</div></td></tr></tfoot><tbody><tr><td><div class="timbrado-corpo doc-corpo">${htmlSeguro}</div></td></tr></tbody></table></body></html>`;
+}
+
 const REGEX_QUEBRA_PAGINA = /<div[^>]*data-quebra-pagina[^>]*>\s*<\/div>/g;
 
-/** HTML que o Word abre como documento (.doc), com o papel, as margens e as quebras de página. */
+/** HTML que o Word abre como documento (.doc), com o papel, as margens, timbrado opcional e quebras de página. */
 export function montarArquivoWord(
     titulo: string,
     corpoHtml: string,
     c: ConfigPagina = CONFIG_PAGINA_PADRAO,
+    opcoes: OpcoesExportacaoDocumento = {},
 ): string {
     const corpo = sanitizarHtmlDocumento(corpoHtml).replace(
         REGEX_QUEBRA_PAGINA,
         `<br clear="all" style="mso-special-character:line-break;page-break-before:always">`,
     );
+
+    const cfg = opcoes.escritorio ?? configEscritorioAtual();
+    const imgPersonalizada = c.timbrado ? logoSrcSeguro(opcoes.timbradoImagemUrl ?? cfg.timbradoImagemUrl) : "";
+
+    // Cabeçalho e rodapé viram seções próprias do Word (mso-element:header/footer), que ele repete
+    // em todas as páginas. A tabela que os carrega fica fora da folha (margem de 9in) e não aparece.
+    let cabecalhoWord = "";
+    let rodapeWord = "";
+    let margemCabecalhoCm = 0;
+    let margemRodapeCm = 0;
+
+    if (c.timbrado && imgPersonalizada) {
+        const papel = FORMATOS_PAPEL[c.formato];
+        // Imagem A4 ancorada na página, atrás do texto: funciona como fundo de todas as folhas.
+        cabecalhoWord = `<p class="MsoHeader" style="margin:0;"><img src="${escaparHtml(imgPersonalizada)}" width="${Math.round(papel.larguraCm * PX_POR_CM)}" height="${Math.round(papel.alturaCm * PX_POR_CM)}" alt="" style="position:absolute;left:0;top:0;width:${papel.larguraCm}cm;height:${papel.alturaCm}cm;z-index:-1;mso-position-horizontal-relative:page;mso-position-vertical-relative:page;" /></p>`;
+    } else if (c.timbrado) {
+        const dados = dadosTimbradoEscritorio(cfg);
+        const logo = logoSrcSeguro(opcoes.logoSrc);
+        const celulaLogo = logo
+            ? `<td style="border:none;padding:0 10pt 0 0;width:36pt;vertical-align:middle;"><img src="${escaparHtml(logo)}" width="36" height="36" alt="" style="width:36pt;height:36pt;display:block;" /></td>`
+            : "";
+        cabecalhoWord = `<table style="width:100%;border-collapse:collapse;border:none;border-bottom:1.5pt solid #061237;"><tr>${celulaLogo}<td style="border:none;padding:0 0 8pt 0;vertical-align:middle;"><div style="font-family:Arial,sans-serif;font-size:12pt;font-weight:bold;letter-spacing:2pt;color:#061237;">${escaparHtml(dados.tituloEscritorio)}</div><div style="font-family:Arial,sans-serif;font-size:7.5pt;font-weight:bold;letter-spacing:3pt;color:#8b6d3b;">${escaparHtml(dados.subtituloEscritorio)}</div></td><td style="border:none;padding:0 0 8pt 0;text-align:right;vertical-align:middle;"><div style="font-family:Arial,sans-serif;font-size:8.5pt;font-weight:bold;color:#061237;">${escaparHtml(dados.advogado)}</div><div style="font-family:Arial,sans-serif;font-size:7.5pt;font-weight:bold;color:#8b6d3b;">${escaparHtml(dados.oab)}</div></td></tr></table>`;
+        rodapeWord = `<div style="padding-top:6pt;border-top:0.75pt solid #b6a182;text-align:center;font-family:Arial,sans-serif;font-size:7.5pt;line-height:1.4;color:#475273;"><div>${escaparHtml(dados.endereco)}</div><div>${escaparHtml(dados.contato)}</div></div>`;
+        margemCabecalhoCm = 0.65;
+        margemRodapeCm = 0.55;
+    }
+
+    // Mesmas margens de texto da tela e do PDF (o timbrado padrão reserva espaço mínimo no topo/base).
+    const paginaWord: ConfigPagina = { ...c, margens: margensEfetivas(c, Boolean(imgPersonalizada)) };
+    const regrasSecao = cabecalhoWord
+        ? ` mso-header-margin: ${margemCabecalhoCm}cm; mso-footer-margin: ${margemRodapeCm}cm; mso-header: h1;${rodapeWord ? " mso-footer: f1;" : ""}`
+        : "";
+    const secoesWord = cabecalhoWord
+        ? `<table id="hrdftrtbl" border="0" cellspacing="0" cellpadding="0"><tr><td><div style="mso-element:header" id="h1">${cabecalhoWord}</div></td>${rodapeWord ? `<td><div style="mso-element:footer" id="f1">${rodapeWord}</div></td>` : ""}</tr></table>`
+        : "";
+
     return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${escaparHtml(titulo)}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
 <style>
-  @page WordSection1 { ${regraPagina(c)} }
+  @page WordSection1 { ${regraPagina(paginaWord)}${regrasSecao} }
   div.WordSection1 { page: WordSection1; }
+  table#hrdftrtbl { margin: 0 0 0 9in; }
   ${ESTILO_TEXTO_DOCUMENTO}
 </style></head>
-<body><div class="WordSection1">${corpo}</div></body></html>`;
+<body><div class="WordSection1"><div class="doc-corpo">${corpo}</div>${secoesWord}</div></body></html>`;
 }
 
 /** Nome de arquivo seguro: "Petição ciente - Maria" → "Peticao-ciente-Maria". */
