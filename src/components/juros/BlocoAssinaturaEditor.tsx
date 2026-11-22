@@ -1,10 +1,14 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import { AlignCenter, AlignLeft, AlignRight, Calendar, ShieldCheck, Trash2 } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Calendar, GripVertical, PenLine, ShieldCheck, Trash2 } from "lucide-react";
 import { cidadeAssinatura, formatarOab } from "@/lib/config-escritorio";
 import { useConfigEscritorio } from "@/lib/use-config-escritorio";
 import { dataPorExtenso, type AlinhamentoAssinatura } from "@/lib/documentos";
 import { cn } from "@/lib/utils";
+
+const BOTAO_BARRA = "inline-flex h-6 items-center justify-center gap-1 whitespace-nowrap transition-colors";
+const BOTAO_ATIVO = "bg-ink/[0.08] text-ink";
+const BOTAO_INATIVO = "text-ink/50 hover:bg-ink/5 hover:text-ink";
 
 export interface OpcoesBlocoAssinaturaExt {
     onAssinar?: () => void;
@@ -37,12 +41,23 @@ function VisualBlocoAssinatura({ node, updateAttributes, deleteNode, selected, e
             <div
                 contentEditable={false}
                 className={cn(
-                    "absolute -top-8 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap border border-ink/20 bg-card px-1 py-0.5 font-sans text-[11px] text-ink shadow-md transition-opacity",
+                    "absolute -top-9 left-1/2 z-10 flex w-max -translate-x-1/2 items-center gap-0.5 border border-ink/15 bg-card p-0.5 font-sans text-[11px] leading-none text-ink shadow-md shadow-ink/15 transition-opacity",
                     selected
                         ? "opacity-100"
                         : "pointer-events-none opacity-0 group-hover/ass:pointer-events-auto group-hover/ass:opacity-100",
                 )}
             >
+                {/* Alça de arrasto: precisa ser span (o TipTap ignora drag iniciado em <button>). */}
+                <span
+                    data-drag-handle=""
+                    draggable="true"
+                    title="Arrastar para mover a assinatura"
+                    aria-label="Arrastar para mover a assinatura"
+                    className="inline-flex h-6 w-5 cursor-grab items-center justify-center text-ink/35 transition-colors hover:text-ink active:cursor-grabbing"
+                >
+                    <GripVertical className="size-3.5" />
+                </span>
+                <span aria-hidden className="mx-1 h-4 w-px bg-ink/10" />
                 {(
                     [
                         ["left", AlignLeft, "Alinhar assinatura à esquerda"],
@@ -54,54 +69,49 @@ function VisualBlocoAssinatura({ node, updateAttributes, deleteNode, selected, e
                         key={al}
                         type="button"
                         title={rotulo}
+                        aria-label={rotulo}
+                        aria-pressed={alinhamento === al}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => updateAttributes({ alinhamento: al })}
-                        className={cn(
-                            "inline-flex size-6 items-center justify-center transition-colors",
-                            alinhamento === al ? "bg-ink text-paper" : "hover:bg-ink/10",
-                        )}
+                        className={cn(BOTAO_BARRA, "w-6", alinhamento === al ? BOTAO_ATIVO : BOTAO_INATIVO)}
                     >
-                        <Icone className="size-3" />
+                        <Icone className="size-3.5" />
                     </button>
                 ))}
-                <span aria-hidden className="mx-0.5 h-3.5 w-px bg-ink/15" />
+                <span aria-hidden className="mx-1 h-4 w-px bg-ink/10" />
                 <button
                     type="button"
                     title="Mostrar ou ocultar cidade e data"
+                    aria-pressed={mostrarData}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => updateAttributes({ mostrarData: !mostrarData })}
-                    className={cn(
-                        "inline-flex h-6 items-center gap-1 px-1.5 font-medium transition-colors",
-                        mostrarData ? "bg-gold/30 text-ink" : "text-muted-foreground hover:bg-ink/10",
-                    )}
+                    className={cn(BOTAO_BARRA, "px-1.5 font-medium", mostrarData ? BOTAO_ATIVO : BOTAO_INATIVO)}
                 >
-                    <Calendar className="size-3" />
+                    <Calendar className="size-3.5" />
                     Data
                 </button>
                 <button
                     type="button"
                     title="Mostrar ou ocultar espaço/selo ICP-Brasil"
+                    aria-pressed={mostrarSelo}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => updateAttributes({ mostrarSelo: !mostrarSelo })}
-                    className={cn(
-                        "inline-flex h-6 items-center gap-1 px-1.5 font-medium transition-colors",
-                        mostrarSelo ? "bg-gold/30 text-ink" : "text-muted-foreground hover:bg-ink/10",
-                    )}
+                    className={cn(BOTAO_BARRA, "px-1.5 font-medium", mostrarSelo ? BOTAO_ATIVO : BOTAO_INATIVO)}
                 >
-                    <ShieldCheck className="size-3" />
-                    ICP
+                    <ShieldCheck className="size-3.5" />
+                    Selo
                 </button>
                 {onAssinar && (
                     <>
-                        <span aria-hidden className="mx-0.5 h-3.5 w-px bg-ink/15" />
+                        <span aria-hidden className="mx-1 h-4 w-px bg-ink/10" />
                         <button
                             type="button"
                             title="Assinar documento em PDF com certificado ICP-Brasil (A1/A3)"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={onAssinar}
-                            className="inline-flex h-6 items-center gap-1 bg-ink px-2 font-semibold text-paper hover:bg-ink-deep"
+                            className={cn(BOTAO_BARRA, "bg-ink px-2 font-semibold text-paper hover:bg-ink-deep")}
                         >
-                            <ShieldCheck className="size-3 text-gold-light" />
+                            <PenLine className="size-3.5 text-gold-light" />
                             Assinar PDF
                         </button>
                     </>
@@ -109,11 +119,12 @@ function VisualBlocoAssinatura({ node, updateAttributes, deleteNode, selected, e
                 <button
                     type="button"
                     title="Remover bloco de assinatura"
+                    aria-label="Remover bloco de assinatura"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={deleteNode}
-                    className="ml-0.5 inline-flex size-6 items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    className={cn(BOTAO_BARRA, "ml-0.5 w-6 text-ink/45 hover:bg-destructive/10 hover:text-destructive")}
                 >
-                    <Trash2 className="size-3" />
+                    <Trash2 className="size-3.5" />
                 </button>
             </div>
 
@@ -153,7 +164,7 @@ export const BlocoAssinatura = Node.create<OpcoesBlocoAssinaturaExt>({
     group: "block",
     atom: true,
     selectable: true,
-    draggable: false,
+    draggable: true,
 
     addOptions() {
         return {
