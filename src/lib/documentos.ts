@@ -409,9 +409,57 @@ export const CAMPOS_DOCUMENTO: DefinicaoCampo[] = [
         descricao: "Inscrição na OAB (Configurações)",
         resolver: (ctx) => formatarOab(escritorioDe(ctx)),
     },
+    {
+        rotulo: "assinatura",
+        grupo: "Escritório e data",
+        descricao: "Bloco de assinatura do advogado (rubrica, Nome, OAB e carimbo ICP-Brasil)",
+        apelidos: ["assinatura advogado", "assinatura digital", "assinatura do advogado"],
+        resolver: (ctx) => `${escritorioDe(ctx).nomeAdvogado} — ${formatarOab(escritorioDe(ctx))}`,
+    },
 ];
 
 /** Minúsculas, sem acento, "nº" vira "numero", sem pontuação, espaços colapsados. */
+export interface GrupoDocumentosCliente<T> {
+    /** Nome normalizado do cliente ("" = documentos sem cliente). */
+    chave: string;
+    nome: string | null;
+    itens: T[];
+    /** updated_at mais recente do grupo (ISO). */
+    ultimaEdicao: string;
+}
+
+/**
+ * Agrupa documentos por cliente (nome normalizado: o mesmo cliente ligado por cadastro ou por caso cai
+ * no mesmo grupo). Dentro do grupo e entre grupos, o mais recente vem primeiro; sem cliente fica no fim.
+ */
+export function agruparDocumentosPorCliente<T extends { updated_at: string }>(
+    itens: T[],
+    nomeDoCliente: (item: T) => string | null | undefined,
+): GrupoDocumentosCliente<T>[] {
+    const grupos = new Map<string, GrupoDocumentosCliente<T>>();
+    for (const item of itens) {
+        const nome = nomeDoCliente(item)?.trim() || null;
+        const chave = nome ? normalizarChaveCampo(nome) : "";
+        const grupo = grupos.get(chave);
+        if (grupo) {
+            grupo.itens.push(item);
+            // O grupo exibe o nome como está no documento mais recente.
+            if (item.updated_at > grupo.ultimaEdicao) {
+                grupo.ultimaEdicao = item.updated_at;
+                grupo.nome = nome;
+            }
+        } else {
+            grupos.set(chave, { chave, nome, itens: [item], ultimaEdicao: item.updated_at });
+        }
+    }
+    const lista = [...grupos.values()];
+    for (const g of lista) g.itens.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    return lista.sort((a, b) => {
+        if (!a.chave !== !b.chave) return a.chave ? -1 : 1;
+        return b.ultimaEdicao.localeCompare(a.ultimaEdicao);
+    });
+}
+
 export function normalizarChaveCampo(rotulo: string): string {
     return rotulo
         .replace(/\bn[º°]\.?/gi, "numero ")
@@ -552,9 +600,12 @@ function sanitizarEstiloSeguro(rawStyle: string): string {
         } else if (prop === "font-family" && /^[a-zA-Z0-9\s,'"-]{1,120}$/.test(val)) {
             declaracoes.push(`font-family: ${val}`);
         } else if (
-            (prop === "margin-left" ||
-                prop === "margin-right" ||
-                prop === "margin-top" ||
+            (prop === "margin-left" || prop === "margin-right") &&
+            /^(?:0|-?\d+(?:\.\d+)?(?:cm|mm|pt|px|em|rem))$/i.test(val)
+        ) {
+            declaracoes.push(`${prop}: ${val.toLowerCase()}`);
+        } else if (
+            (prop === "margin-top" ||
                 prop === "margin-bottom" ||
                 prop === "padding-left" ||
                 prop === "padding-right") &&
@@ -563,6 +614,8 @@ function sanitizarEstiloSeguro(rawStyle: string): string {
             declaracoes.push(`${prop}: ${val.toLowerCase()}`);
         } else if (prop === "text-indent" && /^(?:0|-?\d+(?:\.\d+)?(?:cm|mm|pt|px|em|rem))$/i.test(val)) {
             declaracoes.push(`text-indent: ${val.toLowerCase()}`);
+        } else if (prop === "tab-size" && /^\d+(?:\.\d+)?(?:cm|mm|pt|px)$/i.test(val)) {
+            declaracoes.push(`tab-size: ${val.toLowerCase()}`);
         } else if (prop === "line-height" && /^\d+(?:\.\d+)?(?:em|pt|px|%)?$/i.test(val)) {
             declaracoes.push(`line-height: ${val.toLowerCase()}`);
         } else if (
@@ -656,6 +709,15 @@ export function sanitizarHtmlDocumento(html: string): string {
             if (tag === "div" && el.hasAttribute("data-quebra-pagina")) {
                 novo.setAttribute("data-quebra-pagina", el.getAttribute("data-quebra-pagina") || "");
             }
+            if (tag === "div" && el.hasAttribute("data-assinatura-advogado")) {
+                novo.setAttribute("data-assinatura-advogado", "true");
+                const alin = (el.getAttribute("data-alinhamento") ?? "").toLowerCase();
+                if (/^(left|center|right)$/.test(alin)) novo.setAttribute("data-alinhamento", alin);
+                const mData = (el.getAttribute("data-mostrar-data") ?? "").toLowerCase();
+                if (/^(true|false)$/.test(mData)) novo.setAttribute("data-mostrar-data", mData);
+                const mSelo = (el.getAttribute("data-mostrar-selo") ?? "").toLowerCase();
+                if (/^(true|false)$/.test(mSelo)) novo.setAttribute("data-mostrar-selo", mSelo);
+            }
             if (tag === "td" || tag === "th") {
                 const colspan = el.getAttribute("colspan");
                 const rowspan = el.getAttribute("rowspan");
@@ -711,6 +773,16 @@ export function sanitizarHtmlDocumento(html: string): string {
                 if (st) attrsSaida.push(`style="${escaparHtml(st)}"`);
             } else if (tag === "div" && nome === "data-quebra-pagina") {
                 attrsSaida.push(`data-quebra-pagina="${escaparHtml(valor)}"`);
+            } else if (tag === "div" && nome === "data-assinatura-advogado") {
+                attrsSaida.push('data-assinatura-advogado="true"');
+            } else if (tag === "div" && nome === "data-alinhamento" && /^(?:left|center|right)$/i.test(valor)) {
+                attrsSaida.push(`data-alinhamento="${valor.toLowerCase()}"`);
+            } else if (
+                tag === "div" &&
+                (nome === "data-mostrar-data" || nome === "data-mostrar-selo") &&
+                /^(?:true|false)$/i.test(valor)
+            ) {
+                attrsSaida.push(`${nome}="${valor.toLowerCase()}"`);
             } else if ((tag === "td" || tag === "th") && (nome === "colspan" || nome === "rowspan") && /^\d+$/.test(valor)) {
                 attrsSaida.push(`${nome}="${valor}"`);
             } else if (tag === "a" && nome === "href") {
@@ -736,17 +808,104 @@ function decodificarEntidades(s: string): string {
         .replace(/&amp;/g, "&");
 }
 
+export type AlinhamentoAssinatura = "left" | "center" | "right";
+
+export interface OpcoesBlocoAssinatura {
+    alinhamento?: AlinhamentoAssinatura;
+    mostrarData?: boolean;
+    mostrarSelo?: boolean;
+}
+
+export function montarHtmlBlocoAssinatura(opcoes: OpcoesBlocoAssinatura = {}): string {
+    const alinhamento: AlinhamentoAssinatura =
+        opcoes.alinhamento === "left" || opcoes.alinhamento === "right" ? opcoes.alinhamento : "center";
+    const mostrarData = opcoes.mostrarData !== false;
+    const mostrarSelo = opcoes.mostrarSelo !== false;
+    return `<div data-assinatura-advogado="true" data-alinhamento="${alinhamento}" data-mostrar-data="${mostrarData}" data-mostrar-selo="${mostrarSelo}"></div>`;
+}
+
+export const HTML_BLOCO_ASSINATURA_PADRAO = montarHtmlBlocoAssinatura();
+
+function valorCampoAssinatura(rotulo: string, valores: Record<string, string>): string | null {
+    const def = acharCampoConhecido(rotulo);
+    if (def?.rotulo !== "assinatura") return null;
+    const chave = normalizarChaveCampo(rotulo);
+    return (valores[chave] ?? valores["assinatura"] ?? "").trim();
+}
+
+const TAGS_VAZIAS_HTML = new Set(["br", "img", "hr", "wbr", "input", "col", "area", "source"]);
+
+/** Quantas tags continuam abertas ao fim do trecho (0 = o ponto está direto dentro do parágrafo). */
+function profundidadeTagsAbertas(trecho: string): number {
+    let d = 0;
+    for (const m of trecho.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g)) {
+        if (m[3] || TAGS_VAZIAS_HTML.has(m[2].toLowerCase())) continue;
+        d += m[1] ? -1 : 1;
+    }
+    return d;
+}
+
+function temConteudoVisivel(trecho: string): boolean {
+    if (/<img\b/i.test(trecho)) return true;
+    return decodificarEntidades(trecho.replace(/<[^>]*>/g, "")).replace(/\u00a0/g, " ").trim() !== "";
+}
+
+function alinhamentoDeAtributos(attrs: string): AlinhamentoAssinatura {
+    const m = attrs.match(/text-align:\s*(left|center|right)/i);
+    return m ? (m[1].toLowerCase() as AlinhamentoAssinatura) : "center";
+}
+
 /**
  * Troca cada [campo] pelo valor informado. Campo sem valor fica como está, para o advogado ver
  * o que falta preencher no editor (o editor destaca os colchetes restantes).
+ * O campo [assinatura] vira o bloco completo de assinatura do advogado quando preenchido:
+ * - sozinho no parágrafo (mesmo em negrito/itálico): o parágrafo vira o bloco, com o alinhamento dele;
+ * - direto no parágrafo junto de outro texto: o parágrafo é dividido e os dois lados mantêm os atributos;
+ * - dentro de formatação no meio do texto, título ou célula sem parágrafo: vira o texto "Nome — OAB",
+ *   para nunca gerar HTML com tags cruzadas.
  */
 export function preencherModelo(html: string, valores: Record<string, string>): string {
-    return html.replace(REGEX_CAMPO, (inteiro, interno: string) => {
+    const assinaturaPreenchida = (interno: string) => {
+        const rotulo = decodificarEntidades(interno).trim();
+        return ehRotuloCampo(rotulo) && Boolean(valorCampoAssinatura(rotulo, valores));
+    };
+
+    let saida = html.replace(/<p(\s[^>]*)?>([\s\S]*?)<\/p>/gi, (inteiro, attrsRaw: string | undefined, inner: string) => {
+        const attrs = attrsRaw ?? "";
+        const bloco = () => montarHtmlBlocoAssinatura({ alinhamento: alinhamentoDeAtributos(attrs) });
+
+        const soTexto = decodificarEntidades(inner.replace(/<[^>]*>/g, "")).trim();
+        const mSo = /^\[([^[\]<>\n]{1,80})\]$/.exec(soTexto);
+        if (mSo && assinaturaPreenchida(mSo[1])) return bloco();
+
+        const pedacos: string[] = [];
+        let ultimo = 0;
+        for (const m of inner.matchAll(new RegExp(REGEX_CAMPO.source, "g"))) {
+            const idx = m.index ?? 0;
+            if (!assinaturaPreenchida(m[1])) continue;
+            // Dentro de <strong>/<em>/...: dividir aqui cruzaria as tags; o passo seguinte põe o texto.
+            if (profundidadeTagsAbertas(inner.slice(0, idx)) !== 0) continue;
+            const antes = inner.slice(ultimo, idx);
+            if (temConteudoVisivel(antes)) pedacos.push(`<p${attrs}>${antes}</p>`);
+            pedacos.push(bloco());
+            ultimo = idx + m[0].length;
+        }
+        if (pedacos.length === 0) return inteiro;
+        const depois = inner.slice(ultimo);
+        if (temConteudoVisivel(depois)) pedacos.push(`<p${attrs}>${depois}</p>`);
+        return pedacos.join("");
+    });
+
+    saida = saida.replace(REGEX_CAMPO, (inteiro, interno: string) => {
         const rotulo = decodificarEntidades(interno).trim();
         if (!ehRotuloCampo(rotulo)) return inteiro;
+        const valAss = valorCampoAssinatura(rotulo, valores);
+        if (valAss !== null) return valAss ? escaparHtml(valAss) : inteiro;
         const valor = valores[normalizarChaveCampo(rotulo)];
         return valor && valor.trim() ? escaparHtml(valor.trim()) : inteiro;
     });
+
+    return saida;
 }
 
 /* ------------------------------------------------------- Página (papel e margens) */
@@ -918,6 +1077,8 @@ export function geometriaDaPagina(
 const ESTILO_TEXTO_DOCUMENTO = `
   body { font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.5; color: #000; margin: 0; }
   p { margin: 0; min-height: 1.5em; widows: 1; orphans: 1; }
+  .doc-corpo { tab-size: 1.25cm; }
+  .doc-corpo p, .doc-corpo h1, .doc-corpo h2, .doc-corpo h3, .doc-corpo li, .doc-corpo td, .doc-corpo th { white-space: pre-wrap; }
   h1 { font-size: 16pt; margin: 0 0 8pt; }
   h2 { font-size: 14pt; margin: 0 0 6pt; }
   h3 { font-size: 12pt; margin: 0 0 6pt; }
@@ -929,8 +1090,71 @@ const ESTILO_TEXTO_DOCUMENTO = `
   sup, sub { font-size: 75%; line-height: 0; position: relative; vertical-align: baseline; }
   sup { top: -0.45em; }
   sub { bottom: -0.25em; }
+  .doc-assinatura { page-break-inside: avoid; break-inside: avoid; margin: 18pt 0 6pt; }
   div[data-quebra-pagina] { break-after: page; page-break-after: always; height: 0; }
 `;
+
+const REGEX_BLOCO_ASSINATURA = /<div\b([^>]*\bdata-assinatura-advogado\b[^>]*)>(?:\s*<\/div>)?/gi;
+
+function lerAtributoTag(attrs: string, nome: string): string {
+    const m = attrs.match(new RegExp(`\\b${nome}=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
+    return (m?.[1] ?? m?.[2] ?? m?.[3] ?? "").trim();
+}
+
+/**
+ * Expande cada `<div data-assinatura-advogado="true" ...>` no bloco visual de assinatura
+ * (local/data, rubrica opcional, linha, Nome, OAB e selo ICP-Brasil) para impressão, PDF ou Word.
+ */
+export function expandirBlocosAssinaturaHtml(
+    htmlSeguro: string,
+    opcoes: { escritorio?: ConfigEscritorio; hoje?: Date; modoWord?: boolean } = {},
+): string {
+    if (!htmlSeguro || !htmlSeguro.includes("data-assinatura-advogado")) return htmlSeguro;
+    const cfg = opcoes.escritorio ?? configEscritorioAtual();
+    const hoje = opcoes.hoje ?? new Date();
+    const rubrica = logoSrcSeguro(cfg.assinaturaImagemUrl);
+    const nomeEsc = escaparHtml(cfg.nomeAdvogado);
+    const oabEsc = escaparHtml(formatarOab(cfg));
+    const localDataEsc = escaparHtml(`${cidadeAssinatura(cfg)}, ${dataPorExtenso(hoje)}.`);
+
+    return htmlSeguro.replace(REGEX_BLOCO_ASSINATURA, (_full, attrs: string) => {
+        const alinRaw = lerAtributoTag(attrs, "data-alinhamento").toLowerCase();
+        const alin: AlinhamentoAssinatura = alinRaw === "left" || alinRaw === "right" ? alinRaw : "center";
+        const mostrarData = lerAtributoTag(attrs, "data-mostrar-data").toLowerCase() !== "false";
+        const mostrarSelo = lerAtributoTag(attrs, "data-mostrar-selo").toLowerCase() !== "false";
+
+        const dataHtml = mostrarData
+            ? `<p style="margin:0 0 ${rubrica ? "6pt" : "24pt"} 0;font-size:12pt;">${localDataEsc}</p>`
+            : rubrica
+              ? ""
+              : `<p style="margin:0;height:20pt;">&nbsp;</p>`;
+
+        const rubricaHtml = rubrica
+            ? `<div style="margin:0 0 2pt 0;text-align:center;"><img src="${escaparHtml(rubrica)}" alt="Assinatura" style="max-height:1.7cm;max-width:6.5cm;object-fit:contain;display:inline-block;" /></div>`
+            : "";
+
+        const seloHtml = mostrarSelo
+            ? `<div style="margin-top:5pt;display:inline-block;padding:2pt 7pt;border:0.75pt solid #8b6d3b;background:#faf7f0;font-family:Arial,sans-serif;font-size:7.5pt;letter-spacing:0.04em;color:#061237;">Espaço para assinatura digital · <strong>ICP-Brasil</strong></div>`
+            : "";
+
+        const miolo = `${rubricaHtml}<div style="border-top:1px solid #000;width:7.5cm;margin:0 auto;padding-top:4pt;text-align:center;"><div style="font-weight:700;font-size:11.5pt;line-height:1.3;">${nomeEsc}</div><div style="font-size:10.5pt;line-height:1.3;">${oabEsc}</div></div>${seloHtml}`;
+
+        if (opcoes.modoWord) {
+            const pDataWord = mostrarData
+                ? `<p style="margin:0 0 ${rubrica ? "6pt" : "22pt"} 0;text-align:${alin};">${localDataEsc}</p>`
+                : "";
+            const rubricaWord = rubrica
+                ? `<p style="margin:0 0 2pt 0;text-align:center;"><img src="${escaparHtml(rubrica)}" height="52" alt="" style="max-height:1.6cm;max-width:6.2cm;" /></p>`
+                : "";
+            const seloWord = mostrarSelo
+                ? `<p style="margin:4pt 0 0 0;text-align:center;font-family:Arial,sans-serif;font-size:7.5pt;color:#061237;">[ Espaço para assinatura digital · ICP-Brasil ]</p>`
+                : "";
+            return `<div class="doc-assinatura">${pDataWord}<table align="${alin}" border="0" cellspacing="0" cellpadding="0" style="border:none;border-collapse:collapse;width:7.5cm;"><tr><td style="border:none;padding:0;text-align:center;">${rubricaWord}<div style="border-top:1pt solid #000;padding-top:4pt;font-weight:bold;font-size:11.5pt;text-align:center;">${nomeEsc}</div><div style="font-size:10.5pt;text-align:center;">${oabEsc}</div>${seloWord}</td></tr></table></div>`;
+        }
+
+        return `<div class="doc-assinatura" style="text-align:${alin};">${dataHtml}<div style="display:inline-block;text-align:center;">${miolo}</div></div>`;
+    });
+}
 
 function regraPagina(c: ConfigPagina): string {
     const papel = FORMATOS_PAPEL[c.formato];
@@ -970,7 +1194,8 @@ export function montarHtmlImpressaoDocumento(
     c: ConfigPagina = CONFIG_PAGINA_PADRAO,
     opcoes: OpcoesExportacaoDocumento = {},
 ): string {
-    const htmlSeguro = sanitizarHtmlDocumento(corpoHtml);
+    const cfg = opcoes.escritorio ?? configEscritorioAtual();
+    const htmlSeguro = expandirBlocosAssinaturaHtml(sanitizarHtmlDocumento(corpoHtml), { escritorio: cfg });
     const urlFontes = urlGoogleFontsParaHtml(htmlSeguro);
     const linkFontes = urlFontes ? `<link rel="stylesheet" href="${escaparHtml(urlFontes)}">` : "";
     const csp = urlFontes
@@ -982,7 +1207,6 @@ export function montarHtmlImpressaoDocumento(
     }
 
     const papel = FORMATOS_PAPEL[c.formato];
-    const cfg = opcoes.escritorio ?? configEscritorioAtual();
     const imgPersonalizada = logoSrcSeguro(opcoes.timbradoImagemUrl ?? cfg.timbradoImagemUrl);
 
     if (imgPersonalizada) {
@@ -1122,12 +1346,13 @@ export function montarArquivoWord(
     c: ConfigPagina = CONFIG_PAGINA_PADRAO,
     opcoes: OpcoesExportacaoDocumento = {},
 ): string {
-    const corpo = sanitizarHtmlDocumento(corpoHtml).replace(
-        REGEX_QUEBRA_PAGINA,
-        `<br clear="all" style="mso-special-character:line-break;page-break-before:always">`,
-    );
-
     const cfg = opcoes.escritorio ?? configEscritorioAtual();
+    const corpo = expandirBlocosAssinaturaHtml(sanitizarHtmlDocumento(corpoHtml), { escritorio: cfg, modoWord: true })
+        .replace(REGEX_QUEBRA_PAGINA, `<br clear="all" style="mso-special-character:line-break;page-break-before:always">`)
+        // Tabulação: o Word só reconhece no formato dele; a parada do parágrafo vira tab-stops.
+        .replace(/\t/g, `<span style="mso-tab-count:1">\t</span>`)
+        .replace(/tab-size: ?(\d+(?:\.\d+)?)(cm|mm|pt|px)/g, "tab-size: $1$2; tab-stops: $1$2");
+
     const imgPersonalizada = c.timbrado ? logoSrcSeguro(opcoes.timbradoImagemUrl ?? cfg.timbradoImagemUrl) : "";
 
     // Cabeçalho e rodapé viram seções próprias do Word (mso-element:header/footer), que ele repete
@@ -1187,8 +1412,14 @@ export function nomeArquivoDocumento(titulo: string): string {
 
 /** Texto puro (para copiar e colar no PJe ou no WhatsApp). */
 export function htmlParaTextoSimples(html: string): string {
+    const cfg = configEscritorioAtual();
+    const comAssinatura = html.replace(REGEX_BLOCO_ASSINATURA, (_full, attrs: string) => {
+        const mostrarData = lerAtributoTag(attrs, "data-mostrar-data").toLowerCase() !== "false";
+        const linhaData = mostrarData ? `${cidadeAssinatura(cfg)}, ${dataPorExtenso(new Date())}.\n\n` : "";
+        return `\n\n${linhaData}${cfg.nomeAdvogado}\n${formatarOab(cfg)}\n\n`;
+    });
     return decodificarEntidades(
-        html
+        comAssinatura
             .replace(/<br\s*\/?>/gi, "\n")
             .replace(/<\/(p|h[1-6]|li|blockquote|tr)>/gi, "\n")
             .replace(/<li[^>]*>/gi, "• ")

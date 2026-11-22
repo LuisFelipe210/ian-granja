@@ -29,6 +29,7 @@ import {
     configEscritorioAtual,
     configParaLinha,
     normalizarConfigEscritorio,
+    sanitizarAssinaturaImagemUrl,
     sanitizarTimbradoImagemUrl,
     type ConfigEscritorio,
 } from "./config-escritorio.ts";
@@ -1749,6 +1750,8 @@ export async function obterConfigEscritorio(): Promise<ConfigEscritorio | null> 
 
 const MSG_MIGRACAO_TIMBRADO =
     "O papel timbrado próprio precisa da migração do banco (20261120170000_timbrado_escritorio).";
+const MSG_MIGRACAO_ASSINATURA =
+    "A rubrica salva do escritório precisa da migração do banco (20261121000000_assinatura_escritorio).";
 
 /** Banco sem a coluna `timbrado_imagem_url` (migração 20261120170000 ainda não aplicada). */
 export function isColunaTimbradoAusente(err: unknown): boolean {
@@ -1756,6 +1759,15 @@ export function isColunaTimbradoAusente(err: unknown): boolean {
         err instanceof RevisionalApiError &&
         (err.code === "PGRST204" || err.code === "42703") &&
         /timbrado_imagem_url/.test(err.message)
+    );
+}
+
+/** Banco sem a coluna `assinatura_imagem_url` (migração 20261121000000 ainda não aplicada). */
+export function isColunaAssinaturaAusente(err: unknown): boolean {
+    return (
+        err instanceof RevisionalApiError &&
+        (err.code === "PGRST204" || err.code === "42703") &&
+        /assinatura_imagem_url/.test(err.message)
     );
 }
 
@@ -1769,18 +1781,31 @@ async function upsertConfigEscritorio(linha: Record<string, string>): Promise<Co
 }
 
 export async function salvarConfigEscritorio(c: ConfigEscritorio): Promise<ConfigEscritorio> {
-    const linha = configParaLinha(c);
-    try {
-        return await upsertConfigEscritorio(linha);
-    } catch (err) {
-        if (!isColunaTimbradoAusente(err) || !("timbrado_imagem_url" in linha)) throw err;
-        // Sem timbrado próprio não há nada a perder: grava nome/OAB/cidade sem a coluna nova.
-        if (linha.timbrado_imagem_url) {
-            throw new RevisionalApiError(MSG_MIGRACAO_TIMBRADO, 400, "TABELA_AUSENTE");
+    let linha = configParaLinha(c);
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
+        try {
+            return await upsertConfigEscritorio(linha);
+        } catch (err) {
+            if (isColunaTimbradoAusente(err) && "timbrado_imagem_url" in linha) {
+                if (linha.timbrado_imagem_url) {
+                    throw new RevisionalApiError(MSG_MIGRACAO_TIMBRADO, 400, "TABELA_AUSENTE");
+                }
+                const { timbrado_imagem_url: _semColuna, ...semTimbrado } = linha;
+                linha = semTimbrado;
+                continue;
+            }
+            if (isColunaAssinaturaAusente(err) && "assinatura_imagem_url" in linha) {
+                if (linha.assinatura_imagem_url) {
+                    throw new RevisionalApiError(MSG_MIGRACAO_ASSINATURA, 400, "TABELA_AUSENTE");
+                }
+                const { assinatura_imagem_url: _semAss, ...semAssinatura } = linha;
+                linha = semAssinatura;
+                continue;
+            }
+            throw err;
         }
-        const { timbrado_imagem_url: _semColuna, ...semTimbrado } = linha;
-        return upsertConfigEscritorio(semTimbrado);
     }
+    return upsertConfigEscritorio(linha);
 }
 
 /**
@@ -1806,4 +1831,27 @@ export async function salvarTimbradoEscritorio(timbradoImagemUrl: string): Promi
     // Linha do escritório ainda não existe: cria a partir do que está no banco (ou dos padrões).
     const base = (await obterConfigEscritorio()) ?? configEscritorioAtual();
     return salvarConfigEscritorio({ ...base, timbradoImagemUrl: valor });
+}
+
+/**
+ * Grava só a rubrica/assinatura visual do advogado ("" = remove a imagem), sem tocar em nome/OAB/cidade.
+ */
+export async function salvarAssinaturaEscritorio(assinaturaImagemUrl: string): Promise<ConfigEscritorio> {
+    const valor = sanitizarAssinaturaImagemUrl(assinaturaImagemUrl);
+    if (assinaturaImagemUrl.trim() && !valor) {
+        throw new Error("A imagem da assinatura é inválida ou grande demais. Envie um PNG, JPG ou WebP.");
+    }
+    try {
+        const rows = await restRequest<Record<string, unknown>[]>("revisional_configuracoes?id=eq.escritorio", {
+            method: "PATCH",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify({ assinatura_imagem_url: valor }),
+        });
+        if (rows[0]) return normalizarConfigEscritorio(rows[0]);
+    } catch (err) {
+        if (isColunaAssinaturaAusente(err)) throw new RevisionalApiError(MSG_MIGRACAO_ASSINATURA, 400, "TABELA_AUSENTE");
+        throw err;
+    }
+    const base = (await obterConfigEscritorio()) ?? configEscritorioAtual();
+    return salvarConfigEscritorio({ ...base, assinaturaImagemUrl: valor });
 }

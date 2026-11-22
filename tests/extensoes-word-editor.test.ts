@@ -97,3 +97,45 @@ describe("editor estilo Word: localizar e substituir", () => {
         ]);
     });
 });
+
+describe("editor estilo Word: cores", () => {
+    it("normaliza rgb() e hex curto para comparar com a paleta", async () => {
+        const { corParaHex } = await import("../src/components/juros/extensoes-word-editor.ts");
+        assert.equal(corParaHex("rgb(139, 109, 59)"), "#8b6d3b");
+        assert.equal(corParaHex("rgba(0,0,0,1)"), "#000000");
+        assert.equal(corParaHex("#8B6D3B"), "#8b6d3b");
+        assert.equal(corParaHex("#abc"), "#aabbcc");
+        assert.equal(corParaHex(""), "");
+    });
+});
+
+describe("editor estilo Word: recuo dentro de citação e tabulação", () => {
+    it("dentro da citação, grava o recuo no parágrafo (o que o painel e a régua leem)", async () => {
+        const { aplicarEspacamentoParagrafo } = await import("../src/components/juros/extensoes-word-editor.ts");
+        const comRecuo = { recuoEsquerda: { default: null }, recuoPrimeiraLinha: { default: null } };
+        const s = new Schema({
+            nodes: {
+                doc: { content: "block+" },
+                paragraph: { content: "text*", group: "block", attrs: comRecuo },
+                blockquote: { content: "paragraph+", group: "block", attrs: comRecuo },
+                text: {},
+            },
+        });
+        const doc = s.node("doc", null, [
+            s.node("blockquote", null, [s.node("paragraph", null, [s.text("Ementa")])]),
+        ]);
+        let state = EditorState.create({ schema: s, doc });
+        state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 3)));
+        const editor = {
+            get state() {
+                return state;
+            },
+            view: { dispatch: (tr: Transaction) => (state = state.apply(tr)) },
+            commands: { focus: () => true },
+        } as unknown as Editor;
+        assert.equal(aplicarEspacamentoParagrafo(editor, { recuoEsquerda: "1cm" }), true);
+        const citacao = state.doc.firstChild!;
+        assert.equal(citacao.attrs.recuoEsquerda, null, "a citação não muda");
+        assert.equal(citacao.firstChild!.attrs.recuoEsquerda, "1cm", "o parágrafo recebe o recuo");
+    });
+});

@@ -20,6 +20,7 @@ import {
     RefreshCw,
     Save,
     Search,
+    ShieldCheck,
     Trash2,
     UserRound,
     X,
@@ -28,9 +29,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import logoTimbrado from "@/assets/logo.png";
 import { EditorDocumento } from "@/components/juros/EditorDocumento";
+import { ModalAssinarDocumento } from "@/components/juros/ModalAssinarDocumento";
 import {
     CONFIG_PAGINA_PADRAO,
     acharCampoConhecido,
+    agruparDocumentosPorCliente,
+    expandirBlocosAssinaturaHtml,
     extrairCampos,
     htmlParaTextoSimples,
     montarArquivoWord,
@@ -140,11 +144,13 @@ async function imprimirDocumento(titulo: string, html: string, pagina: ConfigPag
 async function copiarDocumento(html: string) {
     const htmlSeguro = sanitizarHtmlDocumento(html);
     const texto = htmlParaTextoSimples(htmlSeguro);
+    // O bloco [assinatura] é um <div> vazio no HTML salvo: expande (formato Word, com tabela) para colar.
+    const htmlColar = expandirBlocosAssinaturaHtml(htmlSeguro, { modoWord: true });
     try {
         if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
             await navigator.clipboard.write([
                 new ClipboardItem({
-                    "text/html": new Blob([htmlSeguro], { type: "text/html" }),
+                    "text/html": new Blob([htmlColar], { type: "text/html" }),
                     "text/plain": new Blob([texto], { type: "text/plain" }),
                 }),
             ]);
@@ -777,6 +783,7 @@ function TelaEdicao({
     // Novo modelo começa pendente para obrigar o salvamento explícito ao sair.
     const [status, setStatus] = useState<StatusSalvo>(ehNovoModelo ? "pendente" : "salvo");
     const [confirmarSaida, setConfirmarSaida] = useState(false);
+    const [modalAssinarAberto, setModalAssinarAberto] = useState(false);
 
     const idRegistroRef = useRef<string | null>(item.novo ? null : item.registro.id);
     const pendenteRef = useRef(ehNovoModelo);
@@ -1062,9 +1069,25 @@ function TelaEdicao({
                                     <FileType2 className="size-3.5 text-ink/70" />
                                     Salvar como Word
                                 </DropdownMenu.Item>
+                                <DropdownMenu.Item
+                                    onSelect={() => setModalAssinarAberto(true)}
+                                    className="flex cursor-pointer items-center gap-2 border-t border-ink/10 px-3 py-2 text-xs font-semibold text-ink outline-none hover:bg-ink/5 focus:bg-ink/5"
+                                >
+                                    <ShieldCheck className="size-3.5 text-gold-deep" />
+                                    Assinar PDF (ICP-Brasil)…
+                                </DropdownMenu.Item>
                             </DropdownMenu.Content>
                         </DropdownMenu.Portal>
                     </DropdownMenu.Root>
+                    <button
+                        type="button"
+                        onClick={() => setModalAssinarAberto(true)}
+                        title="Assinar em PDF com certificado ICP-Brasil (A1/A3) ou definir rubrica"
+                        className={botaoAcao}
+                    >
+                        <ShieldCheck className="size-3.5 text-gold-deep" />
+                        Assinar PDF
+                    </button>
                     <button type="button" onClick={() => void copiarDocumento(html)} className={botaoAcao}>
                         <ClipboardCopy className="size-3.5" />
                         Copiar
@@ -1120,6 +1143,16 @@ function TelaEdicao({
                     setHtml(novo);
                     marcarPendente();
                 }}
+                onAbrirAssinatura={() => setModalAssinarAberto(true)}
+            />
+
+            <ModalAssinarDocumento
+                aberto={modalAssinarAberto}
+                onFechar={() => setModalAssinarAberto(false)}
+                titulo={tituloExport}
+                corpoHtml={html}
+                pagina={pagina}
+                obterLogoSrc={obterLogoTimbradoDataUrl}
             />
 
             <ModalSairSemSalvar
@@ -1157,7 +1190,35 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     const [carregando, setCarregando] = useState(true);
     const [indisponivel, setIndisponivel] = useState(false);
     const [busca, setBusca] = useState("");
+    // Lista de documentos agrupada por cliente (padrão) ou todos em ordem de edição.
+    const [agruparPorCliente, setAgruparPorCliente] = useState(() => {
+        try {
+            return window.localStorage.getItem("ig_docs_agrupar") !== "0";
+        } catch {
+            return true;
+        }
+    });
+    const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(() => new Set());
+    const alternarAgrupamento = (valor: boolean) => {
+        setAgruparPorCliente(valor);
+        try {
+            window.localStorage.setItem("ig_docs_agrupar", valor ? "1" : "0");
+        } catch {
+            /* preferência só desta sessão */
+        }
+    };
+    // Na busca os grupos começam abertos; o que o usuário fechar durante a busca fica aqui (zera a cada busca).
+    const [gruposFechadosBusca, setGruposFechadosBusca] = useState<Set<string>>(() => new Set());
+    const alternarNoConjunto = (chave: string) => (prev: Set<string>) => {
+        const novo = new Set(prev);
+        if (novo.has(chave)) novo.delete(chave);
+        else novo.add(chave);
+        return novo;
+    };
+    const alternarGrupo = (chave: string, emBusca: boolean) =>
+        (emBusca ? setGruposFechadosBusca : setGruposAbertos)(alternarNoConjunto(chave));
     const [alvoGerar, setAlvoGerar] = useState<AlvoGerar | null>(null);
+    const [alvoAssinar, setAlvoAssinar] = useState<DocumentoGerado | null>(null);
     const [alvoExclusao, setAlvoExclusao] = useState<AlvoExclusao | null>(null);
     const [excluindo, setExcluindo] = useState(false);
     const [rascunhoNovoModelo, setRascunhoNovoModelo] = useState<RascunhoNovoModelo | null>(null);
@@ -1280,6 +1341,9 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     };
 
     const q = normalizarChaveCampo(busca);
+    useEffect(() => {
+        setGruposFechadosBusca(new Set());
+    }, [q]);
     const docsFiltrados = useMemo(
         () =>
             q
@@ -1299,6 +1363,13 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     );
     const listaRef = useRef<HTMLDivElement>(null);
     const pagDocs = usePaginacao(docsFiltrados, { porPaginaPadrao: 20, reiniciarCom: [q, abaLista] });
+    const gruposDocs = useMemo(
+        () => agruparDocumentosPorCliente(docsFiltrados, nomeClienteDoc),
+        // nomeClienteDoc depende só dos mapas abaixo.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [docsFiltrados, nomePorCliente, nomePorCalculo],
+    );
+    const pagGrupos = usePaginacao(gruposDocs, { porPaginaPadrao: 15, reiniciarCom: [q, abaLista] });
     const pagModelos = usePaginacao(modelosFiltrados, { porPaginaPadrao: 12, reiniciarCom: [q, abaLista] });
 
     const painelGerar = (
@@ -1396,6 +1467,77 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     const botaoIcone =
         "inline-flex size-8 items-center justify-center text-muted-foreground transition-colors duration-150 hover:bg-ink/[0.06] hover:text-ink";
 
+    /** Linha de um documento; dentro do grupo do cliente o nome dele não se repete. */
+    const linhaDocumento = (d: DocumentoGerado, dentroDoGrupo = false) => {
+        const cliente = dentroDoGrupo ? null : nomeClienteDoc(d);
+        const modelo = d.modelo_id ? nomePorModelo.get(d.modelo_id) : null;
+        const pendentes = contarCamposPendentes(d.conteudo_html);
+        return (
+            <li
+                key={d.id}
+                className={cn(
+                    "flex flex-wrap items-center gap-3 py-3 pr-4 hover:bg-ink/[0.02]",
+                    dentroDoGrupo ? "border-l-2 border-ink/10 pl-6 sm:ml-4" : "pl-4",
+                )}
+            >
+                <button type="button" onClick={() => irPara({ doc: d.id })} className="min-w-0 flex-1 text-left">
+                    <span className="block truncate text-sm font-semibold text-ink">{d.titulo}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                        {[cliente, modelo, `Editado em ${formatarDataHora(d.updated_at)}`].filter(Boolean).join(" · ")}
+                    </span>
+                    {pendentes > 0 && (
+                        <span className="block text-[11px] font-semibold text-destructive sm:hidden">
+                            {pendentes} {pendentes === 1 ? "campo" : "campos"} a preencher
+                        </span>
+                    )}
+                </button>
+                {pendentes > 0 && (
+                    <span className="hidden text-[11px] font-semibold text-destructive sm:inline">
+                        {pendentes} {pendentes === 1 ? "campo" : "campos"} a preencher
+                    </span>
+                )}
+                <span className="flex items-center">
+                    <button
+                        type="button"
+                        onClick={() => baixarWord(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))}
+                        className={botaoIcone}
+                        title="Baixar em Word"
+                        aria-label={`Baixar ${d.titulo} em Word`}
+                    >
+                        <FileType2 className="size-4" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => imprimirDocumento(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))}
+                        className={botaoIcone}
+                        title="Imprimir ou salvar em PDF"
+                        aria-label={`Imprimir ou salvar ${d.titulo} em PDF`}
+                    >
+                        <Printer className="size-4" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setAlvoAssinar(d)}
+                        className={botaoIcone}
+                        title="Assinar PDF (ICP-Brasil)"
+                        aria-label={`Assinar ${d.titulo} em PDF`}
+                    >
+                        <ShieldCheck className="size-4 text-gold-deep" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setAlvoExclusao({ tipo: "documento", id: d.id, nome: d.titulo })}
+                        className={cn(botaoIcone, "hover:text-destructive")}
+                        title="Apagar"
+                        aria-label={`Apagar ${d.titulo}`}
+                    >
+                        <Trash2 className="size-4" />
+                    </button>
+                </span>
+            </li>
+        );
+    };
+
     return (
         <div ref={listaRef} className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1449,18 +1591,43 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                 </div>
             </div>
 
-            <div className="relative max-w-md">
-                <Search
-                    aria-hidden
-                    className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <input
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    placeholder={abaLista === "modelos" ? "Buscar modelo" : "Buscar por título, cliente ou modelo"}
-                    aria-label="Buscar"
-                    className="field py-2 pl-6 text-sm"
-                />
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="relative w-full max-w-md">
+                    <Search
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <input
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        placeholder={abaLista === "modelos" ? "Buscar modelo" : "Buscar por título, cliente ou modelo"}
+                        aria-label="Buscar"
+                        className="field py-2 pl-6 text-sm"
+                    />
+                </div>
+                {abaLista === "documentos" && documentos.length > 0 && (
+                    <div role="group" aria-label="Organização da lista" className="inline-flex border border-ink/20">
+                        {[
+                            { valor: true, rotulo: "Por cliente" },
+                            { valor: false, rotulo: "Todos" },
+                        ].map((op) => (
+                            <button
+                                key={op.rotulo}
+                                type="button"
+                                aria-pressed={agruparPorCliente === op.valor}
+                                onClick={() => alternarAgrupamento(op.valor)}
+                                className={cn(
+                                    "h-8 px-3 text-xs font-semibold transition-colors duration-150",
+                                    agruparPorCliente === op.valor
+                                        ? "bg-ink text-paper"
+                                        : "text-muted-foreground hover:bg-ink/5 hover:text-ink",
+                                )}
+                            >
+                                {op.rotulo}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {carregando ? (
@@ -1493,77 +1660,103 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                     </div>
                 ) : (
                     <div className="space-y-3">
-                    <ul className="divide-y divide-ink/10 border border-ink/15 bg-card">
-                        {pagDocs.itensPagina.map((d) => {
-                            const cliente = nomeClienteDoc(d);
-                            const modelo = d.modelo_id ? nomePorModelo.get(d.modelo_id) : null;
-                            const pendentes = contarCamposPendentes(d.conteudo_html);
-                            return (
-                                <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-ink/[0.02]">
-                                    <button
-                                        type="button"
-                                        onClick={() => irPara({ doc: d.id })}
-                                        className="min-w-0 flex-1 text-left"
-                                    >
-                                        <span className="block truncate text-sm font-semibold text-ink">{d.titulo}</span>
-                                        <span className="block truncate text-xs text-muted-foreground">
-                                            {[cliente, modelo, `Editado em ${formatarDataHora(d.updated_at)}`]
-                                                .filter(Boolean)
-                                                .join(" · ")}
-                                        </span>
-                                    </button>
-                                    {pendentes > 0 && (
-                                        <span className="text-[11px] font-semibold text-destructive">
-                                            {pendentes} {pendentes === 1 ? "campo" : "campos"} a preencher
-                                        </span>
-                                    )}
-                                    <span className="flex items-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => baixarWord(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))}
-                                            className={botaoIcone}
-                                            title="Baixar em Word"
-                                            aria-label={`Baixar ${d.titulo} em Word`}
-                                        >
-                                            <FileType2 className="size-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                imprimirDocumento(d.titulo, d.conteudo_html, normalizarConfigPagina(d.pagina))
-                                            }
-                                            className={botaoIcone}
-                                            title="Imprimir ou salvar em PDF"
-                                            aria-label={`Imprimir ou salvar ${d.titulo} em PDF`}
-                                        >
-                                            <Printer className="size-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setAlvoExclusao({ tipo: "documento", id: d.id, nome: d.titulo })}
-                                            className={cn(botaoIcone, "hover:text-destructive")}
-                                            title="Apagar"
-                                            aria-label={`Apagar ${d.titulo}`}
-                                        >
-                                            <Trash2 className="size-4" />
-                                        </button>
-                                    </span>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                    <BarraPaginacao
-                        pagina={pagDocs.pagina}
-                        totalPaginas={pagDocs.totalPaginas}
-                        total={pagDocs.total}
-                        inicio={pagDocs.inicio}
-                        fim={pagDocs.fim}
-                        onPagina={pagDocs.irPara}
-                        porPagina={pagDocs.porPagina}
-                        onPorPagina={pagDocs.mudarPorPagina}
-                        rotulo="documentos"
-                        alvoRolagem={listaRef}
-                    />
+                        {agruparPorCliente ? (
+                            <>
+                                <ul className="divide-y divide-ink/10 border border-ink/15 bg-card">
+                                    {pagGrupos.itensPagina.map((g) => {
+                                        // Um documento só: mostra direto, sem cabeçalho de grupo.
+                                        if (g.itens.length === 1) return linhaDocumento(g.itens[0]);
+                                        const aberto = q
+                                            ? !gruposFechadosBusca.has(g.chave)
+                                            : gruposAbertos.has(g.chave);
+                                        const pendentesGrupo = g.itens.reduce(
+                                            (s, d) => s + contarCamposPendentes(d.conteudo_html),
+                                            0,
+                                        );
+                                        // A chave só tem [a-z0-9 ]: trocar espaço por hífen gera um id válido e único.
+                                        const idLista = `docs-grupo-${g.chave ? g.chave.replace(/ /g, "-") : "sem-cliente"}`;
+                                        return (
+                                            <li key={`grupo-${g.chave}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => alternarGrupo(g.chave, Boolean(q))}
+                                                    aria-expanded={aberto}
+                                                    aria-controls={idLista}
+                                                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink/[0.02]"
+                                                >
+                                                    <ChevronDown
+                                                        aria-hidden
+                                                        className={cn(
+                                                            "size-4 shrink-0 text-muted-foreground transition-transform duration-150",
+                                                            !aberto && "-rotate-90",
+                                                        )}
+                                                    />
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="flex items-center gap-2">
+                                                            <span className="truncate text-sm font-semibold text-ink">
+                                                                {g.nome ?? "Sem cliente vinculado"}
+                                                            </span>
+                                                            <span className="shrink-0 border border-ink/15 px-1.5 text-[11px] font-semibold tabular-nums text-ink">
+                                                                {g.itens.length} documentos
+                                                            </span>
+                                                        </span>
+                                                        <span className="block truncate text-xs text-muted-foreground">
+                                                            Último editado em {formatarDataHora(g.ultimaEdicao)}
+                                                            {!aberto && ` · ${g.itens[0].titulo}`}
+                                                        </span>
+                                                        {pendentesGrupo > 0 && (
+                                                            <span className="block text-[11px] font-semibold text-destructive sm:hidden">
+                                                                {pendentesGrupo} {pendentesGrupo === 1 ? "campo" : "campos"} a preencher
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    {pendentesGrupo > 0 && (
+                                                        <span className="hidden text-[11px] font-semibold text-destructive sm:inline">
+                                                            {pendentesGrupo} {pendentesGrupo === 1 ? "campo" : "campos"} a preencher
+                                                        </span>
+                                                    )}
+                                                </button>
+                                                {aberto && (
+                                                    <ul id={idLista} className="divide-y divide-ink/10 border-t border-ink/10 bg-paper/40">
+                                                        {g.itens.map((d) => linhaDocumento(d, true))}
+                                                    </ul>
+                                                )}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                                <BarraPaginacao
+                                    pagina={pagGrupos.pagina}
+                                    totalPaginas={pagGrupos.totalPaginas}
+                                    total={pagGrupos.total}
+                                    inicio={pagGrupos.inicio}
+                                    fim={pagGrupos.fim}
+                                    onPagina={pagGrupos.irPara}
+                                    porPagina={pagGrupos.porPagina}
+                                    onPorPagina={pagGrupos.mudarPorPagina}
+                                    rotulo="clientes"
+                                    alvoRolagem={listaRef}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <ul className="divide-y divide-ink/10 border border-ink/15 bg-card">
+                                    {pagDocs.itensPagina.map((d) => linhaDocumento(d))}
+                                </ul>
+                                <BarraPaginacao
+                                    pagina={pagDocs.pagina}
+                                    totalPaginas={pagDocs.totalPaginas}
+                                    total={pagDocs.total}
+                                    inicio={pagDocs.inicio}
+                                    fim={pagDocs.fim}
+                                    onPagina={pagDocs.irPara}
+                                    porPagina={pagDocs.porPagina}
+                                    onPorPagina={pagDocs.mudarPorPagina}
+                                    rotulo="documentos"
+                                    alvoRolagem={listaRef}
+                                />
+                            </>
+                        )}
                     </div>
                 )
             ) : modelosFiltrados.length === 0 ? (
@@ -1666,6 +1859,14 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
             )}
 
             {painelGerar}
+            <ModalAssinarDocumento
+                aberto={Boolean(alvoAssinar)}
+                onFechar={() => setAlvoAssinar(null)}
+                titulo={alvoAssinar?.titulo ?? ""}
+                corpoHtml={alvoAssinar?.conteudo_html ?? ""}
+                pagina={normalizarConfigPagina(alvoAssinar?.pagina)}
+                obterLogoSrc={obterLogoTimbradoDataUrl}
+            />
             <ModalConfirmarExclusao
                 alvo={alvoExclusao}
                 excluindo={excluindo}

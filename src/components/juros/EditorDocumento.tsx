@@ -24,6 +24,7 @@ import {
     List,
     ListOrdered,
     Loader2,
+    PenTool,
     Quote,
     Redo2,
     Ruler,
@@ -60,6 +61,8 @@ import {
     type MargensPagina,
 } from "@/lib/documentos";
 import { Paginacao, QuebraPagina, type PaginacaoStorage } from "@/components/juros/paginacao-editor";
+import { ReguaHorizontal, ReguaVertical } from "@/components/juros/ReguaEditor";
+import { BlocoAssinatura } from "@/components/juros/BlocoAssinaturaEditor";
 import {
     EspacamentoParagrafo,
     PASSO_RECUO_CM,
@@ -500,12 +503,16 @@ function BarraFerramentas({
     onPaginaChange,
     buscaAberta,
     onAlternarBusca,
+    reguaVisivel,
+    onAlternarRegua,
 }: {
     editor: Editor;
     pagina: ConfigPagina;
     onPaginaChange: (c: ConfigPagina) => void;
     buscaAberta: boolean;
     onAlternarBusca: () => void;
+    reguaVisivel: boolean;
+    onAlternarRegua: () => void;
 }) {
     const estado = useEditorState({
         editor,
@@ -708,6 +715,13 @@ function BarraFerramentas({
                 >
                     <Search className="size-3.5" />
                 </BotaoFerramenta>
+                <BotaoFerramenta
+                    rotulo={reguaVisivel ? "Ocultar régua" : "Mostrar régua"}
+                    ativo={reguaVisivel}
+                    onClick={onAlternarRegua}
+                >
+                    <Ruler className="size-3.5" />
+                </BotaoFerramenta>
                 <Separador />
                 <MenuPagina pagina={pagina} onChange={onPaginaChange} />
                 <button
@@ -724,6 +738,16 @@ function BarraFerramentas({
                 >
                     <Stamp aria-hidden className="size-3 text-gold-deep" />
                     Timbrado
+                </button>
+                <button
+                    type="button"
+                    title="Inserir bloco de assinatura do advogado (rubrica, Nome, OAB e espaço ICP-Brasil)"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => editor.chain().focus().insertContent({ type: "blocoAssinatura" }).run()}
+                    className="ml-0.5 inline-flex h-[26px] shrink-0 items-center gap-1 whitespace-nowrap border border-ink/20 bg-card px-1.5 text-[11px] font-semibold text-ink/80 transition-colors hover:bg-ink/5 hover:text-ink"
+                >
+                    <PenTool aria-hidden className="size-3 text-gold-deep" />
+                    Assinatura
                 </button>
                 <div className="ml-auto pl-1">
                     <MenuInserirCampo editor={editor} />
@@ -745,17 +769,45 @@ interface EditorDocumentoProps {
     pagina: ConfigPagina;
     onPaginaChange: (c: ConfigPagina) => void;
     onChange: (html: string) => void;
+    onAbrirAssinatura?: () => void;
 }
 
 const ESPACO_ROTULO_FINAL = 28;
 
-export function EditorDocumento({ conteudoInicial, chave, modo, pagina, onPaginaChange, onChange }: EditorDocumentoProps) {
+export function EditorDocumento({
+    conteudoInicial,
+    chave,
+    modo,
+    pagina,
+    onPaginaChange,
+    onChange,
+    onAbrirAssinatura,
+}: EditorDocumentoProps) {
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
+    const onAbrirAssinaturaRef = useRef(onAbrirAssinatura);
+    onAbrirAssinaturaRef.current = onAbrirAssinatura;
     const areaRef = useRef<HTMLDivElement>(null);
     const [paginas, setPaginas] = useState(1);
     const [escala, setEscala] = useState(1);
     const [buscaAberta, setBuscaAberta] = useState(false);
+    // Régua estilo Word: aparece por padrão; a escolha fica salva neste navegador.
+    const [reguaVisivel, setReguaVisivel] = useState(() => {
+        try {
+            return window.localStorage.getItem("ig_editor_regua") !== "0";
+        } catch {
+            return true;
+        }
+    });
+    const alternarRegua = () =>
+        setReguaVisivel((v) => {
+            try {
+                window.localStorage.setItem("ig_editor_regua", v ? "0" : "1");
+            } catch {
+                /* só nesta sessão */
+            }
+            return !v;
+        });
     const [estatisticas, setEstatisticas] = useState({ palavras: 0, caracteres: 0 });
     const configEscritorio = useConfigEscritorio();
     const timbradoImagemUrl = configEscritorio.timbradoImagemUrl || "";
@@ -798,6 +850,7 @@ export function EditorDocumento({ conteudoInicial, chave, modo, pagina, onPagina
             TableHeader,
             TableCell,
             QuebraPagina,
+            BlocoAssinatura,
             Paginacao,
             Placeholder.configure({
                 placeholder:
@@ -834,9 +887,18 @@ export function EditorDocumento({ conteudoInicial, chave, modo, pagina, onPagina
         [chave, extensoes],
     );
 
+    // Sincroniza callback de abertura do modal de assinatura sem recriar as extensões.
+    useEffect(() => {
+        if (!editor || editor.isDestroyed) return;
+        const st = (editor.storage as unknown as { blocoAssinatura?: { onAssinar: (() => void) | null } }).blocoAssinatura;
+        if (st) {
+            st.onAssinar = onAbrirAssinatura ? () => onAbrirAssinaturaRef.current?.() : null;
+        }
+    }, [editor, onAbrirAssinatura]);
+
     // Atualiza contagem inicial e atalho Ctrl+H para Localizar e Substituir.
     useEffect(() => {
-        if (!editor) return;
+        if (!editor || editor.isDestroyed) return;
         const texto = editor.getText().trim();
         setEstatisticas({
             palavras: texto ? texto.split(/\s+/).length : 0,
@@ -854,7 +916,7 @@ export function EditorDocumento({ conteudoInicial, chave, modo, pagina, onPagina
 
     // Papel/margens mudaram (ou o editor foi recriado): mede de novo as folhas.
     useEffect(() => {
-        if (!editor) return;
+        if (!editor || editor.isDestroyed) return;
         const storage = (editor.storage as unknown as { paginacao: PaginacaoStorage }).paginacao;
         storage.geometria = geometria;
         storage.aoMudarPaginas = setPaginas;
@@ -904,7 +966,12 @@ export function EditorDocumento({ conteudoInicial, chave, modo, pagina, onPagina
                     onPaginaChange={onPaginaChange}
                     buscaAberta={buscaAberta}
                     onAlternarBusca={() => setBuscaAberta((v) => !v)}
+                    reguaVisivel={reguaVisivel}
+                    onAlternarRegua={alternarRegua}
                 />
+                {reguaVisivel && (
+                    <ReguaHorizontal editor={editor} pagina={pagina} escala={escala} onPaginaChange={onPaginaChange} />
+                )}
             </div>
             <div ref={areaRef} className="flex-1 overflow-hidden bg-secondary/70 px-2 py-4 sm:px-6 sm:py-8">
                 <div
@@ -918,6 +985,16 @@ export function EditorDocumento({ conteudoInicial, chave, modo, pagina, onPagina
                         className="folha-paginada absolute left-0 top-0 origin-top-left"
                         style={{ ...variaveis, width: geometria.largura, transform: `scale(${escala})` }}
                     >
+                        {reguaVisivel && (
+                            <ReguaVertical
+                                pagina={pagina}
+                                geometria={geometria}
+                                paginas={paginas}
+                                escala={escala}
+                                temImagemPersonalizada={Boolean(timbradoImagemUrl)}
+                                onPaginaChange={onPaginaChange}
+                            />
+                        )}
                         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0">
                             {Array.from({ length: paginas }, (_, i) => (
                                 <div key={i}>

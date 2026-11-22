@@ -401,6 +401,8 @@ html.sys-arredondado .sys-grupo > :not(:last-child) {
     line-height: 1.5;
     color: #000;
     caret-color: #000;
+    /* Paradas de tabulação padrão do Word (a cada 1,25 cm); o parágrafo pode definir a sua. */
+    tab-size: 1.25cm;
 }
 
 .folha-documento-conteudo p {
@@ -469,6 +471,14 @@ html.sys-arredondado .sys-grupo > :not(:last-child) {
 
 .folha-documento-conteudo .selectedCell {
     background: hsl(var(--gold) / 0.18);
+}
+
+.folha-documento-conteudo .bloco-assinatura-editor {
+    line-height: 1.35;
+}
+
+.folha-documento-conteudo .bloco-assinatura-editor img {
+    display: block;
 }
 
 .folha-documento-conteudo p.is-editor-empty:first-child::before {

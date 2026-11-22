@@ -4,6 +4,7 @@ import {
     CONFIG_PAGINA_PADRAO,
     PREDEFINICOES_MARGEM,
     acharCampoConhecido,
+    agruparDocumentosPorCliente,
     dataPorExtenso,
     estiloPaginaDocumento,
     geometriaDaPagina,
@@ -277,12 +278,12 @@ describe("configuração de página", () => {
         }
     });
 
-    it("sanitiza HTML preservando recuos laterais, primeira linha, deslocado, entrelinha, cores e sup/sub", () => {
+    it("sanitiza HTML preservando recuos laterais (inclusive negativos na margem), primeira linha, deslocado, entrelinha, cores e sup/sub", () => {
         const entrada =
-            '<p style="margin-left: 4cm; margin-right: 1.5cm; text-indent: -1.25cm; line-height: 1.15; margin-top: 6pt; margin-bottom: 12pt; background-image: url(https://evil.test/x); margin-left: -2cm">Art. 5<sup>o</sup> <span style="color: #8b1e24; background-color: #fef08a">H<sub>2</sub>O</span> <s>tachado</s></p>';
+            '<p style="margin-left: -1.5cm; margin-right: -1cm; text-indent: -1.25cm; line-height: 1.15; margin-top: 6pt; margin-bottom: 12pt; padding-left: -2cm; background-image: url(https://evil.test/x)">Art. 5<sup>o</sup> <span style="color: #8b1e24; background-color: #fef08a">H<sub>2</sub>O</span> <s>tachado</s></p>';
         const saida = sanitizarHtmlDocumento(entrada);
-        assert.ok(saida.includes("margin-left: 4cm"), saida);
-        assert.ok(saida.includes("margin-right: 1.5cm"), saida);
+        assert.ok(saida.includes("margin-left: -1.5cm"), saida);
+        assert.ok(saida.includes("margin-right: -1cm"), saida);
         assert.ok(saida.includes("text-indent: -1.25cm"), saida);
         assert.ok(saida.includes("line-height: 1.15"), saida);
         assert.ok(saida.includes("margin-top: 6pt"), saida);
@@ -293,7 +294,7 @@ describe("configuração de página", () => {
         assert.ok(saida.includes("<sub>2</sub>"), saida);
         assert.ok(saida.includes("<s>tachado</s>"), saida);
         assert.ok(!saida.includes("evil.test"), saida);
-        assert.ok(!saida.includes("margin-left: -2cm"), saida);
+        assert.ok(!saida.includes("padding-left: -2cm"), saida);
     });
 
     it("fontes do editor: inclui Montserrat e injeta Google Fonts apenas quando usada na impressão", async () => {
@@ -365,12 +366,28 @@ describe("configurações do escritório (nome, OAB, cidade)", async () => {
     it("normaliza linha do banco e cai no padrão quando falta dado", () => {
         assert.deepEqual(
             cfg.normalizarConfigEscritorio({ nome_advogado: "  Fulano  de Tal ", oab_numero: "12.345", oab_uf: "ba", cidade: "", uf: "x" }),
-            { nomeAdvogado: "Fulano de Tal", oabNumero: "12345", oabUf: "BA", cidade: "Petrolina", uf: "PE", timbradoImagemUrl: "" },
+            {
+                nomeAdvogado: "Fulano de Tal",
+                oabNumero: "12345",
+                oabUf: "BA",
+                cidade: "Petrolina",
+                uf: "PE",
+                timbradoImagemUrl: "",
+                assinaturaImagemUrl: "",
+            },
         );
         assert.deepEqual(cfg.normalizarConfigEscritorio(null), cfg.CONFIG_ESCRITORIO_PADRAO);
         assert.equal(
             cfg.normalizarConfigEscritorio({ timbrado_imagem_url: "data:image/png;base64,AAAA" }).timbradoImagemUrl,
             "data:image/png;base64,AAAA",
+        );
+        assert.equal(
+            cfg.normalizarConfigEscritorio({ assinatura_imagem_url: "data:image/png;base64,BBBB" }).assinaturaImagemUrl,
+            "data:image/png;base64,BBBB",
+        );
+        assert.equal(
+            cfg.normalizarConfigEscritorio({ assinatura_imagem_url: "javascript:alert(1)" }).assinaturaImagemUrl,
+            "",
         );
         assert.equal(
             cfg.normalizarConfigEscritorio({ timbrado_imagem_url: "javascript:alert(1)" }).timbradoImagemUrl,
@@ -399,6 +416,156 @@ describe("configurações do escritório (nome, OAB, cidade)", async () => {
                 preencherModelo(html, v),
                 "<p>Juazeiro-BA, 20 de novembro de 2026.</p><p>Fulana Teste<br>OAB/BA 12.345</p>",
             );
+        } finally {
+            cfg.definirConfigEscritorio(cfg.CONFIG_ESCRITORIO_PADRAO);
+        }
+    });
+});
+
+describe("lista de documentos agrupada por cliente", () => {
+    const doc = (id: string, cliente: string | null, updated_at: string) => ({ id, cliente, updated_at });
+
+    it("junta pelo nome do cliente (sem acento/caixa), mais recente primeiro e sem cliente no fim", () => {
+        const grupos = agruparDocumentosPorCliente(
+            [
+                doc("a", "José da Silva", "2026-11-10T10:00:00Z"),
+                doc("b", null, "2026-11-20T10:00:00Z"),
+                doc("c", "Maria Souza", "2026-11-15T10:00:00Z"),
+                doc("d", "JOSE DA SILVA", "2026-11-18T10:00:00Z"),
+                doc("e", "  ", "2026-11-01T10:00:00Z"),
+            ],
+            (d) => d.cliente,
+        );
+        assert.deepEqual(
+            grupos.map((g) => [g.nome, g.itens.map((d) => d.id), g.ultimaEdicao]),
+            [
+                ["JOSE DA SILVA", ["d", "a"], "2026-11-18T10:00:00Z"],
+                ["Maria Souza", ["c"], "2026-11-15T10:00:00Z"],
+                [null, ["b", "e"], "2026-11-20T10:00:00Z"],
+            ],
+        );
+    });
+
+    it("lista vazia não gera grupos", () => {
+        assert.deepEqual(agruparDocumentosPorCliente([], () => "x"), []);
+    });
+});
+
+describe("tabulação (estilo Word)", () => {
+    it("mantém o caractere de tabulação e a parada do parágrafo ao sanear", () => {
+        const html = sanitizarHtmlDocumento('<p style="tab-size: 8cm">Petrolina\tAssinatura</p>');
+        assert.match(html, /tab-size: 8cm/);
+        assert.ok(html.includes("Petrolina\tAssinatura"));
+        assert.ok(!sanitizarHtmlDocumento('<p style="tab-size: 8; color: red">x</p>').includes("tab-size"));
+    });
+
+    it("Word recebe a tabulação no formato dele e a parada como tab-stops", () => {
+        const doc = montarArquivoWord("Doc", '<p style="tab-size: 8cm">a\tb</p>', { ...CONFIG_PAGINA_PADRAO, timbrado: false });
+        assert.match(doc, /a<span style="mso-tab-count:1">\t<\/span>b/);
+        assert.match(doc, /tab-size: 8cm; tab-stops: 8cm/);
+    });
+
+    it("PDF/impressão usa parada padrão de 1,25 cm e preserva as tabulações", () => {
+        const html = montarHtmlImpressaoDocumento("Doc", "<p>a\tb</p>", { ...CONFIG_PAGINA_PADRAO, timbrado: false });
+        assert.match(html, /\.doc-corpo \{ tab-size: 1\.25cm; \}/);
+        assert.match(html, /white-space: pre-wrap/);
+    });
+});
+
+describe("assinatura do advogado e campo [assinatura]", async () => {
+    const cfg = await import("../src/lib/config-escritorio.ts");
+
+    it("[assinatura] expande em bloco estruturado ao gerar o documento e mantém se vazio", () => {
+        const html = '<p>Termos em que pede deferimento.</p><p style="text-align: right">[assinatura]</p>';
+        const campos = extrairCampos(html);
+        assert.deepEqual(campos, ["assinatura"]);
+        const v = valoresIniciaisCampos(campos, { calculo: null, hoje: new Date(2026, 10, 20) });
+        assert.match(v.assinatura, /OAB\/PE 61\.107/);
+
+        const preenchido = preencherModelo(html, v);
+        assert.match(preenchido, /data-assinatura-advogado="true"/);
+        assert.match(preenchido, /data-alinhamento="right"/);
+
+        const inline = preencherModelo("<p>Termos,[assinatura]</p><p></p>", v);
+        assert.match(inline, /<p>Termos,<\/p><div data-assinatura-advogado="true"/);
+
+        const pendente = preencherModelo("<p>[assinatura]</p>", { assinatura: "   " });
+        assert.equal(pendente, "<p>[assinatura]</p>");
+    });
+
+    it("[assinatura] nunca gera tags cruzadas e mantém os atributos do parágrafo dividido", () => {
+        const v = { assinatura: "Dr. Fulano — OAB/PE 1" };
+
+        // Sozinho no parágrafo, mesmo em negrito: vira o bloco com o alinhamento do parágrafo.
+        const soNegrito = preencherModelo('<p style="text-align: right"><strong>[assinatura]</strong></p>', v);
+        assert.match(soNegrito, /^<div data-assinatura-advogado="true" data-alinhamento="right"[^>]*><\/div>$/);
+
+        // Direto no parágrafo com texto: divide e os dois lados mantêm o estilo.
+        const dividido = preencherModelo('<p style="text-align: justify">Termos, [assinatura] fim.</p>', v);
+        assert.equal(
+            dividido,
+            '<p style="text-align: justify">Termos, </p>' +
+                '<div data-assinatura-advogado="true" data-alinhamento="center" data-mostrar-data="true" data-mostrar-selo="true"></div>' +
+                '<p style="text-align: justify"> fim.</p>',
+        );
+
+        // Dentro de formatação no meio do texto, título ou célula: vira texto, sem </p> solto.
+        const emNegrito = preencherModelo("<p>Assina: <strong>[assinatura]</strong> hoje</p>", v);
+        assert.equal(emNegrito, "<p>Assina: <strong>Dr. Fulano — OAB/PE 1</strong> hoje</p>");
+        const titulo = preencherModelo("<h2>[assinatura]</h2>", v);
+        assert.equal(titulo, "<h2>Dr. Fulano — OAB/PE 1</h2>");
+        const celula = preencherModelo("<table><tr><td>[assinatura]</td></tr></table>", v);
+        assert.equal(celula, "<table><tr><td>Dr. Fulano — OAB/PE 1</td></tr></table>");
+
+        // Outros campos do mesmo parágrafo continuam sendo preenchidos.
+        const misto = preencherModelo("<p>[cidade], [assinatura]</p>", { ...v, cidade: "Recife" });
+        assert.match(misto, /^<p>Recife, <\/p><div data-assinatura-advogado="true"/);
+    });
+
+    it("sanitiza bloco de assinatura mantendo atributos seguros e descartando valores inválidos", () => {
+        const sujo =
+            '<div data-assinatura-advogado="x" data-alinhamento="right" data-mostrar-data="false" data-mostrar-selo="true" onclick="alert(1)"></div><div data-assinatura-advogado="true" data-alinhamento="justify" data-mostrar-data="nao"></div>';
+        const limpo = sanitizarHtmlDocumento(sujo);
+        assert.ok(limpo.includes('data-assinatura-advogado="true"'), limpo);
+        assert.ok(limpo.includes('data-alinhamento="right"'), limpo);
+        assert.ok(limpo.includes('data-mostrar-data="false"'), limpo);
+        assert.ok(limpo.includes('data-mostrar-selo="true"'), limpo);
+        assert.ok(!limpo.includes("onclick"), limpo);
+        assert.ok(!limpo.includes('data-alinhamento="justify"'), limpo);
+        assert.ok(!limpo.includes('data-mostrar-data="nao"'), limpo);
+    });
+
+    it("expande bloco de assinatura no HTML de impressão, Word e texto simples com nome, OAB e rubrica", () => {
+        cfg.definirConfigEscritorio({
+            nomeAdvogado: "Dr. Teste Silva",
+            oabNumero: "99887",
+            oabUf: "SP",
+            cidade: "Campinas",
+            uf: "SP",
+            assinaturaImagemUrl: "data:image/png;base64,iVBORw0KGgo=",
+        });
+        try {
+            const corpo = '<p>Corpo</p><div data-assinatura-advogado="true" data-alinhamento="center" data-mostrar-data="true" data-mostrar-selo="true"></div>';
+            const printHtml = montarHtmlImpressaoDocumento("Petição", corpo, { ...CONFIG_PAGINA_PADRAO, timbrado: false });
+            assert.ok(printHtml.includes("Dr. Teste Silva"), printHtml);
+            assert.ok(printHtml.includes("OAB/SP 99.887"), printHtml);
+            assert.ok(printHtml.includes("Campinas-SP,"), printHtml);
+            assert.ok(printHtml.includes("data:image/png;base64,iVBORw0KGgo="), printHtml);
+            assert.ok(printHtml.includes("ICP-Brasil"), printHtml);
+            // Documento impresso/Word não foi assinado: não pode afirmar que foi.
+            assert.ok(printHtml.includes("Espaço para assinatura digital"), printHtml);
+            assert.ok(!/Assinado digitalmente/i.test(printHtml), printHtml);
+
+            const wordHtml = montarArquivoWord("Petição", corpo, { ...CONFIG_PAGINA_PADRAO, timbrado: false });
+            assert.ok(!/Assinado digitalmente/i.test(wordHtml), wordHtml);
+            assert.ok(wordHtml.includes("Dr. Teste Silva"), wordHtml);
+            assert.ok(wordHtml.includes("OAB/SP 99.887"), wordHtml);
+            assert.ok(wordHtml.includes("data:image/png;base64,iVBORw0KGgo="), wordHtml);
+
+            const texto = htmlParaTextoSimples(corpo);
+            assert.ok(texto.includes("Campinas-SP,"), texto);
+            assert.ok(texto.includes("Dr. Teste Silva"), texto);
+            assert.ok(texto.includes("OAB/SP 99.887"), texto);
         } finally {
             cfg.definirConfigEscritorio(cfg.CONFIG_ESCRITORIO_PADRAO);
         }

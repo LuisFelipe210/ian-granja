@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { FONTES_EDITOR, GRUPOS_FONTE_EDITOR, encontrarFonteEditor } from "@/lib/fontes-editor";
 import {
     aplicarEspacamentoParagrafo,
+    corParaHex,
     formatarCmCss,
     lerCmDeCss,
     lerEspacamentoAtual,
@@ -185,22 +186,68 @@ export function MenuFonteEditor({ editor, fonteAtual }: { editor: Editor; fonteA
 
 /* ------------------------------------------------------- Cor do texto e realce */
 
+/** 1ª fileira: tons sóbrios do escritório; 2ª: cores fortes para destaque. */
 const CORES_TEXTO = [
     { rotulo: "Preto", valor: "#000000" },
+    { rotulo: "Grafite", valor: "#374151" },
+    { rotulo: "Cinza", valor: "#6b7280" },
     { rotulo: "Azul-marinho", valor: "#061237" },
-    { rotulo: "Cinza escuro", valor: "#475273" },
+    { rotulo: "Cinza-azulado", valor: "#475273" },
     { rotulo: "Dourado escuro", valor: "#8b6d3b" },
+    { rotulo: "Dourado", valor: "#a18c5e" },
+    { rotulo: "Marrom", valor: "#7c2d12" },
     { rotulo: "Vermelho escuro", valor: "#991b1b" },
+    { rotulo: "Vermelho", valor: "#dc2626" },
+    { rotulo: "Laranja", valor: "#ea580c" },
+    { rotulo: "Amarelo escuro", valor: "#a16207" },
     { rotulo: "Verde escuro", valor: "#166534" },
+    { rotulo: "Verde", valor: "#16a34a" },
+    { rotulo: "Azul", valor: "#1d4ed8" },
+    { rotulo: "Roxo", valor: "#7e22ce" },
 ];
 
 const CORES_REALCE = [
     { rotulo: "Amarelo", valor: "#fef08a" },
     { rotulo: "Dourado suave", valor: "#f3e5c3" },
+    { rotulo: "Laranja claro", valor: "#fed7aa" },
     { rotulo: "Verde claro", valor: "#dcfce7" },
     { rotulo: "Azul claro", valor: "#dbeafe" },
+    { rotulo: "Lilás", valor: "#ede9fe" },
     { rotulo: "Rosa claro", valor: "#fce7f3" },
+    { rotulo: "Cinza claro", valor: "#e5e7eb" },
 ];
+
+function AmostraCor({
+    rotulo,
+    valor,
+    ativa,
+    clara,
+    onEscolher,
+}: {
+    rotulo: string;
+    valor: string;
+    ativa: boolean;
+    clara?: boolean;
+    onEscolher: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            title={rotulo}
+            aria-label={rotulo}
+            aria-pressed={ativa}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onEscolher}
+            className={cn(
+                "relative inline-flex size-6 items-center justify-center border transition-transform hover:scale-110",
+                ativa ? "border-ink ring-2 ring-gold ring-offset-1" : "border-ink/25",
+            )}
+            style={{ backgroundColor: valor }}
+        >
+            {ativa && <Check aria-hidden className={cn("size-3.5", clara ? "text-ink" : "text-white")} strokeWidth={3} />}
+        </button>
+    );
+}
 
 export function MenuCorTexto({
     editor,
@@ -212,6 +259,9 @@ export function MenuCorTexto({
     realceAtual: string;
 }) {
     const { aberto, setAberto, ref } = useMenuSuspenso();
+    const corHex = corParaHex(corAtual);
+    const realceHex = corParaHex(realceAtual);
+    const corPersonalizada = Boolean(corHex) && !CORES_TEXTO.some((c) => c.valor === corHex);
 
     return (
         <div ref={ref} className="relative">
@@ -237,7 +287,7 @@ export function MenuCorTexto({
             </button>
 
             {aberto && (
-                <div className="absolute left-0 top-8 z-30 w-52 space-y-3 border border-ink/20 bg-card p-2.5 shadow-xl">
+                <div className="absolute left-0 top-8 z-30 w-[15.5rem] max-w-[calc(100vw-2rem)] space-y-3 border border-ink/20 bg-card p-2.5 shadow-xl">
                     <div>
                         <div className="mb-1.5 flex items-center justify-between">
                             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -257,28 +307,46 @@ export function MenuCorTexto({
                                 </button>
                             )}
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="grid grid-cols-8 gap-1.5">
                             {CORES_TEXTO.map((c) => (
-                                <button
+                                <AmostraCor
                                     key={c.valor}
-                                    type="button"
-                                    title={c.rotulo}
-                                    aria-label={`Cor do texto: ${c.rotulo}`}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => {
+                                    rotulo={`Cor do texto: ${c.rotulo}`}
+                                    valor={c.valor}
+                                    ativa={corHex === c.valor}
+                                    onEscolher={() => {
                                         editor.chain().focus().setColor(c.valor).run();
                                         setAberto(false);
                                     }}
-                                    className={cn(
-                                        "size-6 border transition-transform hover:scale-110",
-                                        corAtual.toLowerCase() === c.valor
-                                            ? "border-gold-deep ring-1 ring-gold-deep"
-                                            : "border-ink/25",
-                                    )}
-                                    style={{ backgroundColor: c.valor }}
                                 />
                             ))}
                         </div>
+                        <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] font-medium text-ink hover:underline">
+                            <span
+                                className={cn(
+                                    "relative inline-flex size-6 items-center justify-center overflow-hidden border",
+                                    corPersonalizada ? "border-ink ring-2 ring-gold ring-offset-1" : "border-ink/25",
+                                )}
+                                style={{
+                                    background: corPersonalizada
+                                        ? corHex
+                                        : "conic-gradient(#dc2626, #ea580c, #ca8a04, #16a34a, #1d4ed8, #7e22ce, #dc2626)",
+                                }}
+                            >
+                                <input
+                                    type="color"
+                                    aria-label="Escolher outra cor para o texto"
+                                    value={/^#[0-9a-f]{6}$/.test(corHex) ? corHex : "#000000"}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+                                    className="absolute inset-0 size-full cursor-pointer opacity-0"
+                                />
+                                {corPersonalizada && (
+                                    <Check aria-hidden className="size-3.5 text-white mix-blend-difference" strokeWidth={3} />
+                                )}
+                            </span>
+                            {corPersonalizada ? `Personalizada (${corHex})` : "Mais cores…"}
+                        </label>
                     </div>
 
                     <div className="border-t border-ink/10 pt-2.5">
@@ -300,25 +368,18 @@ export function MenuCorTexto({
                                 </button>
                             )}
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="grid grid-cols-8 gap-1.5">
                             {CORES_REALCE.map((c) => (
-                                <button
+                                <AmostraCor
                                     key={c.valor}
-                                    type="button"
-                                    title={c.rotulo}
-                                    aria-label={`Marca-texto: ${c.rotulo}`}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => {
+                                    rotulo={`Marca-texto: ${c.rotulo}`}
+                                    valor={c.valor}
+                                    clara
+                                    ativa={realceHex === c.valor}
+                                    onEscolher={() => {
                                         editor.chain().focus().setBackgroundColor(c.valor).run();
                                         setAberto(false);
                                     }}
-                                    className={cn(
-                                        "size-6 border transition-transform hover:scale-110",
-                                        realceAtual.toLowerCase() === c.valor
-                                            ? "border-gold-deep ring-1 ring-gold-deep"
-                                            : "border-ink/25",
-                                    )}
-                                    style={{ backgroundColor: c.valor }}
                                 />
                             ))}
                         </div>
@@ -466,6 +527,8 @@ export function MenuFormatoExtra({
 /* ------------------------------------------------------- Menu Recuo lateral e Espaçamento (Word) */
 
 const OPCOES_RECUO_CM = [0, 1.25, 2, 4];
+/** 1,5 cm é o recuo do "Parágrafo jurídico"; sem ele o preset não aparecia marcado aqui. */
+const OPCOES_PRIMEIRA_LINHA_CM = [0, 1.25, 1.5, 2];
 const OPCOES_ENTRELINHA = [
     { rotulo: "1,0", valor: "1" },
     { rotulo: "1,15", valor: "1.15" },
@@ -503,14 +566,71 @@ export function MenuRecuoEspacamento({ editor }: { editor: Editor }) {
             atual.espacoDepois,
     );
 
+    // Estado do parágrafo atual para marcar o que está aplicado.
+    const igual = (a: number, b: number) => Math.abs(a - b) < 0.05;
+    const entrelinhaAtual = atual.entrelinha ?? "1.5";
+    const justificado = editor.isActive({ textAlign: "justify" });
+    const deslocado = primAtual < -0.05;
+    const primPersonalizada = !deslocado && !OPCOES_PRIMEIRA_LINHA_CM.some((v) => igual(primAtual, v));
+    const presets: Array<{
+        id: string;
+        titulo: string;
+        detalhe: string;
+        justificar: boolean;
+        patch: Parameters<typeof aplicarEspacamentoParagrafo>[1];
+        ativo: boolean;
+    }> = [
+        {
+            id: "juridico",
+            titulo: "Parágrafo jurídico",
+            detalhe: "1ª linha 1,5 cm · justif.",
+            justificar: true,
+            patch: { recuoEsquerda: null, recuoDireita: null, recuoPrimeiraLinha: "1.5cm", entrelinha: "1.5" },
+            ativo:
+                justificado && igual(esqAtual, 0) && igual(dirAtual, 0) && igual(primAtual, 1.5) && entrelinhaAtual === "1.5",
+        },
+        {
+            id: "citacao",
+            titulo: "Citação / Ementa",
+            detalhe: "4 cm esq. · 1,15",
+            justificar: true,
+            patch: { recuoEsquerda: "4cm", recuoDireita: null, recuoPrimeiraLinha: null, entrelinha: "1.15" },
+            ativo:
+                justificado && igual(esqAtual, 4) && igual(dirAtual, 0) && igual(primAtual, 0) && entrelinhaAtual === "1.15",
+        },
+        {
+            id: "bilateral",
+            titulo: "Recuo bilateral",
+            detalhe: "2 cm esq. e 2 cm dir.",
+            justificar: true,
+            patch: { recuoEsquerda: "2cm", recuoDireita: "2cm", recuoPrimeiraLinha: null },
+            ativo: igual(esqAtual, 2) && igual(dirAtual, 2) && igual(primAtual, 0),
+        },
+        {
+            id: "padrao",
+            titulo: "Sem recuos",
+            detalhe: "Padrão do documento",
+            justificar: false,
+            patch: {
+                recuoEsquerda: null,
+                recuoDireita: null,
+                recuoPrimeiraLinha: null,
+                entrelinha: null,
+                espacoAntes: null,
+                espacoDepois: null,
+            },
+            ativo: !temPersonalizacao,
+        },
+    ];
+
     const aplicarEsq = (cm: number) => {
-        aplicarEspacamentoParagrafo(editor, { recuoEsquerda: formatarCmCss(cm, false) });
-        setEsqTexto(String(Math.max(0, Math.min(10, Math.round(cm * 100) / 100))).replace(".", ","));
+        aplicarEspacamentoParagrafo(editor, { recuoEsquerda: formatarCmCss(cm, true) });
+        setEsqTexto(String(Math.max(-10, Math.min(10, Math.round(cm * 100) / 100))).replace(".", ","));
     };
 
     const aplicarDir = (cm: number) => {
-        aplicarEspacamentoParagrafo(editor, { recuoDireita: formatarCmCss(cm, false) });
-        setDirTexto(String(Math.max(0, Math.min(10, Math.round(cm * 100) / 100))).replace(".", ","));
+        aplicarEspacamentoParagrafo(editor, { recuoDireita: formatarCmCss(cm, true) });
+        setDirTexto(String(Math.max(-10, Math.min(10, Math.round(cm * 100) / 100))).replace(".", ","));
     };
 
     return (
@@ -538,80 +658,41 @@ export function MenuRecuoEspacamento({ editor }: { editor: Editor }) {
                     aria-label="Recuo e espaçamento do parágrafo"
                     className="absolute right-0 top-8 z-30 w-80 max-w-[calc(100vw-2rem)] space-y-3 border border-ink/20 bg-card p-3 text-xs shadow-xl"
                 >
-                    {/* Atalhos jurídicos prontos */}
+                    {/* Atalhos jurídicos prontos: o que bate com o parágrafo atual fica marcado */}
                     <div>
                         <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Modelos rápidos de petição
                         </p>
                         <div className="grid grid-cols-2 gap-1.5">
-                            <button
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
-                                    editor.chain().focus().setTextAlign("justify").run();
-                                    aplicarEspacamentoParagrafo(editor, {
-                                        recuoEsquerda: null,
-                                        recuoDireita: null,
-                                        recuoPrimeiraLinha: "1.5cm",
-                                        entrelinha: "1.5",
-                                    });
-                                }}
-                                className="border border-ink/20 bg-secondary/40 px-2 py-1.5 text-left text-[11px] font-medium text-ink hover:bg-ink/5"
-                            >
-                                Parágrafo jurídico
-                                <span className="block text-[10px] text-muted-foreground">1ª linha 1,5 cm · justif.</span>
-                            </button>
-                            <button
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
-                                    editor.chain().focus().setTextAlign("justify").run();
-                                    aplicarEspacamentoParagrafo(editor, {
-                                        recuoEsquerda: "4cm",
-                                        recuoDireita: null,
-                                        recuoPrimeiraLinha: null,
-                                        entrelinha: "1.15",
-                                    });
-                                }}
-                                className="border border-ink/20 bg-secondary/40 px-2 py-1.5 text-left text-[11px] font-medium text-ink hover:bg-ink/5"
-                            >
-                                Citação / Ementa
-                                <span className="block text-[10px] text-muted-foreground">4 cm esq. · 1,15</span>
-                            </button>
-                            <button
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
-                                    editor.chain().focus().setTextAlign("justify").run();
-                                    aplicarEspacamentoParagrafo(editor, {
-                                        recuoEsquerda: "2cm",
-                                        recuoDireita: "2cm",
-                                        recuoPrimeiraLinha: null,
-                                    });
-                                }}
-                                className="border border-ink/20 bg-secondary/40 px-2 py-1.5 text-left text-[11px] font-medium text-ink hover:bg-ink/5"
-                            >
-                                Recuo bilateral
-                                <span className="block text-[10px] text-muted-foreground">2 cm esq. e 2 cm dir.</span>
-                            </button>
-                            <button
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
-                                    aplicarEspacamentoParagrafo(editor, {
-                                        recuoEsquerda: null,
-                                        recuoDireita: null,
-                                        recuoPrimeiraLinha: null,
-                                        entrelinha: null,
-                                        espacoAntes: null,
-                                        espacoDepois: null,
-                                    });
-                                }}
-                                className="border border-ink/20 bg-card px-2 py-1.5 text-left text-[11px] font-medium text-muted-foreground hover:bg-ink/5 hover:text-ink"
-                            >
-                                Zerar recuos
-                                <span className="block text-[10px] text-muted-foreground">Voltar ao padrão</span>
-                            </button>
+                            {presets.map((p) => (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    aria-pressed={p.ativo}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                        if (p.justificar) editor.chain().focus().setTextAlign("justify").run();
+                                        aplicarEspacamentoParagrafo(editor, p.patch);
+                                    }}
+                                    className={cn(
+                                        "relative border px-2 py-1.5 pr-6 text-left text-[11px] font-medium transition-colors",
+                                        p.ativo
+                                            ? "border-ink bg-ink text-paper"
+                                            : "border-ink/20 bg-card text-ink hover:bg-ink/5",
+                                    )}
+                                >
+                                    {p.titulo}
+                                    <span
+                                        className={cn(
+                                            "block text-[10px]",
+                                            p.ativo ? "text-paper/75" : "text-muted-foreground",
+                                        )}
+                                    >
+                                        {p.detalhe}
+                                    </span>
+                                    {p.ativo && <Check aria-hidden className="absolute right-1.5 top-1.5 size-3.5 text-gold-light" />}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -707,44 +788,58 @@ export function MenuRecuoEspacamento({ editor }: { editor: Editor }) {
 
                     {/* Especial: 1ª linha / Deslocado */}
                     <div className="border-t border-ink/10 pt-2.5">
-                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <p className="mb-1.5 flex items-baseline justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Primeira linha / Especial
+                            {primPersonalizada && (
+                                <span className="normal-case tracking-normal text-ink">
+                                    Atual: {String(Math.round(primAtual * 100) / 100).replace(".", ",")} cm
+                                </span>
+                            )}
                         </p>
-                        <div className="grid grid-cols-2 gap-1">
-                            {(
-                                [
-                                    { rotulo: "Nenhum", ativo: Math.abs(primAtual) < 0.05, patch: { recuoPrimeiraLinha: null } },
-                                    {
-                                        rotulo: "1ª linha (1,25 cm)",
-                                        ativo: Math.abs(primAtual - 1.25) < 0.05,
-                                        patch: { recuoPrimeiraLinha: "1.25cm" },
-                                    },
-                                    {
-                                        rotulo: "1ª linha (2,0 cm)",
-                                        ativo: Math.abs(primAtual - 2) < 0.05,
-                                        patch: { recuoPrimeiraLinha: "2cm" },
-                                    },
-                                    {
-                                        rotulo: "Deslocado (1,25 cm)",
-                                        ativo: primAtual < -0.5,
-                                        patch: { recuoEsquerda: "1.25cm", recuoPrimeiraLinha: "-1.25cm" },
-                                    },
-                                ] as const
-                            ).map((op) => (
-                                <button
-                                    key={op.rotulo}
-                                    type="button"
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => aplicarEspacamentoParagrafo(editor, op.patch)}
-                                    className={cn(
-                                        "border px-2 py-1 text-left text-[11px] font-medium",
-                                        op.ativo ? "border-ink bg-ink text-paper" : "border-ink/20 text-ink hover:bg-ink/5",
-                                    )}
-                                >
-                                    {op.rotulo}
-                                </button>
-                            ))}
+                        <div className="flex gap-1">
+                            {OPCOES_PRIMEIRA_LINHA_CM.map((v) => {
+                                const ativo = primAtual > -0.05 && Math.abs(primAtual - v) < 0.05;
+                                return (
+                                    <button
+                                        key={v}
+                                        type="button"
+                                        aria-pressed={ativo}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() =>
+                                            aplicarEspacamentoParagrafo(editor, {
+                                                recuoPrimeiraLinha: v === 0 ? null : `${v}cm`,
+                                            })
+                                        }
+                                        className={cn(
+                                            "flex-1 border py-1 text-[10px] font-semibold",
+                                            ativo ? "border-ink bg-ink text-paper" : "border-ink/20 text-ink hover:bg-ink/5",
+                                        )}
+                                    >
+                                        {v === 0 ? "Nenhum" : String(v).replace(".", ",")}
+                                    </button>
+                                );
+                            })}
                         </div>
+                        <button
+                            type="button"
+                            aria-pressed={deslocado}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() =>
+                                aplicarEspacamentoParagrafo(editor, {
+                                    recuoEsquerda: "1.25cm",
+                                    recuoPrimeiraLinha: "-1.25cm",
+                                })
+                            }
+                            className={cn(
+                                "mt-1 w-full border px-2 py-1 text-left text-[11px] font-medium",
+                                deslocado ? "border-ink bg-ink text-paper" : "border-ink/20 text-ink hover:bg-ink/5",
+                            )}
+                        >
+                            Deslocado (1,25 cm)
+                            <span className={cn("ml-1 text-[10px]", deslocado ? "text-paper/75" : "text-muted-foreground")}>
+                                · 1ª linha recuada para fora, como em listas de pedidos
+                            </span>
+                        </button>
                     </div>
 
                     {/* Entrelinha e espaço entre parágrafos */}

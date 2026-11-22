@@ -9,7 +9,15 @@
 import { Extension, Mark, mergeAttributes } from "@tiptap/core";
 import type { Editor } from "@tiptap/react";
 
+/** Blocos que aceitam os atributos (a citação só para ler conteúdo antigo). */
 const TIPOS_BLOCO_ESPACAMENTO = ["paragraph", "heading", "blockquote"] as const;
+/**
+ * Onde os recuos são lidos e gravados: sempre o parágrafo/título. Gravar no contêiner da citação fazia
+ * o painel mostrar um valor (do parágrafo) e mudar outro (da citação).
+ */
+const TIPOS_TEXTO_ESPACAMENTO = ["paragraph", "heading"] as const;
+/** Parada de tabulação padrão do Word (cm). */
+export const TABULACAO_PADRAO_CM = 1.25;
 
 export const PASSO_RECUO_CM = 1.25;
 export const MAX_RECUO_CM = 10;
@@ -21,6 +29,8 @@ export interface AtributosEspacamentoParagrafo {
     entrelinha?: string | null;
     espacoAntes?: string | null;
     espacoDepois?: string | null;
+    /** Parada de tabulação do parágrafo (CSS tab-size, ex.: "8cm"); vazio = a cada 1,25 cm. */
+    tabulacao?: string | null;
 }
 
 /** Converte "1,25cm" / "1.25cm" / "47.2px" para número em cm (0 se vazio/inválido). */
@@ -91,41 +101,51 @@ export const EspacamentoParagrafo = Extension.create({
                         renderHTML: (attrs) =>
                             attrs.espacoDepois ? { style: `margin-bottom: ${attrs.espacoDepois}` } : {},
                     },
+                    tabulacao: {
+                        default: null,
+                        parseHTML: (el) => {
+                            const v = el.style.tabSize || el.style.getPropertyValue("tab-size");
+                            return /^\d+(?:\.\d+)?(?:cm|mm|pt|px)$/.test(v) ? v : null;
+                        },
+                        renderHTML: (attrs) => (attrs.tabulacao ? { style: `tab-size: ${attrs.tabulacao}` } : {}),
+                    },
                 },
             },
         ];
     },
 
     addKeyboardShortcuts() {
+        const emListaOuTabela = () =>
+            this.editor.isActive("bulletList") || this.editor.isActive("orderedList") || this.editor.isActive("table");
         return {
+            // Como no Word: Tab insere uma tabulação (vai até a próxima parada da régua).
             Tab: () => {
-                // Dentro de listas ou tabelas, preserva a navegação/aninhamento nativos.
-                if (
-                    this.editor.isActive("bulletList") ||
-                    this.editor.isActive("orderedList") ||
-                    this.editor.isActive("table")
-                ) {
-                    return false;
-                }
-                return ajustarRecuoLateral(this.editor, PASSO_RECUO_CM);
+                if (emListaOuTabela()) return false;
+                const { state, view } = this.editor;
+                view.dispatch(state.tr.insertText("\t").scrollIntoView());
+                return true;
             },
+            // Shift+Tab apaga a tabulação logo antes do cursor; sem ela, diminui o recuo.
             "Shift-Tab": () => {
-                if (
-                    this.editor.isActive("bulletList") ||
-                    this.editor.isActive("orderedList") ||
-                    this.editor.isActive("table")
-                ) {
-                    return false;
+                if (emListaOuTabela()) return false;
+                const { state, view } = this.editor;
+                const { from, empty } = state.selection;
+                if (empty && from > 0 && state.doc.textBetween(from - 1, from) === "\t") {
+                    view.dispatch(state.tr.delete(from - 1, from));
+                    return true;
                 }
                 return ajustarRecuoLateral(this.editor, -PASSO_RECUO_CM);
             },
+            // Atalhos de recuo do Word (Ctrl+M / Ctrl+Shift+M).
+            "Mod-m": () => ajustarRecuoLateral(this.editor, PASSO_RECUO_CM),
+            "Mod-Shift-m": () => ajustarRecuoLateral(this.editor, -PASSO_RECUO_CM),
         };
     },
 });
 
 /** Lê os atributos de espaçamento do primeiro bloco da seleção atual. */
 export function lerEspacamentoAtual(editor: Editor): AtributosEspacamentoParagrafo {
-    for (const tipo of TIPOS_BLOCO_ESPACAMENTO) {
+    for (const tipo of TIPOS_TEXTO_ESPACAMENTO) {
         if (editor.isActive(tipo)) {
             const attrs = editor.getAttributes(tipo) as AtributosEspacamentoParagrafo;
             return {
@@ -135,6 +155,7 @@ export function lerEspacamentoAtual(editor: Editor): AtributosEspacamentoParagra
                 entrelinha: attrs.entrelinha ?? null,
                 espacoAntes: attrs.espacoAntes ?? null,
                 espacoDepois: attrs.espacoDepois ?? null,
+                tabulacao: attrs.tabulacao ?? null,
             };
         }
     }
@@ -149,7 +170,7 @@ export function aplicarEspacamentoParagrafo(editor: Editor, patch: AtributosEspa
     let mudou = false;
 
     state.doc.nodesBetween(from, to, (node, pos) => {
-        if ((TIPOS_BLOCO_ESPACAMENTO as readonly string[]).includes(node.type.name)) {
+        if ((TIPOS_TEXTO_ESPACAMENTO as readonly string[]).includes(node.type.name)) {
             tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...patch });
             mudou = true;
             return false;
@@ -171,9 +192,10 @@ export function ajustarRecuoLateral(editor: Editor, deltaCm: number): boolean {
     let mudou = false;
 
     state.doc.nodesBetween(from, to, (node, pos) => {
-        if ((TIPOS_BLOCO_ESPACAMENTO as readonly string[]).includes(node.type.name)) {
+        if ((TIPOS_TEXTO_ESPACAMENTO as readonly string[]).includes(node.type.name)) {
             const atual = lerCmDeCss(node.attrs.recuoEsquerda as string | null);
-            const proximo = formatarCmCss(atual + deltaCm, false);
+            const alvo = deltaCm < 0 ? Math.max(Math.min(0, atual), atual + deltaCm) : atual + deltaCm;
+            const proximo = formatarCmCss(alvo, true);
             tr.setNodeMarkup(pos, undefined, { ...node.attrs, recuoEsquerda: proximo });
             mudou = true;
             return false;
@@ -362,4 +384,15 @@ export function substituirOcorrencias(
     view.dispatch(tr);
     editor.commands.focus();
     return alvos.length;
+}
+
+/* ------------------------------------------------------- Cores */
+
+/** "#8B6D3B" / "rgb(139, 109, 59)" → "#8b6d3b" (o navegador devolve rgb() ao reabrir o documento). */
+export function corParaHex(cor: string): string {
+    const c = (cor ?? "").trim().toLowerCase();
+    const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/.exec(c);
+    if (rgb) return `#${rgb.slice(1, 4).map((n) => Math.min(255, Number(n)).toString(16).padStart(2, "0")).join("")}`;
+    if (/^#[0-9a-f]{3}$/.test(c)) return `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`;
+    return c;
 }

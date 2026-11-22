@@ -16,6 +16,8 @@ export interface ConfigEscritorio {
     uf: string;
     /** Imagem A4 do papel timbrado próprio em data URI (vazio = timbrado padrão do sistema). */
     timbradoImagemUrl?: string;
+    /** Imagem da rubrica / assinatura manuscrita do advogado em data URI (vazio = só texto Nome/OAB). */
+    assinaturaImagemUrl?: string;
 }
 
 export const CONFIG_ESCRITORIO_PADRAO: ConfigEscritorio = {
@@ -25,15 +27,24 @@ export const CONFIG_ESCRITORIO_PADRAO: ConfigEscritorio = {
     cidade: "Petrolina",
     uf: "PE",
     timbradoImagemUrl: "",
+    assinaturaImagemUrl: "",
 };
 
 const MAX_TIMBRADO_DATA_URL = 2_500_000;
+const MAX_ASSINATURA_DATA_URL = 600_000;
 const REGEX_TIMBRADO_DATA_URL = /^data:image\/(?:png|jpeg|jpg|webp);base64,[a-zA-Z0-9+/=]+$/i;
 
 export function sanitizarTimbradoImagemUrl(raw: unknown): string {
     if (typeof raw !== "string") return "";
     const limpo = raw.trim();
     if (!limpo || limpo.length > MAX_TIMBRADO_DATA_URL) return "";
+    return REGEX_TIMBRADO_DATA_URL.test(limpo) ? limpo : "";
+}
+
+export function sanitizarAssinaturaImagemUrl(raw: unknown): string {
+    if (typeof raw !== "string") return "";
+    const limpo = raw.trim();
+    if (!limpo || limpo.length > MAX_ASSINATURA_DATA_URL) return "";
     return REGEX_TIMBRADO_DATA_URL.test(limpo) ? limpo : "";
 }
 
@@ -61,6 +72,7 @@ export function normalizarConfigEscritorio(raw: unknown): ConfigEscritorio {
         cidade: texto("cidade") || p.cidade,
         uf: uf2(o.uf) || p.uf,
         timbradoImagemUrl: sanitizarTimbradoImagemUrl(o.timbradoImagemUrl ?? o.timbrado_imagem_url),
+        assinaturaImagemUrl: sanitizarAssinaturaImagemUrl(o.assinaturaImagemUrl ?? o.assinatura_imagem_url),
     };
 }
 
@@ -77,6 +89,9 @@ export function configParaLinha(c: ConfigEscritorio): Record<string, string> {
     };
     if (c.timbradoImagemUrl !== undefined) {
         linha.timbrado_imagem_url = n.timbradoImagemUrl ?? "";
+    }
+    if (c.assinaturaImagemUrl !== undefined) {
+        linha.assinatura_imagem_url = n.assinaturaImagemUrl ?? "";
     }
     return linha;
 }

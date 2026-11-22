@@ -8,6 +8,7 @@ import {
     ImagePlus,
     Loader2,
     LogOut,
+    PenTool,
     Plug,
     Trash2,
     UserRoundCog,
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ConteudoConectorMcp } from "@/components/juros/ModalConectorMcp";
 import { IconeGoogleDrive } from "@/components/juros/IconeGoogleDrive";
+import { QuadroAssinatura } from "@/components/juros/QuadroAssinatura";
 import {
     cidadeAssinatura,
     definirConfigEscritorio,
@@ -26,7 +28,7 @@ import {
 } from "@/lib/config-escritorio";
 import { useConfigEscritorio } from "@/lib/use-config-escritorio";
 import { dataPorExtenso } from "@/lib/documentos";
-import { prepararImagemTimbradoA4 } from "@/lib/timbrado-imagem";
+import { prepararImagemAssinatura, prepararImagemTimbradoA4 } from "@/lib/timbrado-imagem";
 import { alterarSenha, obterConfigEscritorio, salvarConfigEscritorio } from "@/lib/revisional-db";
 import {
     ErroGoogleDrive,
@@ -105,8 +107,11 @@ function AbaPerfil() {
     const [form, setForm] = useState<ConfigEscritorio>(salvo);
     const [salvando, setSalvando] = useState(false);
     const [processandoTimbrado, setProcessandoTimbrado] = useState(false);
+    const [processandoAssinatura, setProcessandoAssinatura] = useState(false);
+    const [desenhandoAssinatura, setDesenhandoAssinatura] = useState(false);
     const [semTabela, setSemTabela] = useState(false);
     const inputTimbradoRef = useRef<HTMLInputElement>(null);
+    const inputAssinaturaRef = useRef<HTMLInputElement>(null);
 
     const selecionarImagemTimbrado = async (arquivo?: File) => {
         if (!arquivo) return;
@@ -120,6 +125,22 @@ function AbaPerfil() {
         } finally {
             setProcessandoTimbrado(false);
             if (inputTimbradoRef.current) inputTimbradoRef.current.value = "";
+        }
+    };
+
+    const selecionarImagemAssinatura = async (arquivo?: File) => {
+        if (!arquivo) return;
+        setProcessandoAssinatura(true);
+        try {
+            const dataUrl = await prepararImagemAssinatura(arquivo);
+            setForm((f) => ({ ...f, assinaturaImagemUrl: dataUrl }));
+            setDesenhandoAssinatura(false);
+            toast.info("Rubrica carregada. Clique em “Salvar alterações” para aplicar.");
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Não foi possível ler a imagem da rubrica.");
+        } finally {
+            setProcessandoAssinatura(false);
+            if (inputAssinaturaRef.current) inputAssinaturaRef.current.value = "";
         }
     };
 
@@ -382,11 +403,93 @@ function AbaPerfil() {
                 </Linha>
 
                 <Linha
+                    titulo="Assinatura do advogado (rubrica)"
+                    descricao="Opcional. Desenhe ou importe sua assinatura (PNG transparente, JPG ou WebP) para aparecer no bloco [assinatura] e no carimbo do PDF."
+                >
+                    <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-4">
+                            <div className="flex h-20 w-52 shrink-0 items-center justify-center overflow-hidden border border-ink/15 bg-white p-2">
+                                {form.assinaturaImagemUrl ? (
+                                    <img
+                                        src={form.assinaturaImagemUrl}
+                                        alt="Prévia da rubrica do advogado"
+                                        className="max-h-full max-w-full object-contain"
+                                    />
+                                ) : (
+                                    <span className="text-[11px] text-muted-foreground">Sem rubrica cadastrada</span>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <input
+                                    id="input-assinatura-config"
+                                    ref={inputAssinaturaRef}
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                                    className="sr-only"
+                                    disabled={processandoAssinatura}
+                                    onChange={(e) => void selecionarImagemAssinatura(e.target.files?.[0])}
+                                />
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDesenhandoAssinatura((v) => !v)}
+                                        className={classeBotaoContorno}
+                                    >
+                                        <PenTool aria-hidden className="size-3.5 text-gold-deep" />
+                                        {desenhandoAssinatura ? "Fechar quadro" : "Desenhar rubrica"}
+                                    </button>
+                                    <label
+                                        htmlFor="input-assinatura-config"
+                                        className={cn(
+                                            classeBotaoContorno,
+                                            "cursor-pointer",
+                                            processandoAssinatura && "pointer-events-none opacity-50",
+                                        )}
+                                    >
+                                        {processandoAssinatura ? (
+                                            <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                                        ) : (
+                                            <ImagePlus aria-hidden className="size-3.5 text-gold-deep" />
+                                        )}
+                                        Importar imagem
+                                    </label>
+                                    {form.assinaturaImagemUrl && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm((f) => ({ ...f, assinaturaImagemUrl: "" }))}
+                                            className="inline-flex h-8 items-center gap-1.5 border border-ink/20 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                                        >
+                                            <Trash2 aria-hidden className="size-3.5" />
+                                            Remover
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="max-w-sm text-[11px] text-muted-foreground">
+                                    Você também pode gerenciar a rubrica e assinar com certificado ICP-Brasil (A1/A3) direto pelo editor de Documentos.
+                                </p>
+                            </div>
+                        </div>
+                        {desenhandoAssinatura && (
+                            <QuadroAssinatura
+                                className="max-w-md"
+                                onCancelar={() => setDesenhandoAssinatura(false)}
+                                onConfirmar={(png) => {
+                                    setForm((f) => ({ ...f, assinaturaImagemUrl: png }));
+                                    setDesenhandoAssinatura(false);
+                                    toast.info("Rubrica desenhada. Clique em “Salvar alterações” para gravar.");
+                                }}
+                            />
+                        )}
+                    </div>
+                </Linha>
+
+                <Linha
                     titulo="Prévia na petição"
                     descricao={
                         <>
                             Fim do documento com os campos <span className="text-ink">[cidade]</span>,{" "}
-                            <span className="text-ink">[advogado]</span> e <span className="text-ink">[oab]</span>.
+                            <span className="text-ink">[advogado]</span>, <span className="text-ink">[oab]</span> e{" "}
+                            <span className="text-ink">[assinatura]</span>.
                         </>
                     }
                 >
@@ -394,7 +497,17 @@ function AbaPerfil() {
                         <p>
                             {cidadeAssinatura(previa)}, {dataPorExtenso(new Date())}.
                         </p>
-                        <p className="mt-6 font-bold">{previa.nomeAdvogado}</p>
+                        {previa.assinaturaImagemUrl ? (
+                            <img
+                                src={previa.assinaturaImagemUrl}
+                                alt="Rubrica"
+                                className="mx-auto mt-3 max-h-14 max-w-[200px] object-contain"
+                            />
+                        ) : (
+                            <div className="h-6" />
+                        )}
+                        <div className="mx-auto mb-1.5 w-56 border-t border-black" />
+                        <p className="font-bold">{previa.nomeAdvogado}</p>
                         <p>{formatarOab(previa)}</p>
                     </div>
                 </Linha>
