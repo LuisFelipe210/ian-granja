@@ -31,6 +31,7 @@ const ROTAS_API_LOCAIS: Record<string, { modulo: string; handler: string }> = {
   "/api/mcp": { modulo: "/api/mcp.ts", handler: "handleMcpHttpRequest" },
   "/api/djen-sync": { modulo: "/api/djen-sync.ts", handler: "handleDjenSync" },
   "/api/send-contact": { modulo: "/api/send-contact.ts", handler: "handleContactRequest" },
+  "/api/atendimento-ia": { modulo: "/api/atendimento-ia.ts", handler: "handleAtendimentoIaRequest" },
 };
 
 const ORIGEM_LOCAL_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;

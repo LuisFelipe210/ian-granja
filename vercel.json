@@ -20,6 +20,9 @@
     },
     "api/mcp.ts": {
       "maxDuration": 60
+    },
+    "api/atendimento-ia.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [

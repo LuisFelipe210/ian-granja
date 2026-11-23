@@ -46,6 +46,7 @@ import {
 import { useTravarRolagem } from "@/lib/use-travar-rolagem";
 import { usePaginacao } from "@/lib/use-paginacao";
 import { BarraPaginacao } from "@/components/juros/PaginacaoLista";
+import { BaseConhecimentoCliente } from "@/components/juros/BaseConhecimentoCliente";
 
 const UFS = [
     "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
@@ -722,6 +723,8 @@ function FichaCliente({
                                 )}
                             </section>
                         )}
+
+                        {cliente && <BaseConhecimentoCliente clienteId={cliente.id} nomeCliente={cliente.nome} />}
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-ink/15 px-5 py-3">

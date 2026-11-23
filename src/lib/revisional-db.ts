@@ -26,6 +26,12 @@ import {
 import { normalizarConfigPagina, sanitizarHtmlDocumento, type ConfigPagina } from "./documentos.ts";
 import { cnpjValido, cpfValido } from "./clientes.ts";
 import {
+    normalizarItemConhecimento,
+    sanitizarItemConhecimento,
+    type ItemConhecimento,
+    type ItemConhecimentoPayload,
+} from "./atendimento/base-conhecimento.ts";
+import {
     configEscritorioAtual,
     configParaLinha,
     normalizarConfigEscritorio,
@@ -1039,6 +1045,16 @@ async function restRequest<T>(path: string, init: RequestInit = {}, retried = fa
             );
         }
         if (
+            path.startsWith("revisional_cliente_conhecimento") &&
+            (res.status === 404 || errBody.code === "42P01" || errBody.code === "PGRST205")
+        ) {
+            throw new RevisionalApiError(
+                "A base do atendimento por IA precisa da migração do banco.",
+                res.status,
+                errBody.code || "TABELA_AUSENTE",
+            );
+        }
+        if (
             (path.startsWith("revisional_modelos") ||
                 path.startsWith("revisional_documentos") ||
                 path.startsWith("revisional_clientes") ||
@@ -1720,6 +1736,28 @@ export async function atualizarCliente(id: string, patch: Partial<ClientePayload
 
 export async function excluirCliente(id: string): Promise<void> {
     await restRequest<void>(`revisional_clientes?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/* ----------------------------------------------------- Base do atendimento por IA */
+
+export async function listarConhecimentoCliente(clienteId: string): Promise<ItemConhecimento[]> {
+    const rows = await restRequestList<Record<string, unknown>>(
+        `revisional_cliente_conhecimento?select=*&cliente_id=eq.${encodeURIComponent(clienteId)}&order=created_at.desc`,
+    );
+    return rows.map(normalizarItemConhecimento);
+}
+
+export async function criarItemConhecimento(payload: ItemConhecimentoPayload): Promise<ItemConhecimento> {
+    const rows = await restRequest<Record<string, unknown>[]>("revisional_cliente_conhecimento", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(sanitizarItemConhecimento(payload)),
+    });
+    return normalizarItemConhecimento(firstOrThrow(rows));
+}
+
+export async function excluirItemConhecimento(id: string): Promise<void> {
+    await restRequest<void>(`revisional_cliente_conhecimento?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 /** Liga um caso a outro cliente (o gatilho do banco respeita a escolha) e alinha o nome do caso. */
