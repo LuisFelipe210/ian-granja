@@ -12,6 +12,7 @@ import {
     CopyPlus,
     Download,
     FilePlus2,
+    FolderOpen,
     FileText,
     FileType2,
     Loader2,
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils";
 import logoTimbrado from "@/assets/logo.png";
 import { EditorDocumento } from "@/components/juros/EditorDocumento";
 import { ModalAssinarDocumento } from "@/components/juros/ModalAssinarDocumento";
+import { PastaCliente } from "@/components/juros/PastaCliente";
 import {
     CONFIG_PAGINA_PADRAO,
     acharCampoConhecido,
@@ -171,6 +173,12 @@ function formatarDataHora(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatarData(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /* ------------------------------------------------------- Painel "Gerar documento" */
@@ -1178,6 +1186,8 @@ function TelaEdicao({
 
 /* ------------------------------------------------------- Tela principal */
 
+type ModoListaDocumentos = "clientes" | "pastas" | "todos";
+
 interface DocumentosSistemaProps {
     calculos: CalculoSalvo[];
 }
@@ -1190,19 +1200,26 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
     const [carregando, setCarregando] = useState(true);
     const [indisponivel, setIndisponivel] = useState(false);
     const [busca, setBusca] = useState("");
-    // Lista de documentos agrupada por cliente (padrão) ou todos em ordem de edição.
-    const [agruparPorCliente, setAgruparPorCliente] = useState(() => {
+    // Lista de documentos agrupada por cliente (padrão), em pastas por cliente ou todos em ordem de edição.
+    const [modoLista, setModoLista] = useState<ModoListaDocumentos>(() => {
         try {
-            return window.localStorage.getItem("ig_docs_agrupar") !== "0";
+            const salvo = window.localStorage.getItem("ig_docs_modo");
+            if (salvo === "clientes" || salvo === "pastas" || salvo === "todos") return salvo;
+            // Preferência antiga (só agrupar ou não).
+            return window.localStorage.getItem("ig_docs_agrupar") === "0" ? "todos" : "clientes";
         } catch {
-            return true;
+            return "clientes";
         }
     });
+    const agruparPorCliente = modoLista === "clientes";
+    // Chave do cliente cuja pasta está aberta na visão "Pastas" ("" = sem cliente vinculado).
+    const [pastaAberta, setPastaAberta] = useState<string | null>(null);
     const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(() => new Set());
-    const alternarAgrupamento = (valor: boolean) => {
-        setAgruparPorCliente(valor);
+    const mudarModoLista = (modo: ModoListaDocumentos) => {
+        setModoLista(modo);
+        setPastaAberta(null);
         try {
-            window.localStorage.setItem("ig_docs_agrupar", valor ? "1" : "0");
+            window.localStorage.setItem("ig_docs_modo", modo);
         } catch {
             /* preferência só desta sessão */
         }
@@ -1370,6 +1387,8 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
         [docsFiltrados, nomePorCliente, nomePorCalculo],
     );
     const pagGrupos = usePaginacao(gruposDocs, { porPaginaPadrao: 15, reiniciarCom: [q, abaLista] });
+    // Se a busca esconder a pasta aberta, volta para a grade de pastas.
+    const grupoPastaAberta = pastaAberta === null ? undefined : gruposDocs.find((g) => g.chave === pastaAberta);
     const pagModelos = usePaginacao(modelosFiltrados, { porPaginaPadrao: 12, reiniciarCom: [q, abaLista] });
 
     const painelGerar = (
@@ -1607,18 +1626,21 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                 </div>
                 {abaLista === "documentos" && documentos.length > 0 && (
                     <div role="group" aria-label="Organização da lista" className="inline-flex border border-ink/20">
-                        {[
-                            { valor: true, rotulo: "Por cliente" },
-                            { valor: false, rotulo: "Todos" },
-                        ].map((op) => (
+                        {(
+                            [
+                                { valor: "clientes", rotulo: "Por cliente" },
+                                { valor: "pastas", rotulo: "Pastas" },
+                                { valor: "todos", rotulo: "Todos" },
+                            ] as const
+                        ).map((op) => (
                             <button
                                 key={op.rotulo}
                                 type="button"
-                                aria-pressed={agruparPorCliente === op.valor}
-                                onClick={() => alternarAgrupamento(op.valor)}
+                                aria-pressed={modoLista === op.valor}
+                                onClick={() => mudarModoLista(op.valor)}
                                 className={cn(
                                     "h-8 px-3 text-xs font-semibold transition-colors duration-150",
-                                    agruparPorCliente === op.valor
+                                    modoLista === op.valor
                                         ? "bg-ink text-paper"
                                         : "text-muted-foreground hover:bg-ink/5 hover:text-ink",
                                 )}
@@ -1660,7 +1682,75 @@ export const DocumentosSistema = ({ calculos }: DocumentosSistemaProps) => {
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {agruparPorCliente ? (
+                        {modoLista === "pastas" ? (
+                            grupoPastaAberta ? (
+                                <section
+                                    aria-label={`Pasta de ${grupoPastaAberta.nome ?? "documentos sem cliente"}`}
+                                    className="border border-ink/15 bg-card"
+                                >
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-ink/10 px-4 py-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPastaAberta(null)}
+                                            className="-ml-2 inline-flex h-8 items-center gap-1 px-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-ink/5 hover:text-ink"
+                                        >
+                                            <ArrowLeft className="size-3.5" />
+                                            Pastas
+                                        </button>
+                                        <span aria-hidden className="h-4 w-px bg-ink/15" />
+                                        <FolderOpen aria-hidden className="size-4 shrink-0 text-gold" />
+                                        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                                            {grupoPastaAberta.nome ?? "Sem cliente vinculado"}
+                                        </h2>
+                                        <span className="text-xs tabular-nums text-muted-foreground">
+                                            {grupoPastaAberta.itens.length}{" "}
+                                            {grupoPastaAberta.itens.length === 1 ? "documento" : "documentos"}
+                                        </span>
+                                    </div>
+                                    <ul className="divide-y divide-ink/10">
+                                        {grupoPastaAberta.itens.map((d) => linhaDocumento(d, true))}
+                                    </ul>
+                                </section>
+                            ) : (
+                                <>
+                                    <ul className="grid gap-x-5 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                                        {pagGrupos.itensPagina.map((g) => (
+                                            <li key={`pasta-${g.chave}`}>
+                                                <PastaCliente
+                                                    nome={g.nome ?? "Sem cliente vinculado"}
+                                                    quantidade={g.itens.length}
+                                                    ultimaEdicao={formatarData(g.ultimaEdicao)}
+                                                    pendentes={g.itens.reduce(
+                                                        (s, d) => s + contarCamposPendentes(d.conteudo_html),
+                                                        0,
+                                                    )}
+                                                    titulos={g.itens.slice(0, 3).map((d) => d.titulo)}
+                                                    onAbrir={() => {
+                                                        setPastaAberta(g.chave);
+                                                        listaRef.current?.scrollIntoView({
+                                                            block: "start",
+                                                            behavior: "smooth",
+                                                        });
+                                                    }}
+                                                />
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <BarraPaginacao
+                                        pagina={pagGrupos.pagina}
+                                        totalPaginas={pagGrupos.totalPaginas}
+                                        total={pagGrupos.total}
+                                        inicio={pagGrupos.inicio}
+                                        fim={pagGrupos.fim}
+                                        onPagina={pagGrupos.irPara}
+                                        porPagina={pagGrupos.porPagina}
+                                        onPorPagina={pagGrupos.mudarPorPagina}
+                                        rotulo="clientes"
+                                        alvoRolagem={listaRef}
+                                    />
+                                </>
+                            )
+                        ) : agruparPorCliente ? (
                             <>
                                 <ul className="divide-y divide-ink/10 border border-ink/15 bg-card">
                                     {pagGrupos.itensPagina.map((g) => {
