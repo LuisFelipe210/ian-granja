@@ -31,8 +31,11 @@ async function autenticarMcp(
     const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
         ? authHeader.slice(7).trim()
         : "";
-    // Aceita token apenas em headers (Authorization: Bearer ou x-mcp-token), nunca em query string (?token=).
-    const providedMcpToken = getHeader(request.headers, "x-mcp-token").trim() || bearerToken;
+    // Aceita token apenas em headers, nunca em query string (?token=): Authorization: Bearer, x-mcp-token
+    // ou x-api-key (o conector personalizado do claude.ai só deixa usar nomes de cabeçalho aprovados pela
+    // Anthropic, e "authorization" fica reservado ao OAuth).
+    const providedMcpToken =
+        getHeader(request.headers, "x-mcp-token").trim() || getHeader(request.headers, "x-api-key").trim() || bearerToken;
 
     if (expectedMcpToken) {
         if (!timingSafeEqualStr(providedMcpToken, expectedMcpToken)) {
