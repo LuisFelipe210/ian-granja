@@ -121,6 +121,8 @@ interface AlvoFicha {
     cliente: Cliente | null;
 }
 
+type AbaFicha = "cadastro" | "casos" | "base";
+
 function FichaCliente({
     alvo,
     calculos,
@@ -149,6 +151,9 @@ function FichaCliente({
     const [confirmarExclusao, setConfirmarExclusao] = useState(false);
     const [confirmarDescarte, setConfirmarDescarte] = useState(false);
     const [casoParaVincular, setCasoParaVincular] = useState("");
+    const [aba, setAba] = useState<AbaFicha>("cadastro");
+    const [totalBase, setTotalBase] = useState<number | null>(null);
+    const corpoRef = useRef<HTMLDivElement>(null);
     const nomeRef = useRef<HTMLInputElement>(null);
     const numeroRef = useRef<HTMLInputElement>(null);
     const ultimoCepBuscado = useRef("");
@@ -164,6 +169,8 @@ function FichaCliente({
         setConfirmarDescarte(false);
         setErroCep(null);
         setCasoParaVincular("");
+        setAba("cadastro");
+        setTotalBase(null);
         ultimoCepBuscado.current = f.cep;
         if (!alvo.cliente) setTimeout(() => nomeRef.current?.focus(), 50);
     }, [alvo]);
@@ -343,346 +350,413 @@ function FichaCliente({
                     </div>
                 </div>
 
-                <form onSubmit={salvar} className="flex min-h-0 flex-1 flex-col">
-                    <div className="flex-1 space-y-7 overflow-y-auto p-5">
-                        <div role="group" aria-label="Tipo de pessoa" className="sys-grupo inline-flex border border-ink/25">
-                            {(
-                                [
-                                    { id: "pf", rotulo: "Pessoa física", Icone: UserRound },
-                                    { id: "pj", rotulo: "Empresa (PJ)", Icone: Building2 },
-                                ] as const
-                            ).map((t, i) => (
-                                <button
-                                    key={t.id}
-                                    type="button"
-                                    aria-pressed={form.tipo_pessoa === t.id}
-                                    onClick={() =>
-                                        setForm((f) =>
-                                            f.tipo_pessoa === t.id ? f : { ...f, tipo_pessoa: t.id, cpf_cnpj: "" },
-                                        )
-                                    }
-                                    className={cn(
-                                        "inline-flex h-8 items-center gap-1.5 px-3 text-xs font-semibold transition-colors duration-150",
-                                        i > 0 && "border-l border-ink/20",
-                                        form.tipo_pessoa === t.id ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
-                                    )}
-                                >
-                                    <t.Icone aria-hidden className="size-3.5" />
-                                    {t.rotulo}
-                                </button>
-                            ))}
-                        </div>
+                {cliente && (
+                    <div
+                        role="tablist"
+                        aria-label="Seções da ficha"
+                        className="flex shrink-0 gap-6 overflow-x-auto border-b border-ink/15 px-5"
+                    >
+                        {(
+                            [
+                                { id: "cadastro", rotulo: "Cadastro", total: null },
+                                { id: "casos", rotulo: "Casos", total: casos.length },
+                                { id: "base", rotulo: "Base da IA", total: totalBase },
+                            ] as const
+                        ).map((a) => (
+                            <button
+                                key={a.id}
+                                type="button"
+                                role="tab"
+                                id={`ficha-aba-${a.id}`}
+                                aria-controls={`ficha-painel-${a.id}`}
+                                aria-selected={aba === a.id}
+                                onClick={() => {
+                                    setAba(a.id);
+                                    corpoRef.current?.scrollTo({ top: 0 });
+                                }}
+                                className={cn(
+                                    "-mb-px inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 text-sm font-semibold transition-colors duration-150",
+                                    aba === a.id
+                                        ? "border-ink text-ink"
+                                        : "border-transparent text-muted-foreground hover:text-ink",
+                                )}
+                            >
+                                {a.rotulo}
+                                {a.total !== null && (
+                                    <span
+                                        className={cn(
+                                            "inline-flex h-5 min-w-5 items-center justify-center px-1 text-[10.5px] tabular-nums",
+                                            aba === a.id ? "bg-ink text-paper" : "bg-secondary text-muted-foreground",
+                                        )}
+                                    >
+                                        {a.total}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
-                        <Secao titulo="Identificação">
-                            <Campo id="cli-nome" rotulo={pj ? "Razão social" : "Nome completo"} className="sm:col-span-2">
-                                <input
-                                    ref={nomeRef}
-                                    id="cli-nome"
-                                    value={form.nome}
-                                    onChange={(e) => set("nome", e.target.value)}
-                                    maxLength={200}
-                                    required
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-doc" rotulo={pj ? "CNPJ" : "CPF"} erro={erroDoc}>
-                                <input
-                                    id="cli-doc"
-                                    inputMode="numeric"
-                                    value={mascaraCpfCnpj(form.cpf_cnpj, form.tipo_pessoa)}
-                                    onChange={(e) => set("cpf_cnpj", somenteDigitos(e.target.value))}
-                                    placeholder={pj ? "00.000.000/0000-00" : "000.000.000-00"}
-                                    aria-invalid={Boolean(erroDoc)}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            {!pj ? (
-                                <Campo id="cli-nasc" rotulo="Data de nascimento">
+                {/* Campo obrigatório vazio com outra aba aberta: volta para o cadastro para o navegador mostrar o aviso. */}
+                <form onSubmit={salvar} onInvalidCapture={() => setAba("cadastro")} className="flex min-h-0 flex-1 flex-col">
+                    <div ref={corpoRef} className="flex-1 overflow-y-auto p-5">
+                        <div
+                            id="ficha-painel-cadastro"
+                            role={cliente ? "tabpanel" : undefined}
+                            aria-labelledby={cliente ? "ficha-aba-cadastro" : undefined}
+                            hidden={aba !== "cadastro"}
+                            className="space-y-7"
+                        >
+                            <div role="group" aria-label="Tipo de pessoa" className="sys-grupo inline-flex border border-ink/25">
+                                {(
+                                    [
+                                        { id: "pf", rotulo: "Pessoa física", Icone: UserRound },
+                                        { id: "pj", rotulo: "Empresa (PJ)", Icone: Building2 },
+                                    ] as const
+                                ).map((t, i) => (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        aria-pressed={form.tipo_pessoa === t.id}
+                                        onClick={() =>
+                                            setForm((f) =>
+                                                f.tipo_pessoa === t.id ? f : { ...f, tipo_pessoa: t.id, cpf_cnpj: "" },
+                                            )
+                                        }
+                                        className={cn(
+                                            "inline-flex h-8 items-center gap-1.5 px-3 text-xs font-semibold transition-colors duration-150",
+                                            i > 0 && "border-l border-ink/20",
+                                            form.tipo_pessoa === t.id ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
+                                        )}
+                                    >
+                                        <t.Icone aria-hidden className="size-3.5" />
+                                        {t.rotulo}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <Secao titulo="Identificação">
+                                <Campo id="cli-nome" rotulo={pj ? "Razão social" : "Nome completo"} className="sm:col-span-2">
                                     <input
-                                        id="cli-nasc"
-                                        type="date"
-                                        value={form.data_nascimento ?? ""}
-                                        onChange={(e) => set("data_nascimento", e.target.value || null)}
+                                        ref={nomeRef}
+                                        id="cli-nome"
+                                        value={form.nome}
+                                        onChange={(e) => set("nome", e.target.value)}
+                                        maxLength={200}
+                                        required
                                         className={classeInput}
                                     />
                                 </Campo>
-                            ) : (
-                                <span className="hidden sm:block" />
-                            )}
-                            {!pj && (
-                                <>
-                                    <Campo id="cli-rg" rotulo="RG">
+                                <Campo id="cli-doc" rotulo={pj ? "CNPJ" : "CPF"} erro={erroDoc}>
+                                    <input
+                                        id="cli-doc"
+                                        inputMode="numeric"
+                                        value={mascaraCpfCnpj(form.cpf_cnpj, form.tipo_pessoa)}
+                                        onChange={(e) => set("cpf_cnpj", somenteDigitos(e.target.value))}
+                                        placeholder={pj ? "00.000.000/0000-00" : "000.000.000-00"}
+                                        aria-invalid={Boolean(erroDoc)}
+                                        className={classeInput}
+                                    />
+                                </Campo>
+                                {!pj ? (
+                                    <Campo id="cli-nasc" rotulo="Data de nascimento">
                                         <input
-                                            id="cli-rg"
-                                            value={form.rg}
-                                            onChange={(e) => set("rg", e.target.value)}
-                                            maxLength={40}
+                                            id="cli-nasc"
+                                            type="date"
+                                            value={form.data_nascimento ?? ""}
+                                            onChange={(e) => set("data_nascimento", e.target.value || null)}
                                             className={classeInput}
                                         />
                                     </Campo>
-                                    <Campo id="cli-rg-orgao" rotulo="Órgão emissor">
-                                        <input
-                                            id="cli-rg-orgao"
-                                            value={form.rg_orgao}
-                                            onChange={(e) => set("rg_orgao", e.target.value)}
-                                            maxLength={40}
-                                            placeholder="Ex.: SDS/PE"
-                                            className={classeInput}
-                                        />
-                                    </Campo>
-                                </>
-                            )}
-                        </Secao>
-
-                        {!pj ? (
-                            <Secao titulo="Qualificação">
-                                <Campo id="cli-genero" rotulo="Gênero (para concordância)">
-                                    <select
-                                        id="cli-genero"
-                                        value={form.genero}
-                                        onChange={(e) => set("genero", e.target.value as ClientePayload["genero"])}
-                                        className={classeInput}
-                                    >
-                                        <option value="">Não informar (usa “(a)”)</option>
-                                        <option value="m">Masculino: brasileiro, casado</option>
-                                        <option value="f">Feminino: brasileira, casada</option>
-                                    </select>
-                                </Campo>
-                                <Campo id="cli-nac" rotulo="Nacionalidade">
-                                    <input
-                                        id="cli-nac"
-                                        value={form.nacionalidade}
-                                        onChange={(e) => set("nacionalidade", e.target.value)}
-                                        maxLength={60}
-                                        placeholder="brasileiro"
-                                        className={classeInput}
-                                    />
-                                </Campo>
-                                <Campo id="cli-civil" rotulo="Estado civil">
-                                    <select
-                                        id="cli-civil"
-                                        value={form.estado_civil}
-                                        onChange={(e) => set("estado_civil", e.target.value)}
-                                        className={classeInput}
-                                    >
-                                        <option value="">Não informado</option>
-                                        {ESTADOS_CIVIS.map((e) => (
-                                            <option key={e.id} value={e.id}>
-                                                {e.neutro}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Campo>
-                                <Campo id="cli-prof" rotulo="Profissão">
-                                    <input
-                                        id="cli-prof"
-                                        value={form.profissao}
-                                        onChange={(e) => set("profissao", e.target.value)}
-                                        maxLength={100}
-                                        placeholder="Ex.: motorista"
-                                        className={classeInput}
-                                    />
-                                </Campo>
+                                ) : (
+                                    <span className="hidden sm:block" />
+                                )}
+                                {!pj && (
+                                    <>
+                                        <Campo id="cli-rg" rotulo="RG">
+                                            <input
+                                                id="cli-rg"
+                                                value={form.rg}
+                                                onChange={(e) => set("rg", e.target.value)}
+                                                maxLength={40}
+                                                className={classeInput}
+                                            />
+                                        </Campo>
+                                        <Campo id="cli-rg-orgao" rotulo="Órgão emissor">
+                                            <input
+                                                id="cli-rg-orgao"
+                                                value={form.rg_orgao}
+                                                onChange={(e) => set("rg_orgao", e.target.value)}
+                                                maxLength={40}
+                                                placeholder="Ex.: SDS/PE"
+                                                className={classeInput}
+                                            />
+                                        </Campo>
+                                    </>
+                                )}
                             </Secao>
-                        ) : (
-                            <Secao titulo="Representante legal">
-                                <Campo id="cli-rep" rotulo="Nome do representante">
+
+                            {!pj ? (
+                                <Secao titulo="Qualificação">
+                                    <Campo id="cli-genero" rotulo="Gênero (para concordância)">
+                                        <select
+                                            id="cli-genero"
+                                            value={form.genero}
+                                            onChange={(e) => set("genero", e.target.value as ClientePayload["genero"])}
+                                            className={classeInput}
+                                        >
+                                            <option value="">Não informar (usa “(a)”)</option>
+                                            <option value="m">Masculino: brasileiro, casado</option>
+                                            <option value="f">Feminino: brasileira, casada</option>
+                                        </select>
+                                    </Campo>
+                                    <Campo id="cli-nac" rotulo="Nacionalidade">
+                                        <input
+                                            id="cli-nac"
+                                            value={form.nacionalidade}
+                                            onChange={(e) => set("nacionalidade", e.target.value)}
+                                            maxLength={60}
+                                            placeholder="brasileiro"
+                                            className={classeInput}
+                                        />
+                                    </Campo>
+                                    <Campo id="cli-civil" rotulo="Estado civil">
+                                        <select
+                                            id="cli-civil"
+                                            value={form.estado_civil}
+                                            onChange={(e) => set("estado_civil", e.target.value)}
+                                            className={classeInput}
+                                        >
+                                            <option value="">Não informado</option>
+                                            {ESTADOS_CIVIS.map((e) => (
+                                                <option key={e.id} value={e.id}>
+                                                    {e.neutro}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Campo>
+                                    <Campo id="cli-prof" rotulo="Profissão">
+                                        <input
+                                            id="cli-prof"
+                                            value={form.profissao}
+                                            onChange={(e) => set("profissao", e.target.value)}
+                                            maxLength={100}
+                                            placeholder="Ex.: motorista"
+                                            className={classeInput}
+                                        />
+                                    </Campo>
+                                </Secao>
+                            ) : (
+                                <Secao titulo="Representante legal">
+                                    <Campo id="cli-rep" rotulo="Nome do representante">
+                                        <input
+                                            id="cli-rep"
+                                            value={form.representante_nome}
+                                            onChange={(e) => set("representante_nome", e.target.value)}
+                                            maxLength={200}
+                                            className={classeInput}
+                                        />
+                                    </Campo>
+                                    <Campo
+                                        id="cli-rep-cpf"
+                                        rotulo="CPF do representante"
+                                        erro={
+                                            form.representante_cpf && !cpfValido(form.representante_cpf) ? "CPF inválido." : null
+                                        }
+                                    >
+                                        <input
+                                            id="cli-rep-cpf"
+                                            inputMode="numeric"
+                                            value={mascaraCpfCnpj(form.representante_cpf, "pf")}
+                                            onChange={(e) => set("representante_cpf", somenteDigitos(e.target.value))}
+                                            placeholder="000.000.000-00"
+                                            className={classeInput}
+                                        />
+                                    </Campo>
+                                </Secao>
+                            )}
+
+                            <Secao titulo="Endereço">
+                                <Campo id="cli-cep" rotulo="CEP" erro={erroCep}>
+                                    <div className="relative">
+                                        <input
+                                            id="cli-cep"
+                                            inputMode="numeric"
+                                            value={formatarCep(form.cep)}
+                                            onChange={(e) => {
+                                                const d = somenteDigitos(e.target.value).slice(0, 8);
+                                                set("cep", d);
+                                                if (d.length === 8) void preencherPeloCep(d);
+                                            }}
+                                            placeholder="00000-000"
+                                            className={cn(classeInput, "pr-6")}
+                                        />
+                                        {buscandoCep && (
+                                            <Loader2 className="absolute right-0 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                                        )}
+                                    </div>
+                                    <p className="mt-1 text-[11px] text-muted-foreground">
+                                        Digite o CEP e o endereço é preenchido sozinho.
+                                    </p>
+                                </Campo>
+                                <span className="hidden sm:block" />
+                                <Campo id="cli-rua" rotulo="Rua / logradouro" className="sm:col-span-2">
                                     <input
-                                        id="cli-rep"
-                                        value={form.representante_nome}
-                                        onChange={(e) => set("representante_nome", e.target.value)}
+                                        id="cli-rua"
+                                        value={form.logradouro}
+                                        onChange={(e) => set("logradouro", e.target.value)}
                                         maxLength={200}
                                         className={classeInput}
                                     />
                                 </Campo>
-                                <Campo
-                                    id="cli-rep-cpf"
-                                    rotulo="CPF do representante"
-                                    erro={
-                                        form.representante_cpf && !cpfValido(form.representante_cpf) ? "CPF inválido." : null
-                                    }
-                                >
+                                <Campo id="cli-num" rotulo="Número">
                                     <input
-                                        id="cli-rep-cpf"
-                                        inputMode="numeric"
-                                        value={mascaraCpfCnpj(form.representante_cpf, "pf")}
-                                        onChange={(e) => set("representante_cpf", somenteDigitos(e.target.value))}
-                                        placeholder="000.000.000-00"
+                                        ref={numeroRef}
+                                        id="cli-num"
+                                        value={form.numero}
+                                        onChange={(e) => set("numero", e.target.value)}
+                                        maxLength={20}
                                         className={classeInput}
                                     />
                                 </Campo>
-                            </Secao>
-                        )}
-
-                        <Secao titulo="Endereço">
-                            <Campo id="cli-cep" rotulo="CEP" erro={erroCep}>
-                                <div className="relative">
+                                <Campo id="cli-comp" rotulo="Complemento">
                                     <input
-                                        id="cli-cep"
-                                        inputMode="numeric"
-                                        value={formatarCep(form.cep)}
-                                        onChange={(e) => {
-                                            const d = somenteDigitos(e.target.value).slice(0, 8);
-                                            set("cep", d);
-                                            if (d.length === 8) void preencherPeloCep(d);
-                                        }}
-                                        placeholder="00000-000"
-                                        className={cn(classeInput, "pr-6")}
+                                        id="cli-comp"
+                                        value={form.complemento}
+                                        onChange={(e) => set("complemento", e.target.value)}
+                                        maxLength={100}
+                                        placeholder="Apto, bloco..."
+                                        className={classeInput}
                                     />
-                                    {buscandoCep && (
-                                        <Loader2 className="absolute right-0 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                                    )}
-                                </div>
-                                <p className="mt-1 text-[11px] text-muted-foreground">
-                                    Digite o CEP e o endereço é preenchido sozinho.
-                                </p>
-                            </Campo>
-                            <span className="hidden sm:block" />
-                            <Campo id="cli-rua" rotulo="Rua / logradouro" className="sm:col-span-2">
-                                <input
-                                    id="cli-rua"
-                                    value={form.logradouro}
-                                    onChange={(e) => set("logradouro", e.target.value)}
-                                    maxLength={200}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-num" rotulo="Número">
-                                <input
-                                    ref={numeroRef}
-                                    id="cli-num"
-                                    value={form.numero}
-                                    onChange={(e) => set("numero", e.target.value)}
-                                    maxLength={20}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-comp" rotulo="Complemento">
-                                <input
-                                    id="cli-comp"
-                                    value={form.complemento}
-                                    onChange={(e) => set("complemento", e.target.value)}
-                                    maxLength={100}
-                                    placeholder="Apto, bloco..."
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-bairro" rotulo="Bairro">
-                                <input
-                                    id="cli-bairro"
-                                    value={form.bairro}
-                                    onChange={(e) => set("bairro", e.target.value)}
-                                    maxLength={100}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <div className="grid grid-cols-[1fr_72px] gap-3">
-                                <Campo id="cli-cidade" rotulo="Cidade">
+                                </Campo>
+                                <Campo id="cli-bairro" rotulo="Bairro">
                                     <input
-                                        id="cli-cidade"
-                                        value={form.cidade}
-                                        onChange={(e) => set("cidade", e.target.value)}
+                                        id="cli-bairro"
+                                        value={form.bairro}
+                                        onChange={(e) => set("bairro", e.target.value)}
                                         maxLength={100}
                                         className={classeInput}
                                     />
                                 </Campo>
-                                <Campo id="cli-uf" rotulo="UF">
-                                    <select
-                                        id="cli-uf"
-                                        value={form.uf}
-                                        onChange={(e) => set("uf", e.target.value)}
+                                <div className="grid grid-cols-[1fr_72px] gap-3">
+                                    <Campo id="cli-cidade" rotulo="Cidade">
+                                        <input
+                                            id="cli-cidade"
+                                            value={form.cidade}
+                                            onChange={(e) => set("cidade", e.target.value)}
+                                            maxLength={100}
+                                            className={classeInput}
+                                        />
+                                    </Campo>
+                                    <Campo id="cli-uf" rotulo="UF">
+                                        <select
+                                            id="cli-uf"
+                                            value={form.uf}
+                                            onChange={(e) => set("uf", e.target.value)}
+                                            className={classeInput}
+                                        >
+                                            <option value="">—</option>
+                                            {UFS.map((uf) => (
+                                                <option key={uf} value={uf}>
+                                                    {uf}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Campo>
+                                </div>
+                            </Secao>
+
+                            <Secao titulo="Contato">
+                                <Campo id="cli-tel" rotulo="Telefone / WhatsApp">
+                                    <input
+                                        id="cli-tel"
+                                        type="tel"
+                                        value={form.telefone}
+                                        onChange={(e) => set("telefone", e.target.value)}
+                                        onBlur={() => set("telefone", formatarTelefone(form.telefone))}
+                                        maxLength={40}
+                                        placeholder="(87) 90000-0000"
                                         className={classeInput}
-                                    >
-                                        <option value="">—</option>
-                                        {UFS.map((uf) => (
-                                            <option key={uf} value={uf}>
-                                                {uf}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    />
                                 </Campo>
-                            </div>
-                        </Secao>
+                                <Campo id="cli-email" rotulo="E-mail">
+                                    <input
+                                        id="cli-email"
+                                        type="email"
+                                        value={form.email}
+                                        onChange={(e) => set("email", e.target.value)}
+                                        maxLength={200}
+                                        className={classeInput}
+                                    />
+                                </Campo>
+                                <Campo id="cli-obs" rotulo="Observações" className="sm:col-span-2">
+                                    <textarea
+                                        id="cli-obs"
+                                        value={form.observacoes}
+                                        onChange={(e) => set("observacoes", e.target.value)}
+                                        maxLength={4000}
+                                        rows={2}
+                                        className={cn(classeInput, "resize-y")}
+                                    />
+                                </Campo>
+                            </Secao>
 
-                        <Secao titulo="Contato">
-                            <Campo id="cli-tel" rotulo="Telefone / WhatsApp">
-                                <input
-                                    id="cli-tel"
-                                    type="tel"
-                                    value={form.telefone}
-                                    onChange={(e) => set("telefone", e.target.value)}
-                                    onBlur={() => set("telefone", formatarTelefone(form.telefone))}
-                                    maxLength={40}
-                                    placeholder="(87) 90000-0000"
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-email" rotulo="E-mail">
-                                <input
-                                    id="cli-email"
-                                    type="email"
-                                    value={form.email}
-                                    onChange={(e) => set("email", e.target.value)}
-                                    maxLength={200}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-obs" rotulo="Observações" className="sm:col-span-2">
-                                <textarea
-                                    id="cli-obs"
-                                    value={form.observacoes}
-                                    onChange={(e) => set("observacoes", e.target.value)}
-                                    maxLength={4000}
-                                    rows={2}
-                                    className={cn(classeInput, "resize-y")}
-                                />
-                            </Campo>
-                        </Secao>
-
-                        <section className="space-y-2">
-                            <div className="flex items-center justify-between gap-2 border-b border-ink/10 pb-1.5">
-                                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Qualificação para a petição
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => void copiarQualificacao()}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink hover:underline"
-                                >
-                                    <ClipboardCopy className="size-3" /> Copiar
-                                </button>
-                            </div>
-                            <p className="bg-secondary/60 px-3 py-2.5 font-serif text-sm leading-relaxed text-ink">
-                                {form.nome.trim() ? qualificacao : "Preencha o nome para ver a qualificação."}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground">
-                                Nos modelos de documento, use o campo <strong className="text-ink">[qualificação completa]</strong>.
-                            </p>
-                        </section>
+                            <section className="space-y-2">
+                                <div className="flex items-center justify-between gap-2 border-b border-ink/10 pb-1.5">
+                                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                        Qualificação para a petição
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => void copiarQualificacao()}
+                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink hover:underline"
+                                    >
+                                        <ClipboardCopy className="size-3" /> Copiar
+                                    </button>
+                                </div>
+                                <p className="bg-secondary/60 px-3 py-2.5 font-serif text-sm leading-relaxed text-ink">
+                                    {form.nome.trim() ? qualificacao : "Preencha o nome para ver a qualificação."}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Nos modelos de documento, use o campo <strong className="text-ink">[qualificação completa]</strong>.
+                                </p>
+                            </section>
+                        </div>
 
                         {cliente && (
-                            <section className="space-y-2">
-                                <h3 className="border-b border-ink/10 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Casos na carteira ({casos.length})
-                                </h3>
+                            <section
+                                id="ficha-painel-casos"
+                                role="tabpanel"
+                                aria-labelledby="ficha-aba-casos"
+                                hidden={aba !== "casos"}
+                                className="space-y-5"
+                            >
                                 {casos.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground">Nenhum caso ligado a este cliente.</p>
+                                    <div className="border border-dashed border-ink/20 px-4 py-8 text-center">
+                                        <p className="text-sm font-medium text-ink">Nenhum caso ligado a este cliente</p>
+                                        <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
+                                            Os casos aparecem aqui quando são cadastrados com este cliente ou ligados abaixo.
+                                        </p>
+                                    </div>
                                 ) : (
-                                    <ul className="divide-y divide-ink/10 border border-ink/15">
+                                    <ul className="space-y-2">
                                         {casos.map((c) => (
-                                            <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                                            <li
+                                                key={c.id}
+                                                className="flex items-center justify-between gap-3 border border-ink/15 bg-background px-3 py-2.5"
+                                            >
                                                 <div className="min-w-0">
-                                                    <p className="truncate text-sm font-medium text-ink">
+                                                    <p className="truncate text-sm font-semibold text-ink">
                                                         {c.processo_global || "Sem número de processo"}
                                                     </p>
-                                                    <p className="truncate text-[11px] text-muted-foreground">
-                                                        {[c.banco, c.modalidade_nome].filter(Boolean).join(" · ")}
+                                                    <p className="truncate text-xs text-muted-foreground">
+                                                        {[c.banco, c.modalidade_nome].filter(Boolean).join(" · ") || "—"}
                                                     </p>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => onAbrirCaso(c)}
-                                                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-ink hover:underline"
+                                                    className="inline-flex h-8 shrink-0 items-center gap-1.5 border border-ink/25 px-3 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink/5"
                                                 >
                                                     Abrir <ExternalLink className="size-3" />
                                                 </button>
@@ -691,16 +765,21 @@ function FichaCliente({
                                     </ul>
                                 )}
                                 {outrosCasos.length > 0 && (
-                                    <div className="flex items-end gap-2">
-                                        <div className="min-w-0 flex-1">
-                                            <label htmlFor="cli-vincular" className="text-[11px] font-medium text-muted-foreground">
-                                                Ligar outro caso a este cliente (ex.: nome digitado diferente)
+                                    <div className="space-y-2 bg-secondary/50 px-4 py-3">
+                                        <div>
+                                            <label htmlFor="cli-vincular" className="text-sm font-semibold text-ink">
+                                                Ligar outro caso a este cliente
                                             </label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Útil quando o nome foi digitado diferente no cadastro do caso.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-end gap-2">
                                             <select
                                                 id="cli-vincular"
                                                 value={casoParaVincular}
                                                 onChange={(e) => setCasoParaVincular(e.target.value)}
-                                                className={classeInput}
+                                                className={cn(classeInput, "min-w-0 flex-1")}
                                             >
                                                 <option value="">Escolha o caso</option>
                                                 {outrosCasos.map((c) => (
@@ -710,21 +789,34 @@ function FichaCliente({
                                                     </option>
                                                 ))}
                                             </select>
+                                            <button
+                                                type="button"
+                                                disabled={!casoParaVincular}
+                                                onClick={() => void vincularCaso()}
+                                                className="inline-flex h-8 shrink-0 items-center border border-ink/25 bg-background px-3 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-40"
+                                            >
+                                                Ligar
+                                            </button>
                                         </div>
-                                        <button
-                                            type="button"
-                                            disabled={!casoParaVincular}
-                                            onClick={() => void vincularCaso()}
-                                            className="inline-flex h-8 shrink-0 items-center border border-ink/25 px-3 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-40"
-                                        >
-                                            Ligar
-                                        </button>
                                     </div>
                                 )}
                             </section>
                         )}
 
-                        {cliente && <BaseConhecimentoCliente clienteId={cliente.id} nomeCliente={cliente.nome} />}
+                        {cliente && (
+                            <div
+                                id="ficha-painel-base"
+                                role="tabpanel"
+                                aria-labelledby="ficha-aba-base"
+                                hidden={aba !== "base"}
+                            >
+                                <BaseConhecimentoCliente
+                                    clienteId={cliente.id}
+                                    nomeCliente={cliente.nome}
+                                    onTotalChange={setTotalBase}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-ink/15 px-5 py-3">
