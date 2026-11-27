@@ -5,6 +5,7 @@
  *   validação em código (`validarRespostaAtendimento`).
  *
  * Sem ferramentas de busca na web: o Claude não tem como consultar nada além do que vai na requisição.
+ * Modelos "gemini-*" (testes com a chave gratuita) passam pelo mesmo prompt e pela MESMA validação.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import {
@@ -16,7 +17,8 @@ import {
     type RespostaAtendimento,
 } from "./base-conhecimento.ts";
 
-import { escolherModelo, MODELO_EXTRACAO_PADRAO, MODELO_RESPOSTA_PADRAO } from "./modelos.ts";
+import { escolherModelo, ehModeloGemini, MODELO_EXTRACAO_PADRAO, MODELO_RESPOSTA_PADRAO } from "./modelos.ts";
+import { chamarGeminiJson } from "./ia-gemini.ts";
 
 /**
  * Modelos do atendimento (escolha do escritório pelo custo, na tela Configurações):
@@ -126,10 +128,28 @@ export async function extrairDocumentoCliente(opts: {
     base64: string;
     mediaType: MidiaDocumento;
     nomeArquivo: string;
-    client: Anthropic;
+    client: Anthropic | null;
     modelo?: string;
+    fetchFn?: typeof fetch;
 }): Promise<ExtracaoDocumento & { modelo: string }> {
     const modelo = opts.modelo ?? MODELO_EXTRACAO_PADRAO;
+    const pedido = `Arquivo: ${opts.nomeArquivo.slice(0, 200)}\nExtraia título, resumo e fatos.`;
+
+    if (ehModeloGemini(modelo)) {
+        const r = await chamarGeminiJson({
+            modelo,
+            sistema: SISTEMA_EXTRACAO,
+            partes: [{ inline_data: { mime_type: opts.mediaType, data: opts.base64 } }, { text: pedido }],
+            schema: SCHEMA_EXTRACAO as unknown as Record<string, unknown>,
+            maxTokens: 32_000,
+            fetchFn: opts.fetchFn,
+        });
+        if (r.parada === "refusal") throw new Error("O Gemini recusou ler este documento.");
+        if (r.parada === "max_tokens") throw new Error("Documento grande demais para ler de uma vez. Envie em partes.");
+        if (!r.json) throw new Error("O Gemini não devolveu a extração no formato esperado.");
+        return { ...normalizarExtracao(r.json), modelo: r.modelo };
+    }
+    if (!opts.client) throw new Error("Configure a chave ANTHROPIC_API_KEY no servidor para usar os modelos Claude.");
     const documento: Anthropic.Beta.BetaContentBlockParam =
         opts.mediaType === "application/pdf"
             ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: opts.base64 } }
@@ -148,7 +168,7 @@ export async function extrairDocumentoCliente(opts: {
                     role: "user",
                     content: [
                         documento,
-                        { type: "text", text: `Arquivo: ${opts.nomeArquivo.slice(0, 200)}\nExtraia título, resumo e fatos.` },
+                        { type: "text", text: pedido },
                     ],
                 },
             ],
@@ -201,8 +221,9 @@ export async function responderMensagemCliente(opts: {
     contexto: ContextoAtendimento;
     historico: TurnoConversa[];
     mensagem: string;
-    client: Anthropic;
+    client: Anthropic | null;
     modelo?: string;
+    fetchFn?: typeof fetch;
 }): Promise<RespostaAtendimento & { modelo: string }> {
     const modelo = opts.modelo ?? MODELO_RESPOSTA_PADRAO;
     const mensagem = opts.mensagem.trim().slice(0, MAX_MENSAGEM_CLIENTE);
@@ -224,19 +245,37 @@ export async function responderMensagemCliente(opts: {
         .filter(Boolean)
         .join("\n\n");
     const mensagens: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: conteudo }];
+    const textoFontes = `Fontes do cliente ${opts.contexto.nomeCliente}:\n\n${fontesComoTexto(opts.contexto.fontes)}`;
+
+    if (ehModeloGemini(modelo)) {
+        const r = await chamarGeminiJson({
+            modelo,
+            sistema: `${SISTEMA_ATENDIMENTO}\n\n${textoFontes}`,
+            partes: [{ text: conteudo }],
+            schema: SCHEMA_RESPOSTA as unknown as Record<string, unknown>,
+            maxTokens: 8_000,
+            fetchFn: opts.fetchFn,
+        });
+        if (r.parada !== "ok") {
+            return {
+                ...validarRespostaAtendimento({ situacao: "encaminhar_advogado" }, opts.contexto),
+                motivoInterno: `O Gemini interrompeu a resposta (${r.parada}).`,
+                modelo: r.modelo,
+            };
+        }
+        return { ...validarRespostaAtendimento(r.json, opts.contexto), modelo: r.modelo };
+    }
+    if (!opts.client) throw new Error("Configure a chave ANTHROPIC_API_KEY no servidor para usar os modelos Claude.");
+    const client = opts.client;
 
     let resposta: Anthropic.Beta.BetaMessage;
     try {
-        resposta = await opts.client.beta.messages.create({
+        resposta = await client.beta.messages.create({
             model: modelo,
             max_tokens: 4000,
             system: [
                 { type: "text", text: SISTEMA_ATENDIMENTO },
-                {
-                    type: "text",
-                    text: `Fontes do cliente ${opts.contexto.nomeCliente}:\n\n${fontesComoTexto(opts.contexto.fontes)}`,
-                    cache_control: { type: "ephemeral" },
-                },
+                { type: "text", text: textoFontes, cache_control: { type: "ephemeral" } },
             ],
             output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA_RESPOSTA } },
             ...opcoesFallback(modelo),

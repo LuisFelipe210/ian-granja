@@ -96,11 +96,15 @@ export async function handleAtendimentoIaRequest(
         return response.status(status).json({ ok: false, message: (err as Error).message || "Falha no atendimento." });
     }
 
-    let anthropic: Anthropic;
-    try {
-        anthropic = options.anthropic ?? criarClienteAnthropic({ fetchFn: options.fetchFn });
-    } catch (err) {
-        return response.status(503).json({ ok: false, message: (err as Error).message });
+    // Sem chave da Anthropic ainda dá para usar os modelos Gemini (testes); o erro claro vem na hora de
+    // chamar um modelo Claude.
+    let anthropic: Anthropic | null = options.anthropic ?? null;
+    if (!anthropic) {
+        try {
+            anthropic = criarClienteAnthropic({ fetchFn: options.fetchFn });
+        } catch {
+            anthropic = null;
+        }
     }
 
     const doSite = await lerModelosEscritorio(acesso);
@@ -115,7 +119,7 @@ export async function handleAtendimentoIaRequest(
             if (!conversa.cliente_id) {
                 return response.status(400).json({ ok: false, message: "Ligue a conversa a um cliente antes de pedir o rascunho." });
             }
-            const rascunho = await gerarRascunhoConversa(acesso, conversa, { anthropic, modelo });
+            const rascunho = await gerarRascunhoConversa(acesso, conversa, { anthropic, modelo, fetchFn: options.fetchFn });
             return response.status(200).json({ ok: true, rascunho });
         }
 
@@ -133,7 +137,7 @@ export async function handleAtendimentoIaRequest(
             if (bytesDeBase64(base64) > LIMITE_TOTAL_ANEXOS_BYTES) {
                 return response.status(413).json({ ok: false, message: "Arquivo acima de 3 MB. Envie um PDF menor." });
             }
-            const extracao = await extrairDocumentoCliente({ base64, mediaType, nomeArquivo: nome, client: anthropic, modelo: modeloExtracao });
+            const extracao = await extrairDocumentoCliente({ base64, mediaType, nomeArquivo: nome, client: anthropic, modelo: modeloExtracao, fetchFn: options.fetchFn });
             return response.status(200).json({ ok: true, extracao });
         }
 
@@ -154,7 +158,14 @@ export async function handleAtendimentoIaRequest(
                 }));
 
             const contexto = await carregarContextoCliente(payload.clienteId, acesso);
-            const resposta = await responderMensagemCliente({ contexto, historico, mensagem, client: anthropic, modelo });
+            const resposta = await responderMensagemCliente({
+                contexto,
+                historico,
+                mensagem,
+                client: anthropic,
+                modelo,
+                fetchFn: options.fetchFn,
+            });
             return response.status(200).json({ ok: true, resposta, totalFontes: contexto.fontes.length });
         }
 

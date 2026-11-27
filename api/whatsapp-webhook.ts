@@ -4,6 +4,8 @@ import { SUPABASE_URL } from "../src/lib/revisional-db.ts";
 import { criarClienteAnthropic, resolverModeloResposta } from "../src/lib/atendimento/ia-atendimento.ts";
 import { processarWebhookWhatsApp } from "../src/lib/atendimento/processar-whatsapp.ts";
 import { lerModelosEscritorio } from "../src/lib/atendimento/contexto-cliente.ts";
+import { chaveGemini } from "../src/lib/atendimento/ia-gemini.ts";
+import { ehModeloGemini } from "../src/lib/atendimento/modelos.ts";
 import { lerConfigWhatsApp, webhookAutentico, whatsappConfigurado, type ConfigWhatsApp } from "../src/lib/atendimento/whatsapp.ts";
 import { timingSafeEqualStr } from "./_http.ts";
 
@@ -102,13 +104,15 @@ export async function handleWhatsAppWebhook(
         bearer: serviceKey,
         fetchFn: options.fetchFn,
     };
-    const modelo = anthropic ? resolverModeloResposta(env.ATENDIMENTO_MODEL, (await lerModelosEscritorio(acesso)).resposta) : "";
+    const modelo = resolverModeloResposta(env.ATENDIMENTO_MODEL, (await lerModelosEscritorio(acesso)).resposta);
+    // Sem a chave do provedor do modelo escolhido, as mensagens são gravadas mas não sai rascunho.
+    const iaDisponivel = ehModeloGemini(modelo) ? Boolean(chaveGemini(env)) : Boolean(anthropic);
 
     try {
         const resultado = await processarWebhookWhatsApp(corpo, {
             acesso,
             config,
-            ia: anthropic ? { anthropic, modelo } : null,
+            ia: iaDisponivel ? { anthropic, modelo, fetchFn: options.fetchFn } : null,
             fetchFn: options.fetchFn,
         });
         if (resultado.erros.length > 0) console.error("[whatsapp-webhook]", resultado.erros.join(" | "));

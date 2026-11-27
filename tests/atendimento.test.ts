@@ -347,6 +347,52 @@ describe("responderMensagemCliente (Claude simulado)", () => {
     });
 });
 
+describe("modelos Gemini (testes com a chave gratuita)", () => {
+    it("usa o Gemini com o mesmo prompt e a mesma trava anti-alucinação", async () => {
+        const chamadas: Array<{ url: string; corpo: Record<string, unknown>; chave: string }> = [];
+        const fetchFn = (async (url: unknown, init?: RequestInit) => {
+            chamadas.push({
+                url: String(url),
+                corpo: JSON.parse(String(init?.body)),
+                chave: (init?.headers as Record<string, string>)["x-goog-api-key"],
+            });
+            const saida = { situacao: "respondido", mensagem: "Você vai receber R$ 12.000,00.", fontes: ["F2"] };
+            return Response.json({
+                candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(saida) }] } }],
+                modelVersion: "gemini-3.5-flash-lite",
+            });
+        }) as typeof fetch;
+        const anterior = process.env.GEMINI_API_KEY;
+        process.env.GEMINI_API_KEY = "chave-teste";
+        try {
+            const r = await responderMensagemCliente({
+                contexto: contextoExemplo(),
+                historico: [],
+                mensagem: "Quanto vou receber?",
+                client: null,
+                modelo: "gemini-flash-lite-latest",
+                fetchFn,
+            });
+            assert.equal(r.bloqueadaPelaValidacao, true, "número inventado continua bloqueado com o Gemini");
+            assert.equal(r.modelo, "gemini-3.5-flash-lite");
+        } finally {
+            if (anterior === undefined) delete process.env.GEMINI_API_KEY;
+            else process.env.GEMINI_API_KEY = anterior;
+        }
+        assert.match(chamadas[0].url, /models\/gemini-flash-lite-latest:generateContent$/);
+        assert.equal(chamadas[0].chave, "chave-teste");
+        assert.match(JSON.stringify(chamadas[0].corpo.systemInstruction), /Maria Teste da Silva/);
+        assert.equal((chamadas[0].corpo.generationConfig as Record<string, unknown>).responseMimeType, "application/json");
+    });
+
+    it("modelo Claude sem chave da Anthropic dá erro claro", async () => {
+        await assert.rejects(
+            responderMensagemCliente({ contexto: contextoExemplo(), historico: [], mensagem: "oi", client: null, modelo: "claude-haiku-5-5" }),
+            /ANTHROPIC_API_KEY/,
+        );
+    });
+});
+
 describe("carregarContextoCliente (Supabase simulado)", () => {
     it("filtra todas as consultas pelo id do cliente", async () => {
         const urls: string[] = [];
