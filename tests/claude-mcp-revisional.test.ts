@@ -434,7 +434,7 @@ describe("Servidor e ferramentas MCP do Claude", () => {
 
             const listRes = await handleMcpJsonRpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }, db);
             const tools = (listRes?.result as { tools: Array<{ name: string }> }).tools;
-            assert.equal(tools.length, 12);
+            assert.equal(tools.length, 15);
 
             // 2. Cadastrar caso Santander com seguro prestamista em dobro
             const cadRes = await handleMcpJsonRpc(

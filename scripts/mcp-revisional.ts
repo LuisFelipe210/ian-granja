@@ -30,7 +30,7 @@ function parseEnvFile(filePath: string): Record<string, string> {
 
 async function isLocalSupabaseUp(url: string): Promise<boolean> {
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 500);
+    const timer = setTimeout(() => ctl.abort(), 3000);
     try {
         const res = await fetch(`${url.replace(/\/+$/, "")}/rest/v1/`, { signal: ctl.signal });
         return res.status > 0;
@@ -123,6 +123,9 @@ function createLazyDb(): RevisionalDbAdapter {
         existeCalculoComProcesso: async (cnj) => (await get()).existeCalculoComProcesso(cnj),
         listarClientesBasico: async () => (await get()).listarClientesBasico(),
         criarItemConhecimento: async (linha) => (await get()).criarItemConhecimento(linha),
+        listarClientes: async () => (await get()).listarClientes(),
+        criarCliente: async (linha) => (await get()).criarCliente(linha),
+        atualizarCliente: async (id, patch) => (await get()).atualizarCliente(id, patch),
     };
 }
 
