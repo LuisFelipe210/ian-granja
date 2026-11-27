@@ -199,7 +199,9 @@ export function historicoParaIa(mensagens: MensagemRow[]): TurnoConversa[] {
 }
 
 export interface DepsIa {
-    anthropic: Anthropic;
+    /** Nulo quando o modelo escolhido é Gemini e não há chave da Anthropic. */
+    anthropic: Anthropic | null;
+    fetchFn?: typeof fetch;
     modelo: string;
 }
 
@@ -241,6 +243,7 @@ export async function gerarRascunhoConversa(
         historico: historicoParaIa(mensagens.slice(0, ultimaIdx)),
         mensagem: ultima.texto,
         client: ia.anthropic,
+        fetchFn: ia.fetchFn,
         modelo: ia.modelo,
     });
     return inserirMensagem(acesso, {

@@ -12,6 +12,8 @@ export interface OpcaoModelo {
     custoMilRascunhos: string;
     /** Custo aproximado para ler um PDF de ~20 páginas. */
     custoDocumento: string;
+    /** Só para testes: não usar com dados reais de clientes. */
+    apenasTeste?: boolean;
 }
 
 export const MODELOS_ATENDIMENTO: OpcaoModelo[] = [
@@ -36,7 +38,29 @@ export const MODELOS_ATENDIMENTO: OpcaoModelo[] = [
         custoMilRascunhos: "~R$ 220",
         custoDocumento: "~R$ 1,60",
     },
+    {
+        id: "gemini-flash-lite-latest",
+        nome: "Gemini Flash-Lite (teste)",
+        resumo:
+            "SÓ PARA TESTES com dados fictícios: no plano gratuito o Google pode usar o conteúdo enviado. Precisa de GEMINI_API_KEY.",
+        custoMilRascunhos: "grátis no plano free",
+        custoDocumento: "grátis no plano free",
+        apenasTeste: true,
+    },
+    {
+        id: "gemini-flash-latest",
+        nome: "Gemini Flash (teste)",
+        resumo:
+            "SÓ PARA TESTES com dados fictícios: no plano gratuito o Google pode usar o conteúdo enviado. Precisa de GEMINI_API_KEY.",
+        custoMilRascunhos: "grátis no plano free",
+        custoDocumento: "grátis no plano free",
+        apenasTeste: true,
+    },
 ];
+
+export function ehModeloGemini(modelo: string): boolean {
+    return modelo.startsWith("gemini-");
+}
 
 /** Padrões escolhidos pelo custo: Haiku nos rascunhos, Sonnet na leitura de documentos. */
 export const MODELO_RESPOSTA_PADRAO = "claude-haiku-5-5";
