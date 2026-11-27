@@ -121,6 +121,8 @@ function createLazyDb(): RevisionalDbAdapter {
         excluirTarefa: async (id) => (await get()).excluirTarefa(id),
         obterConfigEscritorio: async () => (await get()).obterConfigEscritorio(),
         existeCalculoComProcesso: async (cnj) => (await get()).existeCalculoComProcesso(cnj),
+        listarClientesBasico: async () => (await get()).listarClientesBasico(),
+        criarItemConhecimento: async (linha) => (await get()).criarItemConhecimento(linha),
     };
 }
 
