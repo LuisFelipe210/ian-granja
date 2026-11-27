@@ -2081,6 +2081,24 @@ describe("Regressões P1 (segurança, parser, multi-contrato e MCP HTTP)", () =>
                 assert.equal(getStatus(), 401);
             }
 
+            // Token no cabeçalho x-api-key (nome aprovado pelo conector personalizado do claude.ai) => 200
+            {
+                const { res, getStatus } = createMockHttpRes();
+                await handleMcpHttpRequest(
+                    { method: "GET", headers: { host: "www.iangranja.adv.br", "x-api-key": "segredo-mcp-teste" } },
+                    res,
+                );
+                assert.equal(getStatus(), 200);
+            }
+            {
+                const { res, getStatus } = createMockHttpRes();
+                await handleMcpHttpRequest(
+                    { method: "GET", headers: { host: "www.iangranja.adv.br", "x-api-key": "errado" } },
+                    res,
+                );
+                assert.equal(getStatus(), 401);
+            }
+
             // Batch vazio [] => 400 / -32600
             {
                 const { res, getStatus, getBody } = createMockHttpRes();
