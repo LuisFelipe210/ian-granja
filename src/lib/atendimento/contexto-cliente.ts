@@ -40,13 +40,34 @@ async function lerTabela<T>(acesso: AcessoSupabase, caminho: string): Promise<T[
     return (await res.json()) as T[];
 }
 
+/**
+ * Modelos de IA escolhidos no site (tela Configurações). Se a migração ainda não rodou ou a leitura
+ * falhar, devolve vazio e o servidor usa a variável de ambiente ou o padrão — o atendimento não para.
+ */
+export async function lerModelosEscritorio(acesso: AcessoSupabase): Promise<{ resposta: string; extracao: string }> {
+    try {
+        const rows = await lerTabela<{ atendimento_modelo_resposta?: string; atendimento_modelo_extracao?: string }>(
+            acesso,
+            "revisional_configuracoes?select=atendimento_modelo_resposta,atendimento_modelo_extracao&id=eq.escritorio&limit=1",
+        );
+        return {
+            resposta: rows[0]?.atendimento_modelo_resposta ?? "",
+            extracao: rows[0]?.atendimento_modelo_extracao ?? "",
+        };
+    } catch {
+        return { resposta: "", extracao: "" };
+    }
+}
+
 const num = (v: unknown): number | null => {
     const n = typeof v === "number" ? v : Number(v);
     return Number.isFinite(n) ? n : null;
 };
 
-export async function carregarContextoCliente(clienteId: string, acesso: AcessoSupabase): Promise<ContextoAtendimento> {
-    if (!idClienteValido(clienteId)) throw new Error("Cliente inválido.");
+export async function carregarContextoCliente(idRecebido: string, acesso: AcessoSupabase): Promise<ContextoAtendimento> {
+    if (!idClienteValido(idRecebido)) throw new Error("Cliente inválido.");
+    // O PostgREST devolve UUIDs em minúsculas; comparar com o id como veio (maiúsculas) recusaria o cliente.
+    const clienteId = idRecebido.toLowerCase();
     const id = encodeURIComponent(clienteId);
 
     const [clientes, casos, fases, itens] = await Promise.all([

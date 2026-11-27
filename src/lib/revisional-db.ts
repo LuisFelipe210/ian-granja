@@ -31,6 +31,7 @@ import {
     type ItemConhecimento,
     type ItemConhecimentoPayload,
 } from "./atendimento/base-conhecimento.ts";
+import type { ConversaRow, MensagemRow } from "./atendimento/processar-whatsapp.ts";
 import {
     configEscritorioAtual,
     configParaLinha,
@@ -1045,6 +1046,23 @@ async function restRequest<T>(path: string, init: RequestInit = {}, retried = fa
             );
         }
         if (
+            path.startsWith("revisional_atendimento_") &&
+            (res.status === 404 || errBody.code === "42P01" || errBody.code === "PGRST205")
+        ) {
+            throw new RevisionalApiError(
+                "O atendimento pelo WhatsApp precisa da migração do banco (20261127130000).",
+                res.status,
+                errBody.code || "TABELA_AUSENTE",
+            );
+        }
+        if (path.startsWith("revisional_cliente_conhecimento") && errBody.code === "23514") {
+            throw new RevisionalApiError(
+                "Este item ficou grande demais para a base do atendimento. Remova alguns fatos ou encurte o resumo e salve de novo.",
+                400,
+                errBody.code,
+            );
+        }
+        if (
             path.startsWith("revisional_cliente_conhecimento") &&
             (res.status === 404 || errBody.code === "42P01" || errBody.code === "PGRST205")
         ) {
@@ -1079,7 +1097,10 @@ async function restRequest<T>(path: string, init: RequestInit = {}, retried = fa
     }
 
     if (res.status === 204) return undefined as T;
-    const raw: unknown = await res.json();
+    // POST com "return=minimal" responde 201 sem corpo.
+    const texto = await res.text();
+    if (!texto) return undefined as T;
+    const raw: unknown = JSON.parse(texto);
     return (path.startsWith("revisional_calculos") ? normalizeNumericRow(raw) : raw) as T;
 }
 
@@ -1758,6 +1779,102 @@ export async function criarItemConhecimento(payload: ItemConhecimentoPayload): P
 
 export async function excluirItemConhecimento(id: string): Promise<void> {
     await restRequest<void>(`revisional_cliente_conhecimento?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/* ----------------------------------------------------- Atendimento pelo WhatsApp */
+
+export type ConversaAtendimento = ConversaRow;
+export type MensagemAtendimento = MensagemRow;
+
+export interface AvisoAtendimento {
+    avisar_whatsapp: boolean;
+    telefone: string;
+}
+
+export async function listarConversasAtendimento(): Promise<ConversaAtendimento[]> {
+    return restRequest<ConversaAtendimento[]>(
+        "revisional_atendimento_conversas?select=*&order=ultima_mensagem_em.desc&limit=300",
+    );
+}
+
+export async function contarConversasPendentes(): Promise<number> {
+    const rows = await restRequest<Array<{ id: string }>>(
+        "revisional_atendimento_conversas?select=id&status=eq.pendente&limit=500",
+    );
+    return rows.length;
+}
+
+export async function listarMensagensConversa(conversaId: string): Promise<MensagemAtendimento[]> {
+    return restRequest<MensagemAtendimento[]>(
+        `revisional_atendimento_mensagens?select=*&conversa_id=eq.${encodeURIComponent(conversaId)}&status=neq.descartada&order=created_at.asc&limit=500`,
+    );
+}
+
+export async function atualizarConversaAtendimento(
+    id: string,
+    patch: Partial<Pick<ConversaAtendimento, "status" | "cliente_id">>,
+): Promise<void> {
+    await restRequest<void>(`revisional_atendimento_conversas?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+    });
+}
+
+export async function descartarRascunhoAtendimento(id: string): Promise<void> {
+    await restRequest<void>(
+        `revisional_atendimento_mensagens?id=eq.${encodeURIComponent(id)}&status=eq.rascunho`,
+        { method: "PATCH", body: JSON.stringify({ status: "descartada" }) },
+    );
+}
+
+/** Modelos de IA do atendimento escolhidos no site ("" = padrão do sistema). */
+export async function obterModelosAtendimento(): Promise<{ resposta: string; extracao: string }> {
+    try {
+        const rows = await restRequest<Array<{ atendimento_modelo_resposta?: string; atendimento_modelo_extracao?: string }>>(
+            "revisional_configuracoes?select=atendimento_modelo_resposta,atendimento_modelo_extracao&id=eq.escritorio",
+        );
+        return { resposta: rows[0]?.atendimento_modelo_resposta ?? "", extracao: rows[0]?.atendimento_modelo_extracao ?? "" };
+    } catch (err) {
+        if (err instanceof RevisionalApiError && (err.code === "42703" || err.code === "PGRST204")) {
+            throw new RevisionalApiError("A escolha do modelo precisa da migração do banco (20261127140000).", 400, err.code);
+        }
+        throw err;
+    }
+}
+
+export async function salvarModelosAtendimento(m: { resposta: string; extracao: string }): Promise<void> {
+    try {
+        await restRequest<void>("revisional_configuracoes?on_conflict=id", {
+            method: "POST",
+            headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify({
+                id: "escritorio",
+                atendimento_modelo_resposta: m.resposta,
+                atendimento_modelo_extracao: m.extracao,
+            }),
+        });
+    } catch (err) {
+        if (err instanceof RevisionalApiError && (err.code === "42703" || err.code === "PGRST204")) {
+            throw new RevisionalApiError("A escolha do modelo precisa da migração do banco (20261127140000).", 400, err.code);
+        }
+        throw err;
+    }
+}
+
+/** O aviso da pessoa logada (a RLS só deixa ver e mudar o próprio). */
+export async function obterMeuAvisoAtendimento(): Promise<AvisoAtendimento> {
+    const rows = await restRequest<AvisoAtendimento[]>("revisional_atendimento_avisos?select=avisar_whatsapp,telefone&limit=1");
+    return rows[0] ?? { avisar_whatsapp: false, telefone: "" };
+}
+
+export async function salvarMeuAvisoAtendimento(aviso: AvisoAtendimento): Promise<void> {
+    const telefone = aviso.telefone.replace(/\D/g, "");
+    const comDdi = telefone.length === 10 || telefone.length === 11 ? `55${telefone}` : telefone;
+    await restRequest<void>("revisional_atendimento_avisos?on_conflict=user_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ avisar_whatsapp: aviso.avisar_whatsapp, telefone: comDdi.slice(0, 15) }),
+    });
 }
 
 /** Liga um caso a outro cliente (o gatilho do banco respeita a escolha) e alinha o nome do caso. */

@@ -97,6 +97,7 @@ import {
     atualizarCalculo,
     calculoParaProcesso,
     consumirHashRecuperacao,
+    contarConversasPendentes,
     criarCalculo,
     existeCalculoComProcesso,
     criarCategoria,
@@ -133,6 +134,9 @@ const AgendaSistema = lazy(() =>
 );
 const SheetTarefa = lazy(() =>
     import("@/components/juros/AgendaSistema").then((m) => ({ default: m.SheetTarefa })),
+);
+const AtendimentoSistema = lazy(() =>
+    import("@/components/juros/AtendimentoSistema").then((m) => ({ default: m.AtendimentoSistema })),
 );
 const ClientesSistema = lazy(() =>
     import("@/components/juros/ClientesSistema").then((m) => ({ default: m.ClientesSistema })),
@@ -992,6 +996,8 @@ const CalculadoraAdvogado = () => {
             ? "inicio"
             : subRota === "agenda"
               ? "agenda"
+              : subRota === "atendimento"
+                ? "atendimento"
               : subRota === "documentos"
                 ? "documentos"
                 : subRota === "clientes"
@@ -1993,6 +1999,27 @@ const CalculadoraAdvogado = () => {
         [processosSalvos],
     );
 
+    // Contador do menu "Atendimento": conversas do WhatsApp esperando o escritório.
+    const [atendimentoPendentes, setAtendimentoPendentes] = useState(0);
+    useEffect(() => {
+        if (!sessao) return;
+        let ativo = true;
+        const atualizar = () => {
+            if (document.visibilityState !== "visible") return;
+            void contarConversasPendentes()
+                .then((n) => {
+                    if (ativo) setAtendimentoPendentes(n);
+                })
+                .catch(() => undefined); // sem a migração ainda: fica 0
+        };
+        atualizar();
+        const id = window.setInterval(atualizar, 60_000);
+        return () => {
+            ativo = false;
+            window.clearInterval(id);
+        };
+    }, [sessao]);
+
     const agendaPendentesCount = useMemo(() => {
         const hojeIso = dataHojeLocalISO();
         return tarefas.filter((t) => !t.concluida && t.data <= hojeIso).length;
@@ -2004,6 +2031,9 @@ const CalculadoraAdvogado = () => {
         }
         if (aba === "agenda") {
             return { tituloTela: "Agenda", breadcrumb: null };
+        }
+        if (aba === "atendimento") {
+            return { tituloTela: "Atendimento", breadcrumb: null };
         }
         if (aba === "documentos") {
             return { tituloTela: "Documentos", breadcrumb: null };
@@ -2072,6 +2102,7 @@ const CalculadoraAdvogado = () => {
             processosSalvosCount={processosSalvos.length}
             temPublicacaoNova={temPublicacaoNova}
             agendaPendentesCount={agendaPendentesCount}
+            atendimentoPendentesCount={atendimentoPendentes}
             calculoAtivoId={calculoAtivoId}
             mostrarBotaoLimparCalculo={aba === "calculadora" && Boolean(calculoAtivoId || res || ficha.clienteNome)}
             onLimparCalculo={limparFormulario}
@@ -2199,6 +2230,8 @@ const CalculadoraAdvogado = () => {
                         onRecarregarCasos={() => void carregarDadosEscritorio()}
                     />
                 )}
+
+                {aba === "atendimento" && <AtendimentoSistema onPendentesChange={setAtendimentoPendentes} />}
 
                 {aba === "documentos" && <DocumentosSistema calculos={calculos} />}
 

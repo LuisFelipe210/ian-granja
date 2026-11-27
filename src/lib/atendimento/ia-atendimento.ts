@@ -16,9 +16,16 @@ import {
     type RespostaAtendimento,
 } from "./base-conhecimento.ts";
 
-/** Modelo do atendimento. Pode ser trocado pelo escritório com ATENDIMENTO_MODEL. */
-export const MODELO_ATENDIMENTO_PADRAO = "claude-opus-5-5";
-const MODELOS_ATENDIMENTO_PERMITIDOS = new Set(["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+import { escolherModelo, MODELO_EXTRACAO_PADRAO, MODELO_RESPOSTA_PADRAO } from "./modelos.ts";
+
+/**
+ * Modelos do atendimento (escolha do escritório pelo custo, na tela Configurações):
+ * - rascunhos de resposta: Haiku por padrão (muitos, curtos; a trava em código e a aprovação do advogado
+ *   seguram a qualidade);
+ * - leitura de PDFs/fotos: Sonnet por padrão (poucos; o advogado revisa os fatos antes de salvar).
+ * Ordem: escolha salva no site → ATENDIMENTO_MODEL / ATENDIMENTO_MODEL_EXTRACAO → padrão.
+ */
+export { MODELO_EXTRACAO_PADRAO, MODELO_RESPOSTA_PADRAO };
 /** Só estes aceitam o fallback de recusas no servidor. */
 const MODELOS_COM_FALLBACK = new Set(["claude-opus-5-5", "claude-sonnet-5-5"]);
 
@@ -32,9 +39,12 @@ export interface TurnoConversa {
     texto: string;
 }
 
-export function resolverModeloAtendimento(doAmbiente?: string): string {
-    const m = (doAmbiente ?? "").trim();
-    return MODELOS_ATENDIMENTO_PERMITIDOS.has(m) ? m : MODELO_ATENDIMENTO_PADRAO;
+export function resolverModeloResposta(doAmbiente?: string, doSite?: string): string {
+    return escolherModelo([doSite, doAmbiente], MODELO_RESPOSTA_PADRAO);
+}
+
+export function resolverModeloExtracao(doAmbiente?: string, doSite?: string): string {
+    return escolherModelo([doSite, doAmbiente], MODELO_EXTRACAO_PADRAO);
 }
 
 export function criarClienteAnthropic(opts: { apiKey?: string; fetchFn?: typeof fetch } = {}): Anthropic {
@@ -43,8 +53,10 @@ export function criarClienteAnthropic(opts: { apiKey?: string; fetchFn?: typeof 
     if (!apiKey) throw new Error("Configure a chave ANTHROPIC_API_KEY no servidor para usar o atendimento por IA.");
     return new Anthropic({
         apiKey,
-        timeout: 55_000,
-        maxRetries: 1,
+        // Uma tentativa só, com folga: a função da Vercel morre aos 60s (vercel.json), e ainda há a
+        // checagem de login e a leitura do Supabase antes. Estourar ali vira um 504 sem mensagem útil.
+        timeout: 45_000,
+        maxRetries: 0,
         ...(opts.fetchFn ? { fetch: opts.fetchFn } : {}),
     });
 }
@@ -117,7 +129,7 @@ export async function extrairDocumentoCliente(opts: {
     client: Anthropic;
     modelo?: string;
 }): Promise<ExtracaoDocumento & { modelo: string }> {
-    const modelo = opts.modelo ?? MODELO_ATENDIMENTO_PADRAO;
+    const modelo = opts.modelo ?? MODELO_EXTRACAO_PADRAO;
     const documento: Anthropic.Beta.BetaContentBlockParam =
         opts.mediaType === "application/pdf"
             ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: opts.base64 } }
@@ -192,7 +204,7 @@ export async function responderMensagemCliente(opts: {
     client: Anthropic;
     modelo?: string;
 }): Promise<RespostaAtendimento & { modelo: string }> {
-    const modelo = opts.modelo ?? MODELO_ATENDIMENTO_PADRAO;
+    const modelo = opts.modelo ?? MODELO_RESPOSTA_PADRAO;
     const mensagem = opts.mensagem.trim().slice(0, MAX_MENSAGEM_CLIENTE);
 
     // O histórico vai como transcrição (contexto da conversa), não como turnos: assim a IA não "aprende"

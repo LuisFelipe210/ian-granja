@@ -8,6 +8,7 @@ import {
     ImagePlus,
     Loader2,
     LogOut,
+    MessageCircle,
     PenTool,
     Plug,
     Trash2,
@@ -29,7 +30,23 @@ import {
 import { useConfigEscritorio } from "@/lib/use-config-escritorio";
 import { dataPorExtenso } from "@/lib/documentos";
 import { prepararImagemAssinatura, prepararImagemTimbradoA4 } from "@/lib/timbrado-imagem";
-import { alterarSenha, obterConfigEscritorio, salvarConfigEscritorio } from "@/lib/revisional-db";
+import {
+    alterarSenha,
+    obterConfigEscritorio,
+    obterMeuAvisoAtendimento,
+    obterModelosAtendimento,
+    salvarConfigEscritorio,
+    salvarMeuAvisoAtendimento,
+    salvarModelosAtendimento,
+} from "@/lib/revisional-db";
+import {
+    MODELO_EXTRACAO_PADRAO,
+    MODELO_RESPOSTA_PADRAO,
+    MODELOS_ATENDIMENTO,
+    modeloPermitido,
+} from "@/lib/atendimento/modelos";
+import { chamarAtendimento } from "@/lib/atendimento/api-cliente";
+import { normalizarTelefone, telefoneLegivel } from "@/lib/atendimento/telefone";
 import {
     ErroGoogleDrive,
     GOOGLE_DRIVE_CONFIGURADO,
@@ -664,7 +681,290 @@ function ControleGoogleDrive() {
     );
 }
 
-type IdIntegracao = "claude" | "drive";
+/* ------------------------------------------------------- WhatsApp */
+
+function useStatusWhatsApp() {
+    const [status, setStatus] = useState<{ configurado: boolean; avisoPorWhatsApp: boolean } | null>(null);
+    useEffect(() => {
+        let ativo = true;
+        void chamarAtendimento<{ configurado: boolean; avisoPorWhatsApp: boolean }>({ acao: "status_whatsapp" })
+            .then((s) => ativo && setStatus({ configurado: s.configurado, avisoPorWhatsApp: s.avisoPorWhatsApp }))
+            .catch(() => ativo && setStatus({ configurado: false, avisoPorWhatsApp: false }));
+        return () => {
+            ativo = false;
+        };
+    }, []);
+    return status;
+}
+
+const VARIAVEIS_WHATSAPP: Array<[string, string]> = [
+    ["YCLOUD_API_KEY", "Chave da API criada no painel da YCloud."],
+    ["YCLOUD_WEBHOOK_SECRET", "Segredo do webhook (começa com whsec_), mostrado ao cadastrar o endereço abaixo."],
+    ["WHATSAPP_NUMERO_ESCRITORIO", "Número do WhatsApp do escritório com DDD, ex.: (81) 3000-0000."],
+    ["SUPABASE_SERVICE_ROLE_KEY", "Chave service role do Supabase: o webhook grava as mensagens sem usuário logado."],
+    ["WHATSAPP_TEMPLATE_AVISO", "Opcional: nome do template aprovado para avisar o advogado ({{1}} = cliente, {{2}} = mensagem)."],
+];
+
+const EVENTOS_YCLOUD = ["whatsapp.inbound_message.received", "whatsapp.smb.message.echoes", "whatsapp.message.updated"];
+
+/** Modelo de IA do atendimento: vale para o escritório todo. */
+function EscolhaModeloIa() {
+    const [carregado, setCarregado] = useState(false);
+    const [erro, setErro] = useState("");
+    const [resposta, setResposta] = useState(MODELO_RESPOSTA_PADRAO);
+    const [extracao, setExtracao] = useState(MODELO_EXTRACAO_PADRAO);
+    const [salvando, setSalvando] = useState(false);
+
+    useEffect(() => {
+        void obterModelosAtendimento()
+            .then((m) => {
+                if (modeloPermitido(m.resposta)) setResposta(m.resposta);
+                if (modeloPermitido(m.extracao)) setExtracao(m.extracao);
+            })
+            .catch((err) => setErro((err as Error).message))
+            .finally(() => setCarregado(true));
+    }, []);
+
+    const salvar = async (e: FormEvent) => {
+        e.preventDefault();
+        setSalvando(true);
+        try {
+            await salvarModelosAtendimento({ resposta, extracao });
+            toast.success("Modelo de IA salvo para o escritório.");
+        } catch (err) {
+            toast.error((err as Error).message);
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    const campo = (
+        id: string,
+        rotulo: string,
+        ajuda: string,
+        valor: string,
+        setValor: (v: string) => void,
+        custo: (m: (typeof MODELOS_ATENDIMENTO)[number]) => string,
+        padrao: string,
+    ) => (
+        <div className="space-y-1">
+            <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+                {rotulo}
+            </label>
+            <select
+                id={id}
+                value={valor}
+                disabled={!carregado || Boolean(erro)}
+                onChange={(e) => setValor(e.target.value)}
+                className={cn(classeCampo, "w-full")}
+            >
+                {MODELOS_ATENDIMENTO.map((m) => (
+                    <option key={m.id} value={m.id}>
+                        {m.nome} · {custo(m)}
+                        {m.id === padrao ? " (recomendado)" : ""}
+                    </option>
+                ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground">
+                {MODELOS_ATENDIMENTO.find((m) => m.id === valor)?.resumo} {ajuda}
+            </p>
+        </div>
+    );
+
+    return (
+        <form onSubmit={(e) => void salvar(e)} className="space-y-3">
+            <div>
+                <h3 className="sys-section text-ink">Modelo de IA</h3>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    Vale para o escritório todo: WhatsApp, simulador e leitura de documentos. A trava contra resposta
+                    inventada e a sua aprovação continuam valendo com qualquer modelo.
+                </p>
+            </div>
+            {erro ? (
+                <p className="text-xs text-destructive">{erro}</p>
+            ) : (
+                <>
+                    {campo(
+                        "modelo-resposta",
+                        "Rascunhos de resposta",
+                        "Custo por 1.000 rascunhos.",
+                        resposta,
+                        setResposta,
+                        (m) => `${m.custoMilRascunhos} / mil`,
+                        MODELO_RESPOSTA_PADRAO,
+                    )}
+                    {campo(
+                        "modelo-extracao",
+                        "Leitura de documentos (PDF e foto)",
+                        "Custo por documento de ~20 páginas.",
+                        extracao,
+                        setExtracao,
+                        (m) => `${m.custoDocumento} / doc`,
+                        MODELO_EXTRACAO_PADRAO,
+                    )}
+                    <button type="submit" disabled={!carregado || salvando} className={classeBotaoPrimario}>
+                        {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                        Salvar modelo
+                    </button>
+                </>
+            )}
+        </form>
+    );
+}
+
+function ControleWhatsApp() {
+    const status = useStatusWhatsApp();
+    const [carregado, setCarregado] = useState(false);
+    const [avisar, setAvisar] = useState(false);
+    const [telefone, setTelefone] = useState("");
+    const [salvando, setSalvando] = useState(false);
+    const [erroCarregar, setErroCarregar] = useState("");
+
+    useEffect(() => {
+        void obterMeuAvisoAtendimento()
+            .then((a) => {
+                setAvisar(a.avisar_whatsapp);
+                setTelefone(a.telefone ? telefoneLegivel(a.telefone) : "");
+            })
+            .catch((err) => setErroCarregar((err as Error).message))
+            .finally(() => setCarregado(true));
+    }, []);
+
+    const digitos = normalizarTelefone(telefone);
+    const telefoneValido = digitos.length >= 12 && digitos.length <= 15;
+
+    const salvar = async (e: FormEvent) => {
+        e.preventDefault();
+        if (avisar && !telefoneValido) {
+            toast.error("Informe o seu celular com DDD, ex.: (81) 98765-4321.");
+            return;
+        }
+        setSalvando(true);
+        try {
+            await salvarMeuAvisoAtendimento({ avisar_whatsapp: avisar, telefone: telefoneValido ? digitos : "" });
+            toast.success(avisar ? "Pronto: você vai ser avisado no WhatsApp." : "Aviso pelo WhatsApp desligado.");
+        } catch (err) {
+            toast.error((err as Error).message);
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    const webhookUrl = typeof window !== "undefined" ? `${window.location.origin}/api/whatsapp-webhook` : "/api/whatsapp-webhook";
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-2 border border-ink/15 p-3 text-sm">
+                <span aria-hidden className={cn("size-1.5 shrink-0", status?.configurado ? "bg-emerald-700" : "bg-ink/30")} />
+                <span className="text-ink">
+                    {status === null
+                        ? "Verificando…"
+                        : status.configurado
+                          ? "Número do escritório ligado. As mensagens chegam no menu Atendimento."
+                          : "Ainda não configurado no servidor."}
+                </span>
+            </div>
+
+            <EscolhaModeloIa />
+
+            <form onSubmit={(e) => void salvar(e)} className="space-y-3 border-t border-ink/10 pt-5">
+                <div>
+                    <h3 className="sys-section text-ink">Como eu quero ser avisado</h3>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                        Toda mensagem nova aparece no menu <strong className="text-ink">Atendimento</strong>, com contador.
+                        Se quiser, receba também um aviso no seu WhatsApp pessoal. Vale só para a sua conta.
+                    </p>
+                </div>
+                {erroCarregar ? (
+                    <p className="text-xs text-destructive">{erroCarregar}</p>
+                ) : (
+                    <>
+                        <label className="flex items-center gap-2 text-sm text-ink">
+                            <input
+                                type="checkbox"
+                                checked={avisar}
+                                disabled={!carregado}
+                                onChange={(e) => setAvisar(e.target.checked)}
+                            />
+                            Me avisar no meu WhatsApp quando um cliente mandar mensagem
+                        </label>
+                        <div className="max-w-xs space-y-1">
+                            <label htmlFor="aviso-telefone" className="text-xs font-medium text-muted-foreground">
+                                Meu celular
+                            </label>
+                            <input
+                                id="aviso-telefone"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                value={telefone}
+                                disabled={!carregado}
+                                onChange={(e) => setTelefone(e.target.value)}
+                                placeholder="(81) 98765-4321"
+                                className={classeCampo}
+                            />
+                        </div>
+                        {avisar && status && !status.avisoPorWhatsApp && (
+                            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                                <AlertTriangle aria-hidden className="mt-0.5 size-3.5 shrink-0 text-gold-deep" />
+                                O aviso no WhatsApp só sai depois que o template de aviso for aprovado na Meta
+                                (WHATSAPP_TEMPLATE_AVISO). Até lá, use o menu Atendimento.
+                            </p>
+                        )}
+                        <button type="submit" disabled={!carregado || salvando} className={classeBotaoPrimario}>
+                            {salvando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                            Salvar meu aviso
+                        </button>
+                    </>
+                )}
+            </form>
+
+            <details className="group border-t border-ink/10 pt-4">
+                <summary className="cursor-pointer text-sm font-semibold text-ink">Como ligar o número do escritório</summary>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    O número continua no WhatsApp Business do celular (coexistência) e passa também pelo sistema, via
+                    YCloud (parceira oficial da Meta, plano grátis).
+                </p>
+                <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-relaxed text-muted-foreground">
+                    <li>
+                        Crie a conta em ycloud.com e conecte o WhatsApp Business do escritório pela opção de coexistência
+                        (“WhatsApp Business App”), escaneando o QR code com o celular do escritório.
+                    </li>
+                    <li>
+                        No painel da YCloud, crie uma chave de API e cadastre o webhook{" "}
+                        <code className="break-all bg-secondary px-1 py-0.5 text-[11px] text-ink">{webhookUrl}</code> com os
+                        eventos{" "}
+                        {EVENTOS_YCLOUD.map((ev, i) => (
+                            <span key={ev}>
+                                <code className="bg-secondary px-1 py-0.5 text-[11px] text-ink">{ev}</code>
+                                {i < EVENTOS_YCLOUD.length - 1 ? ", " : "."}
+                            </span>
+                        ))}
+                    </li>
+                    <li>
+                        Na Vercel (Settings → Environment Variables), cadastre:
+                        <ul className="mt-1.5 space-y-1">
+                            {VARIAVEIS_WHATSAPP.map(([nome, desc]) => (
+                                <li key={nome}>
+                                    <code className="bg-secondary px-1 py-0.5 text-[11px] text-ink">{nome}</code> {desc}
+                                </li>
+                            ))}
+                        </ul>
+                    </li>
+                    <li>
+                        Abra o WhatsApp Business do celular pelo menos a cada 13 dias: sem isso a Meta desliga a
+                        coexistência.
+                    </li>
+                    <li>
+                        Confira se o telefone dos clientes está no cadastro: é por ele que o sistema reconhece quem está
+                        escrevendo. Números desconhecidos chegam como “Sem cadastro” e você liga ao cliente na conversa.
+                    </li>
+                </ol>
+            </details>
+        </div>
+    );
+}
+
+type IdIntegracao = "claude" | "drive" | "whatsapp";
 
 const INTEGRACOES: Array<{ id: IdIntegracao; nome: string; resumo: string; descricao: string }> = [
     {
@@ -673,6 +973,13 @@ const INTEGRACOES: Array<{ id: IdIntegracao; nome: string; resumo: string; descr
         resumo: "Conector MCP para operar o sistema pela conversa.",
         descricao:
             "Mande o contrato em PDF ou foto no Claude e ele calcula, cadastra o cliente, renova cálculos, muda fases e consulta a carteira.",
+    },
+    {
+        id: "whatsapp",
+        nome: "WhatsApp",
+        resumo: "Mensagens dos clientes com resposta preparada pela IA.",
+        descricao:
+            "A IA lê a base do cliente e deixa um rascunho; o escritório revisa e clica em Enviar. Nada sai sem aprovação.",
     },
     {
         id: "drive",
@@ -684,6 +991,7 @@ const INTEGRACOES: Array<{ id: IdIntegracao; nome: string; resumo: string; descr
 ];
 
 function IconeIntegracao({ id, className }: { id: IdIntegracao; className?: string }) {
+    if (id === "whatsapp") return <MessageCircle aria-hidden className={cn("text-ink", className)} strokeWidth={1.85} />;
     return id === "drive" ? (
         <IconeGoogleDrive className={className} />
     ) : (
@@ -734,7 +1042,13 @@ function PainelIntegracao({ id, onFechar }: { id: IdIntegracao | null; onFechar:
                 </div>
                 <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5">
                     <p className="text-sm leading-relaxed text-muted-foreground">{item.descricao}</p>
-                    {item.id === "claude" ? <ConteudoConectorMcp semIntro /> : <ControleGoogleDrive />}
+                    {item.id === "claude" ? (
+                        <ConteudoConectorMcp semIntro />
+                    ) : item.id === "whatsapp" ? (
+                        <ControleWhatsApp />
+                    ) : (
+                        <ControleGoogleDrive />
+                    )}
                 </div>
             </div>
         </div>,
@@ -742,8 +1056,19 @@ function PainelIntegracao({ id, onFechar }: { id: IdIntegracao | null; onFechar:
     );
 }
 
+function StatusWhatsAppCartao() {
+    const status = useStatusWhatsApp();
+    return (
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <span aria-hidden className={cn("size-1.5 shrink-0", status?.configurado ? "bg-emerald-700" : "bg-ink/30")} />
+            <span className="truncate">{status === null ? "…" : status.configurado ? "Conectado" : "Não configurado"}</span>
+        </span>
+    );
+}
+
 function StatusIntegracao({ id }: { id: IdIntegracao }) {
     const conta = useContaDrive();
+    if (id === "whatsapp") return <StatusWhatsAppCartao />;
     if (id === "claude") {
         return <span className="text-xs text-muted-foreground">Ver como conectar</span>;
     }
@@ -761,7 +1086,8 @@ function StatusIntegracao({ id }: { id: IdIntegracao }) {
 function AbaIntegracoes() {
     const [params, setParams] = useSearchParams();
     const aberta = params.get("integracao");
-    const idAberto: IdIntegracao | null = aberta === "claude" || aberta === "drive" ? aberta : null;
+    const idAberto: IdIntegracao | null =
+        aberta === "claude" || aberta === "drive" || aberta === "whatsapp" ? aberta : null;
 
     const abrir = (id: IdIntegracao | null) => {
         const p = new URLSearchParams(params);

@@ -14,12 +14,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import {
-    criarItemConhecimento,
-    excluirItemConhecimento,
-    listarConhecimentoCliente,
-    obterSessaoAtiva,
-} from "@/lib/revisional-db";
+import { criarItemConhecimento, excluirItemConhecimento, listarConhecimentoCliente } from "@/lib/revisional-db";
+import { chamarAtendimento } from "@/lib/atendimento/api-cliente";
 import type {
     ExtracaoDocumento,
     FatoDocumento,
@@ -29,19 +25,6 @@ import type {
 
 const LIMITE_ARQUIVO = 3 * 1024 * 1024;
 const TIPOS_ACEITOS = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-
-async function chamarAtendimento<T>(corpo: Record<string, unknown>): Promise<T> {
-    const sessao = await obterSessaoAtiva();
-    if (!sessao) throw new Error("Sessão expirada. Entre novamente.");
-    const res = await fetch("/api/atendimento-ia", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessao.accessToken}` },
-        body: JSON.stringify(corpo),
-    });
-    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string } & T;
-    if (!res.ok || !json.ok) throw new Error(json.message || `Falha no atendimento por IA (${res.status}).`);
-    return json;
-}
 
 function lerBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -82,6 +65,7 @@ function EditorRascunho({
     onCancelar: () => void;
 }) {
     const doc = rascunho.origem === "documento";
+    const podeSalvar = !salvando && !!rascunho.titulo.trim() && (!!rascunho.resumo.trim() || rascunho.fatos.length > 0);
     return (
         <div className="space-y-2.5 border border-gold/60 bg-gold/5 p-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink">
@@ -91,6 +75,11 @@ function EditorRascunho({
                 aria-label="Título"
                 value={rascunho.titulo}
                 onChange={(e) => onChange({ ...rascunho, titulo: e.target.value })}
+                onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    if (podeSalvar) onSalvar();
+                }}
                 maxLength={200}
                 placeholder="Título"
                 className="field py-1.5 text-sm"
@@ -152,7 +141,7 @@ function EditorRascunho({
                 </button>
                 <button
                     type="button"
-                    disabled={salvando || !rascunho.titulo.trim() || (!rascunho.resumo.trim() && rascunho.fatos.length === 0)}
+                    disabled={!podeSalvar}
                     onClick={onSalvar}
                     className="inline-flex h-8 items-center gap-1.5 bg-gold px-3 text-xs font-semibold text-ink hover:bg-gold-light disabled:opacity-50"
                 >
@@ -385,7 +374,14 @@ export function BaseConhecimentoCliente({ clienteId, nomeCliente }: { clienteId:
     };
 
     return (
-        <section className="space-y-2.5">
+        // Esta seção é renderizada dentro do <form> da ficha do cliente: Enter num campo daqui não pode
+        // enviar aquele formulário (salvaria o cadastro e a anotação se perderia).
+        <section
+            className="space-y-2.5"
+            onKeyDown={(e) => {
+                if (e.key === "Enter" && e.target instanceof HTMLInputElement) e.preventDefault();
+            }}
+        >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 pb-1.5">
                 <h3 className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <Bot className="size-3.5" /> Base do atendimento por IA ({itens.length})

@@ -25,6 +25,7 @@ import {
     Home,
     LogOut,
     Menu,
+    MessageCircle,
     PanelLeftClose,
     PanelLeftOpen,
     Radar,
@@ -51,6 +52,7 @@ export type AbaSistema =
     | "clientes"
     | "processos"
     | "agenda"
+    | "atendimento"
     | "documentos"
     | "painel"
     | "configuracoes";
@@ -69,6 +71,8 @@ interface ShellSistemaProps {
     processosSalvosCount: number;
     temPublicacaoNova: boolean;
     agendaPendentesCount: number;
+    /** Conversas do WhatsApp esperando o escritório. */
+    atendimentoPendentesCount?: number;
     calculoAtivoId: string | null;
     mostrarBotaoLimparCalculo?: boolean;
     onLimparCalculo?: () => void;
@@ -100,6 +104,7 @@ export const ShellSistema = ({
     processosSalvosCount,
     temPublicacaoNova,
     agendaPendentesCount,
+    atendimentoPendentesCount = 0,
     calculoAtivoId,
     mostrarBotaoLimparCalculo = false,
     onLimparCalculo,
@@ -485,6 +490,13 @@ export const ShellSistema = ({
                     to: `${BASE_ROTA}/agenda`,
                     Icone: CalendarDays,
                     badge: agendaPendentesCount > 0 ? agendaPendentesCount : null,
+                },
+                {
+                    id: "atendimento",
+                    rotulo: "Atendimento",
+                    to: `${BASE_ROTA}/atendimento`,
+                    Icone: MessageCircle,
+                    badge: atendimentoPendentesCount > 0 ? atendimentoPendentesCount : null,
                 },
                 {
                     id: "documentos",
