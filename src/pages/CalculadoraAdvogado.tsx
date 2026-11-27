@@ -1000,7 +1000,7 @@ const CalculadoraAdvogado = () => {
                 ? "atendimento"
               : subRota === "documentos"
                 ? "documentos"
-                : subRota === "clientes"
+                : subRota === "clientes" || subRota.startsWith("clientes/")
                   ? "clientes"
               : subRota === "painel"
                 ? "painel"
@@ -1018,6 +1018,9 @@ const CalculadoraAdvogado = () => {
         if (subRota === "categorias") navigate(`${BASE_ROTA}/configuracoes?aba=fases`, { replace: true });
     }, [subRota, navigate]);
 
+    const rotaClienteId = subRota.startsWith("clientes/")
+        ? decodeURIComponent(subRota.slice("clientes/".length)) || null
+        : null;
     const rotaCasoId = subRota.startsWith("caso/") ? decodeURIComponent(subRota.slice(5)) : null;
     const rotaProcessoId = subRota.startsWith("processos/")
         ? decodeURIComponent(subRota.slice("processos/".length))
@@ -2223,6 +2226,12 @@ const CalculadoraAdvogado = () => {
                 {aba === "clientes" && (
                     <ClientesSistema
                         calculos={calculos}
+                        clienteIdRota={rotaClienteId}
+                        onNavegarCliente={(id, opcoes) =>
+                            navigate(id ? `${BASE_ROTA}/clientes/${encodeURIComponent(id)}` : `${BASE_ROTA}/clientes`, {
+                                replace: opcoes?.substituir,
+                            })
+                        }
                         onAbrirCaso={abrirCasoOuProcesso}
                         onGerarDocumento={(clienteId) =>
                             navigate(`${BASE_ROTA}/documentos?gerar=1&clienteId=${encodeURIComponent(clienteId)}`)
