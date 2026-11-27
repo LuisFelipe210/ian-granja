@@ -7,6 +7,7 @@ import {
     type RevisionalDbAdapter,
 } from "../src/lib/mcp/revisional-mcp-core.ts";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/lib/revisional-db.ts";
+import { urlBase, verificarTokenAcesso } from "../src/lib/mcp/oauth.ts";
 import type { ApiHttpRequest, ApiHttpResponse, OpcoesConfiancaApi } from "./claude-revisional.ts";
 import {
     aplicarHeadersApiSeguros,
@@ -36,6 +37,11 @@ async function autenticarMcp(
     // Anthropic, e "authorization" fica reservado ao OAuth).
     const providedMcpToken =
         getHeader(request.headers, "x-mcp-token").trim() || getHeader(request.headers, "x-api-key").trim() || bearerToken;
+
+    // Token do login OAuth do conector (claude.ai → "Vincular"): assinado por este servidor.
+    if (bearerToken && verificarTokenAcesso(bearerToken)) {
+        return { ok: true, db: new RevisionalServerDb({ fetchFn: options.fetchFn }) };
+    }
 
     if (expectedMcpToken) {
         if (!timingSafeEqualStr(providedMcpToken, expectedMcpToken)) {
@@ -84,7 +90,7 @@ export async function handleMcpHttpRequest(
         request.headers,
         response,
         "GET, POST, OPTIONS",
-        "Content-Type, Authorization, x-mcp-token",
+        "Content-Type, Authorization, x-mcp-token, x-api-key, mcp-protocol-version",
     );
 
     if (request.method === "OPTIONS") {
@@ -98,6 +104,12 @@ export async function handleMcpHttpRequest(
 
     const auth = await autenticarMcp(request, options);
     if (!auth.ok) {
+        // Diz ao Claude onde fazer o login OAuth (MCP: Protected Resource Metadata).
+        const base = urlBase(getHeader(request.headers, "x-forwarded-host") || getHeader(request.headers, "host"));
+        response.setHeader?.(
+            "WWW-Authenticate",
+            `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
+        );
         return response.status(401).json({
             jsonrpc: "2.0",
             id: null,
