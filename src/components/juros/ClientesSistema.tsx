@@ -1,57 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import {
-    AlertTriangle,
-    Building2,
-    Check,
-    ClipboardCopy,
-    ExternalLink,
-    FilePlus2,
-    Loader2,
-    MapPin,
-    Plus,
-    RefreshCw,
-    Search,
-    Trash2,
-    UserRound,
-    X,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Building2, Loader2, MapPin, Plus, RefreshCw, Search, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatarCpfCnpj, formatarTelefone, pendenciasCadastro, somenteDigitos } from "@/lib/clientes";
 import {
-    ESTADOS_CIVIS,
-    buscarCep,
-    cnpjValido,
-    cpfValido,
-    formatarCep,
-    formatarCpfCnpj,
-    formatarTelefone,
-    mascaraCpfCnpj,
-    pendenciasCadastro,
-    qualificacaoCompleta,
-    somenteDigitos,
-} from "@/lib/clientes";
-import {
-    atualizarCliente,
-    clienteEmBranco,
-    criarCliente,
-    excluirCliente,
+    excluirClientes,
     isTabelaTarefasAusente,
     listarClientes,
-    vincularCasoAoCliente,
     type CalculoSalvo,
     type Cliente,
-    type ClientePayload,
 } from "@/lib/revisional-db";
-import { useTravarRolagem } from "@/lib/use-travar-rolagem";
 import { usePaginacao } from "@/lib/use-paginacao";
+import { ModalConfirmarExclusao } from "@/components/juros/ModalConfirmarExclusao";
+import { fraseExclusaoClientes } from "@/lib/confirmacao";
 import { BarraPaginacao } from "@/components/juros/PaginacaoLista";
-import { BaseConhecimentoCliente } from "@/components/juros/BaseConhecimentoCliente";
-
-const UFS = [
-    "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
-    "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO",
-];
+import { PaginaCliente } from "@/components/juros/PaginaCliente";
 
 function normalizar(s: string): string {
     return s
@@ -60,736 +23,31 @@ function normalizar(s: string): string {
         .toLowerCase();
 }
 
-function paraFormulario(c: Cliente | null): ClientePayload {
-    if (!c) return clienteEmBranco();
-    const base = clienteEmBranco();
-    const out = { ...base };
-    for (const chave of Object.keys(base) as Array<keyof ClientePayload>) {
-        const v = c[chave];
-        if (v !== undefined) (out as Record<string, unknown>)[chave] = v ?? base[chave];
-    }
-    return out;
-}
-
-function erroDocumento(form: ClientePayload): string | null {
-    const d = somenteDigitos(form.cpf_cnpj);
-    if (!d) return null;
-    if (form.tipo_pessoa === "pj") return cnpjValido(d) ? null : "CNPJ inválido. Confira os números.";
-    return cpfValido(d) ? null : "CPF inválido. Confira os números.";
-}
-
-/* ------------------------------------------------------- Campos do formulário */
-
-function Campo({
-    id,
+/** Caixa de seleção que aceita o estado "parcial" (alguns itens marcados). */
+function CaixaSelecao({
+    marcada,
+    parcial = false,
+    onChange,
     rotulo,
-    children,
-    erro,
-    className,
 }: {
-    id: string;
+    marcada: boolean;
+    parcial?: boolean;
+    onChange: (marcada: boolean) => void;
     rotulo: string;
-    children: ReactNode;
-    erro?: string | null;
-    className?: string;
 }) {
+    const ref = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        if (ref.current) ref.current.indeterminate = parcial && !marcada;
+    }, [parcial, marcada]);
     return (
-        <div className={className}>
-            <label htmlFor={id} className="sys-label block">
-                {rotulo}
-            </label>
-            {children}
-            {erro && <p className="mt-1 text-[11px] font-medium text-destructive">{erro}</p>}
-        </div>
-    );
-}
-
-function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
-    return (
-        <section className="space-y-3">
-            <h3 className="border-b border-ink/10 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {titulo}
-            </h3>
-            <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">{children}</div>
-        </section>
-    );
-}
-
-/* ------------------------------------------------------- Ficha do cliente */
-
-interface AlvoFicha {
-    cliente: Cliente | null;
-}
-
-function FichaCliente({
-    alvo,
-    calculos,
-    onFechar,
-    onSalvo,
-    onExcluido,
-    onAbrirCaso,
-    onGerarDocumento,
-    onCasosAlterados,
-}: {
-    alvo: AlvoFicha | null;
-    calculos: CalculoSalvo[];
-    onFechar: () => void;
-    onSalvo: (c: Cliente, novo: boolean) => void;
-    onExcluido: (id: string) => void;
-    onAbrirCaso: (c: CalculoSalvo) => void;
-    onGerarDocumento: (clienteId: string) => void;
-    onCasosAlterados: () => void;
-}) {
-    useTravarRolagem(Boolean(alvo));
-    const [form, setForm] = useState<ClientePayload>(clienteEmBranco());
-    const [original, setOriginal] = useState<ClientePayload>(clienteEmBranco());
-    const [salvando, setSalvando] = useState(false);
-    const [buscandoCep, setBuscandoCep] = useState(false);
-    const [erroCep, setErroCep] = useState<string | null>(null);
-    const [confirmarExclusao, setConfirmarExclusao] = useState(false);
-    const [confirmarDescarte, setConfirmarDescarte] = useState(false);
-    const [casoParaVincular, setCasoParaVincular] = useState("");
-    const nomeRef = useRef<HTMLInputElement>(null);
-    const numeroRef = useRef<HTMLInputElement>(null);
-    const ultimoCepBuscado = useRef("");
-
-    const cliente = alvo?.cliente ?? null;
-
-    useEffect(() => {
-        if (!alvo) return;
-        const f = paraFormulario(alvo.cliente);
-        setForm(f);
-        setOriginal(f);
-        setConfirmarExclusao(false);
-        setConfirmarDescarte(false);
-        setErroCep(null);
-        setCasoParaVincular("");
-        ultimoCepBuscado.current = f.cep;
-        if (!alvo.cliente) setTimeout(() => nomeRef.current?.focus(), 50);
-    }, [alvo]);
-
-    const alterado = JSON.stringify(form) !== JSON.stringify(original);
-    const set = <K extends keyof ClientePayload>(chave: K, valor: ClientePayload[K]) =>
-        setForm((f) => ({ ...f, [chave]: valor }));
-
-    const casos = useMemo(
-        () => (cliente ? calculos.filter((c) => c.cliente_id === cliente.id) : []),
-        [calculos, cliente],
-    );
-    const outrosCasos = useMemo(
-        () =>
-            cliente
-                ? calculos
-                      .filter((c) => c.cliente_id !== cliente.id)
-                      .sort((a, b) => a.cliente_nome.localeCompare(b.cliente_nome))
-                : [],
-        [calculos, cliente],
-    );
-
-    const cepReqRef = useRef(0);
-
-    useEffect(() => {
-        // Invalida buscas de CEP em andamento ao trocar de cliente ou fechar o painel.
-        cepReqRef.current += 1;
-    }, [alvo]);
-
-    useEffect(() => {
-        if (!alvo) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onFechar();
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [alvo, onFechar]);
-
-    const preencherPeloCep = useCallback(async (cep: string) => {
-        const d = somenteDigitos(cep);
-        if (d.length !== 8 || d === ultimoCepBuscado.current) return;
-        ultimoCepBuscado.current = d;
-        const reqId = ++cepReqRef.current;
-        setBuscandoCep(true);
-        setErroCep(null);
-        try {
-            const end = await buscarCep(d);
-            if (reqId !== cepReqRef.current) return;
-            if (!end) {
-                setErroCep("CEP não encontrado. Preencha o endereço à mão.");
-                return;
-            }
-            setForm((f) => ({
-                ...f,
-                logradouro: end.logradouro || f.logradouro,
-                bairro: end.bairro || f.bairro,
-                cidade: end.cidade || f.cidade,
-                uf: end.uf || f.uf,
-            }));
-            setTimeout(() => numeroRef.current?.focus(), 30);
-        } catch {
-            if (reqId !== cepReqRef.current) return;
-            setErroCep("Não deu para consultar o CEP agora. Preencha o endereço à mão.");
-        } finally {
-            if (reqId === cepReqRef.current) setBuscandoCep(false);
-        }
-    }, []);
-
-    if (!alvo) return null;
-
-    const erroDoc = erroDocumento(form);
-    const qualificacao = qualificacaoCompleta({
-        ...(cliente ?? ({} as Cliente)),
-        ...form,
-        cpf_cnpj: somenteDigitos(form.cpf_cnpj),
-    } as Cliente);
-    const pj = form.tipo_pessoa === "pj";
-
-    const salvar = async (e?: FormEvent) => {
-        e?.preventDefault();
-        if (!form.nome.trim()) {
-            toast.error("Informe o nome do cliente.");
-            nomeRef.current?.focus();
-            return;
-        }
-        if (erroDoc) {
-            toast.error(erroDoc);
-            return;
-        }
-        setSalvando(true);
-        try {
-            const payload = { ...form, cpf_cnpj: somenteDigitos(form.cpf_cnpj) };
-            const salvo = cliente ? await atualizarCliente(cliente.id, payload) : await criarCliente(payload);
-            const f = paraFormulario(salvo);
-            setForm(f);
-            setOriginal(f);
-            onSalvo(salvo, !cliente);
-            if (cliente && salvo.nome !== cliente.nome) onCasosAlterados();
-            toast.success(cliente ? "Cadastro atualizado." : "Cliente cadastrado.");
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Não foi possível salvar o cliente.");
-        } finally {
-            setSalvando(false);
-        }
-    };
-
-    const fechar = () => {
-        if (alterado && !confirmarDescarte) {
-            setConfirmarDescarte(true);
-            return;
-        }
-        onFechar();
-    };
-
-    const excluir = async () => {
-        if (!cliente) return;
-        try {
-            await excluirCliente(cliente.id);
-            onExcluido(cliente.id);
-            onCasosAlterados();
-            toast.success("Cliente excluído. Os casos continuam na carteira.");
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Não foi possível excluir.");
-        }
-    };
-
-    const vincularCaso = async () => {
-        if (!cliente || !casoParaVincular) return;
-        try {
-            await vincularCasoAoCliente(casoParaVincular, cliente);
-            setCasoParaVincular("");
-            onCasosAlterados();
-            toast.success("Caso ligado a este cliente.");
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Não foi possível ligar o caso.");
-        }
-    };
-
-    const copiarQualificacao = async () => {
-        try {
-            await navigator.clipboard.writeText(qualificacao);
-            toast.success("Qualificação copiada.");
-        } catch {
-            toast.error("O navegador não deixou copiar.");
-        }
-    };
-
-    const classeInput = "field py-1.5 text-sm";
-
-    return createPortal(
-        <div role="dialog" aria-modal="true" aria-labelledby="titulo-ficha-cliente" className="fixed inset-0 z-50 flex justify-end">
-            <div aria-hidden onClick={fechar} className="fixed inset-0 bg-ink-deep/45" />
-            <div className="relative z-10 flex h-full w-full max-w-2xl flex-col border-l border-ink/20 bg-card shadow-2xl">
-                <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-ink/15 px-5">
-                    <h2 id="titulo-ficha-cliente" className="sys-title truncate text-ink">
-                        {cliente ? cliente.nome : "Novo cliente"}
-                    </h2>
-                    <div className="flex items-center gap-1">
-                        {cliente && (
-                            <button
-                                type="button"
-                                onClick={() => onGerarDocumento(cliente.id)}
-                                className="inline-flex h-8 items-center gap-1.5 bg-gold px-2.5 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-gold-light"
-                            >
-                                <FilePlus2 className="size-3.5" />
-                                Gerar documento
-                            </button>
-                        )}
-                        <button
-                            type="button"
-                            onClick={fechar}
-                            aria-label="Fechar"
-                            className="inline-flex size-8 items-center justify-center text-muted-foreground hover:text-ink"
-                        >
-                            <X className="size-4" />
-                        </button>
-                    </div>
-                </div>
-
-                <form onSubmit={salvar} className="flex min-h-0 flex-1 flex-col">
-                    <div className="flex-1 space-y-7 overflow-y-auto p-5">
-                        <div role="group" aria-label="Tipo de pessoa" className="sys-grupo inline-flex border border-ink/25">
-                            {(
-                                [
-                                    { id: "pf", rotulo: "Pessoa física", Icone: UserRound },
-                                    { id: "pj", rotulo: "Empresa (PJ)", Icone: Building2 },
-                                ] as const
-                            ).map((t, i) => (
-                                <button
-                                    key={t.id}
-                                    type="button"
-                                    aria-pressed={form.tipo_pessoa === t.id}
-                                    onClick={() =>
-                                        setForm((f) =>
-                                            f.tipo_pessoa === t.id ? f : { ...f, tipo_pessoa: t.id, cpf_cnpj: "" },
-                                        )
-                                    }
-                                    className={cn(
-                                        "inline-flex h-8 items-center gap-1.5 px-3 text-xs font-semibold transition-colors duration-150",
-                                        i > 0 && "border-l border-ink/20",
-                                        form.tipo_pessoa === t.id ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
-                                    )}
-                                >
-                                    <t.Icone aria-hidden className="size-3.5" />
-                                    {t.rotulo}
-                                </button>
-                            ))}
-                        </div>
-
-                        <Secao titulo="Identificação">
-                            <Campo id="cli-nome" rotulo={pj ? "Razão social" : "Nome completo"} className="sm:col-span-2">
-                                <input
-                                    ref={nomeRef}
-                                    id="cli-nome"
-                                    value={form.nome}
-                                    onChange={(e) => set("nome", e.target.value)}
-                                    maxLength={200}
-                                    required
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-doc" rotulo={pj ? "CNPJ" : "CPF"} erro={erroDoc}>
-                                <input
-                                    id="cli-doc"
-                                    inputMode="numeric"
-                                    value={mascaraCpfCnpj(form.cpf_cnpj, form.tipo_pessoa)}
-                                    onChange={(e) => set("cpf_cnpj", somenteDigitos(e.target.value))}
-                                    placeholder={pj ? "00.000.000/0000-00" : "000.000.000-00"}
-                                    aria-invalid={Boolean(erroDoc)}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            {!pj ? (
-                                <Campo id="cli-nasc" rotulo="Data de nascimento">
-                                    <input
-                                        id="cli-nasc"
-                                        type="date"
-                                        value={form.data_nascimento ?? ""}
-                                        onChange={(e) => set("data_nascimento", e.target.value || null)}
-                                        className={classeInput}
-                                    />
-                                </Campo>
-                            ) : (
-                                <span className="hidden sm:block" />
-                            )}
-                            {!pj && (
-                                <>
-                                    <Campo id="cli-rg" rotulo="RG">
-                                        <input
-                                            id="cli-rg"
-                                            value={form.rg}
-                                            onChange={(e) => set("rg", e.target.value)}
-                                            maxLength={40}
-                                            className={classeInput}
-                                        />
-                                    </Campo>
-                                    <Campo id="cli-rg-orgao" rotulo="Órgão emissor">
-                                        <input
-                                            id="cli-rg-orgao"
-                                            value={form.rg_orgao}
-                                            onChange={(e) => set("rg_orgao", e.target.value)}
-                                            maxLength={40}
-                                            placeholder="Ex.: SDS/PE"
-                                            className={classeInput}
-                                        />
-                                    </Campo>
-                                </>
-                            )}
-                        </Secao>
-
-                        {!pj ? (
-                            <Secao titulo="Qualificação">
-                                <Campo id="cli-genero" rotulo="Gênero (para concordância)">
-                                    <select
-                                        id="cli-genero"
-                                        value={form.genero}
-                                        onChange={(e) => set("genero", e.target.value as ClientePayload["genero"])}
-                                        className={classeInput}
-                                    >
-                                        <option value="">Não informar (usa “(a)”)</option>
-                                        <option value="m">Masculino: brasileiro, casado</option>
-                                        <option value="f">Feminino: brasileira, casada</option>
-                                    </select>
-                                </Campo>
-                                <Campo id="cli-nac" rotulo="Nacionalidade">
-                                    <input
-                                        id="cli-nac"
-                                        value={form.nacionalidade}
-                                        onChange={(e) => set("nacionalidade", e.target.value)}
-                                        maxLength={60}
-                                        placeholder="brasileiro"
-                                        className={classeInput}
-                                    />
-                                </Campo>
-                                <Campo id="cli-civil" rotulo="Estado civil">
-                                    <select
-                                        id="cli-civil"
-                                        value={form.estado_civil}
-                                        onChange={(e) => set("estado_civil", e.target.value)}
-                                        className={classeInput}
-                                    >
-                                        <option value="">Não informado</option>
-                                        {ESTADOS_CIVIS.map((e) => (
-                                            <option key={e.id} value={e.id}>
-                                                {e.neutro}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Campo>
-                                <Campo id="cli-prof" rotulo="Profissão">
-                                    <input
-                                        id="cli-prof"
-                                        value={form.profissao}
-                                        onChange={(e) => set("profissao", e.target.value)}
-                                        maxLength={100}
-                                        placeholder="Ex.: motorista"
-                                        className={classeInput}
-                                    />
-                                </Campo>
-                            </Secao>
-                        ) : (
-                            <Secao titulo="Representante legal">
-                                <Campo id="cli-rep" rotulo="Nome do representante">
-                                    <input
-                                        id="cli-rep"
-                                        value={form.representante_nome}
-                                        onChange={(e) => set("representante_nome", e.target.value)}
-                                        maxLength={200}
-                                        className={classeInput}
-                                    />
-                                </Campo>
-                                <Campo
-                                    id="cli-rep-cpf"
-                                    rotulo="CPF do representante"
-                                    erro={
-                                        form.representante_cpf && !cpfValido(form.representante_cpf) ? "CPF inválido." : null
-                                    }
-                                >
-                                    <input
-                                        id="cli-rep-cpf"
-                                        inputMode="numeric"
-                                        value={mascaraCpfCnpj(form.representante_cpf, "pf")}
-                                        onChange={(e) => set("representante_cpf", somenteDigitos(e.target.value))}
-                                        placeholder="000.000.000-00"
-                                        className={classeInput}
-                                    />
-                                </Campo>
-                            </Secao>
-                        )}
-
-                        <Secao titulo="Endereço">
-                            <Campo id="cli-cep" rotulo="CEP" erro={erroCep}>
-                                <div className="relative">
-                                    <input
-                                        id="cli-cep"
-                                        inputMode="numeric"
-                                        value={formatarCep(form.cep)}
-                                        onChange={(e) => {
-                                            const d = somenteDigitos(e.target.value).slice(0, 8);
-                                            set("cep", d);
-                                            if (d.length === 8) void preencherPeloCep(d);
-                                        }}
-                                        placeholder="00000-000"
-                                        className={cn(classeInput, "pr-6")}
-                                    />
-                                    {buscandoCep && (
-                                        <Loader2 className="absolute right-0 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                                    )}
-                                </div>
-                                <p className="mt-1 text-[11px] text-muted-foreground">
-                                    Digite o CEP e o endereço é preenchido sozinho.
-                                </p>
-                            </Campo>
-                            <span className="hidden sm:block" />
-                            <Campo id="cli-rua" rotulo="Rua / logradouro" className="sm:col-span-2">
-                                <input
-                                    id="cli-rua"
-                                    value={form.logradouro}
-                                    onChange={(e) => set("logradouro", e.target.value)}
-                                    maxLength={200}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-num" rotulo="Número">
-                                <input
-                                    ref={numeroRef}
-                                    id="cli-num"
-                                    value={form.numero}
-                                    onChange={(e) => set("numero", e.target.value)}
-                                    maxLength={20}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-comp" rotulo="Complemento">
-                                <input
-                                    id="cli-comp"
-                                    value={form.complemento}
-                                    onChange={(e) => set("complemento", e.target.value)}
-                                    maxLength={100}
-                                    placeholder="Apto, bloco..."
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-bairro" rotulo="Bairro">
-                                <input
-                                    id="cli-bairro"
-                                    value={form.bairro}
-                                    onChange={(e) => set("bairro", e.target.value)}
-                                    maxLength={100}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <div className="grid grid-cols-[1fr_72px] gap-3">
-                                <Campo id="cli-cidade" rotulo="Cidade">
-                                    <input
-                                        id="cli-cidade"
-                                        value={form.cidade}
-                                        onChange={(e) => set("cidade", e.target.value)}
-                                        maxLength={100}
-                                        className={classeInput}
-                                    />
-                                </Campo>
-                                <Campo id="cli-uf" rotulo="UF">
-                                    <select
-                                        id="cli-uf"
-                                        value={form.uf}
-                                        onChange={(e) => set("uf", e.target.value)}
-                                        className={classeInput}
-                                    >
-                                        <option value="">—</option>
-                                        {UFS.map((uf) => (
-                                            <option key={uf} value={uf}>
-                                                {uf}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Campo>
-                            </div>
-                        </Secao>
-
-                        <Secao titulo="Contato">
-                            <Campo id="cli-tel" rotulo="Telefone / WhatsApp">
-                                <input
-                                    id="cli-tel"
-                                    type="tel"
-                                    value={form.telefone}
-                                    onChange={(e) => set("telefone", e.target.value)}
-                                    onBlur={() => set("telefone", formatarTelefone(form.telefone))}
-                                    maxLength={40}
-                                    placeholder="(87) 90000-0000"
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-email" rotulo="E-mail">
-                                <input
-                                    id="cli-email"
-                                    type="email"
-                                    value={form.email}
-                                    onChange={(e) => set("email", e.target.value)}
-                                    maxLength={200}
-                                    className={classeInput}
-                                />
-                            </Campo>
-                            <Campo id="cli-obs" rotulo="Observações" className="sm:col-span-2">
-                                <textarea
-                                    id="cli-obs"
-                                    value={form.observacoes}
-                                    onChange={(e) => set("observacoes", e.target.value)}
-                                    maxLength={4000}
-                                    rows={2}
-                                    className={cn(classeInput, "resize-y")}
-                                />
-                            </Campo>
-                        </Secao>
-
-                        <section className="space-y-2">
-                            <div className="flex items-center justify-between gap-2 border-b border-ink/10 pb-1.5">
-                                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Qualificação para a petição
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => void copiarQualificacao()}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink hover:underline"
-                                >
-                                    <ClipboardCopy className="size-3" /> Copiar
-                                </button>
-                            </div>
-                            <p className="bg-secondary/60 px-3 py-2.5 font-serif text-sm leading-relaxed text-ink">
-                                {form.nome.trim() ? qualificacao : "Preencha o nome para ver a qualificação."}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground">
-                                Nos modelos de documento, use o campo <strong className="text-ink">[qualificação completa]</strong>.
-                            </p>
-                        </section>
-
-                        {cliente && (
-                            <section className="space-y-2">
-                                <h3 className="border-b border-ink/10 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Casos na carteira ({casos.length})
-                                </h3>
-                                {casos.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground">Nenhum caso ligado a este cliente.</p>
-                                ) : (
-                                    <ul className="divide-y divide-ink/10 border border-ink/15">
-                                        {casos.map((c) => (
-                                            <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                                                <div className="min-w-0">
-                                                    <p className="truncate text-sm font-medium text-ink">
-                                                        {c.processo_global || "Sem número de processo"}
-                                                    </p>
-                                                    <p className="truncate text-[11px] text-muted-foreground">
-                                                        {[c.banco, c.modalidade_nome].filter(Boolean).join(" · ")}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onAbrirCaso(c)}
-                                                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-ink hover:underline"
-                                                >
-                                                    Abrir <ExternalLink className="size-3" />
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                                {outrosCasos.length > 0 && (
-                                    <div className="flex items-end gap-2">
-                                        <div className="min-w-0 flex-1">
-                                            <label htmlFor="cli-vincular" className="text-[11px] font-medium text-muted-foreground">
-                                                Ligar outro caso a este cliente (ex.: nome digitado diferente)
-                                            </label>
-                                            <select
-                                                id="cli-vincular"
-                                                value={casoParaVincular}
-                                                onChange={(e) => setCasoParaVincular(e.target.value)}
-                                                className={classeInput}
-                                            >
-                                                <option value="">Escolha o caso</option>
-                                                {outrosCasos.map((c) => (
-                                                    <option key={c.id} value={c.id}>
-                                                        {c.cliente_nome}
-                                                        {c.processo_global ? ` · ${c.processo_global}` : ""}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            disabled={!casoParaVincular}
-                                            onClick={() => void vincularCaso()}
-                                            className="inline-flex h-8 shrink-0 items-center border border-ink/25 px-3 text-xs font-semibold text-ink hover:bg-ink/5 disabled:opacity-40"
-                                        >
-                                            Ligar
-                                        </button>
-                                    </div>
-                                )}
-                            </section>
-                        )}
-
-                        {cliente && <BaseConhecimentoCliente clienteId={cliente.id} nomeCliente={cliente.nome} />}
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-ink/15 px-5 py-3">
-                        {confirmarDescarte ? (
-                            <span className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className="font-semibold text-ink">Descartar as alterações?</span>
-                                <button
-                                    type="button"
-                                    onClick={onFechar}
-                                    className="inline-flex h-7 items-center border border-ink/25 px-2 font-semibold text-ink hover:bg-ink/5"
-                                >
-                                    Descartar
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setConfirmarDescarte(false)}
-                                    className="font-semibold text-muted-foreground hover:text-ink"
-                                >
-                                    Continuar editando
-                                </button>
-                            </span>
-                        ) : cliente ? (
-                            confirmarExclusao ? (
-                                <span className="flex flex-wrap items-center gap-2 text-xs">
-                                    <span className="font-semibold text-destructive">Excluir o cadastro?</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => void excluir()}
-                                        className="inline-flex h-7 items-center bg-destructive px-2 font-semibold text-white"
-                                    >
-                                        Excluir
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setConfirmarExclusao(false)}
-                                        className="font-semibold text-muted-foreground hover:text-ink"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </span>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => setConfirmarExclusao(true)}
-                                    className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-destructive"
-                                >
-                                    <Trash2 className="size-3.5" /> Excluir cadastro
-                                </button>
-                            )
-                        ) : (
-                            <span />
-                        )}
-                        <button
-                            type="submit"
-                            disabled={salvando || (Boolean(cliente) && !alterado)}
-                            className="inline-flex h-9 items-center gap-1.5 bg-gold px-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-gold-light disabled:opacity-50"
-                        >
-                            {salvando ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                            {cliente ? (alterado ? "Salvar alterações" : "Salvo") : "Cadastrar cliente"}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>,
-        document.body,
+        <input
+            ref={ref}
+            type="checkbox"
+            checked={marcada}
+            onChange={(e) => onChange(e.target.checked)}
+            aria-label={rotulo}
+            className="size-4 shrink-0 cursor-pointer accent-ink"
+        />
     );
 }
 
@@ -797,6 +55,9 @@ function FichaCliente({
 
 interface ClientesSistemaProps {
     calculos: CalculoSalvo[];
+    /** Cliente aberto pela rota (`clientes/:id`); "novo" abre o cadastro em branco; null mostra a lista. */
+    clienteIdRota: string | null;
+    onNavegarCliente: (id: string | null, opcoes?: { substituir?: boolean }) => void;
     onAbrirCaso: (c: CalculoSalvo) => void;
     onGerarDocumento: (clienteId: string) => void;
     onRecarregarCasos: () => void;
@@ -804,13 +65,23 @@ interface ClientesSistemaProps {
 
 type Filtro = "todos" | "incompletos";
 
-export const ClientesSistema = ({ calculos, onAbrirCaso, onGerarDocumento, onRecarregarCasos }: ClientesSistemaProps) => {
+export const ClientesSistema = ({
+    calculos,
+    clienteIdRota,
+    onNavegarCliente,
+    onAbrirCaso,
+    onGerarDocumento,
+    onRecarregarCasos,
+}: ClientesSistemaProps) => {
     const [clientes, setClientes] = useState<Cliente[]>([]);
     const [carregando, setCarregando] = useState(true);
     const [indisponivel, setIndisponivel] = useState(false);
     const [busca, setBusca] = useState("");
     const [filtro, setFiltro] = useState<Filtro>("todos");
-    const [alvo, setAlvo] = useState<AlvoFicha | null>(null);
+    const [selecionados, setSelecionados] = useState<Set<string>>(() => new Set());
+    const [confirmarLote, setConfirmarLote] = useState(false);
+    const [excluindoLote, setExcluindoLote] = useState(false);
+    const fecharConfirmacaoLote = useCallback(() => setConfirmarLote(false), []);
 
     const carregar = useCallback(async () => {
         setCarregando(true);
@@ -864,6 +135,71 @@ export const ClientesSistema = ({ calculos, onAbrirCaso, onGerarDocumento, onRec
     const listaRef = useRef<HTMLDivElement>(null);
     const pag = usePaginacao(filtrados, { porPaginaPadrao: 20, reiniciarCom: [busca, filtro] });
 
+    // Seleção para excluir em lote. Ids que sumiram da lista (excluídos em outro lugar) saem da seleção.
+    useEffect(() => {
+        setSelecionados((sel) => {
+            if (sel.size === 0) return sel;
+            const existentes = new Set(clientes.map((c) => c.id));
+            const filtrada = new Set([...sel].filter((id) => existentes.has(id)));
+            return filtrada.size === sel.size ? sel : filtrada;
+        });
+    }, [clientes]);
+
+    useEffect(() => {
+        if (selecionados.size === 0) setConfirmarLote(false);
+    }, [selecionados]);
+
+    const alternar = (id: string, marcar: boolean) =>
+        setSelecionados((sel) => {
+            const nova = new Set(sel);
+            if (marcar) nova.add(id);
+            else nova.delete(id);
+            return nova;
+        });
+
+    const marcarVarios = (ids: string[], marcar: boolean) =>
+        setSelecionados((sel) => {
+            const nova = new Set(sel);
+            for (const id of ids) {
+                if (marcar) nova.add(id);
+                else nova.delete(id);
+            }
+            return nova;
+        });
+
+    const idsPagina = pag.itensPagina.map((c) => c.id);
+    const marcadosNaPagina = idsPagina.filter((id) => selecionados.has(id)).length;
+    const todosFiltradosMarcados = filtrados.length > 0 && filtrados.every((c) => selecionados.has(c.id));
+    const casosSelecionados = [...selecionados].reduce((t, id) => t + (casosPorCliente.get(id) ?? 0), 0);
+    const nomesSelecionados = clientes.filter((c) => selecionados.has(c.id)).map((c) => c.nome);
+    // Um cliente: digita o nome dele. Vários: digita "excluir N clientes" (o número evita apagar mais do que se viu).
+    const fraseLote = fraseExclusaoClientes(nomesSelecionados);
+
+    const excluirSelecionados = async () => {
+        const ids = [...selecionados];
+        if (ids.length === 0) return;
+        setExcluindoLote(true);
+        try {
+            await excluirClientes(ids);
+            const removidos = new Set(ids);
+            setClientes((prev) => prev.filter((c) => !removidos.has(c.id)));
+            setSelecionados(new Set());
+            setConfirmarLote(false);
+            onRecarregarCasos();
+            toast.success(
+                ids.length === 1
+                    ? "1 cliente excluído. Os casos continuam na carteira."
+                    : `${ids.length} clientes excluídos. Os casos continuam na carteira.`,
+            );
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Não foi possível excluir os clientes.");
+            // Recarrega para mostrar o que de fato ficou no banco se um lote falhou no meio.
+            void carregar();
+        } finally {
+            setExcluindoLote(false);
+        }
+    };
+
     if (indisponivel) {
         return (
             <div className="border border-ink/20 bg-card p-6 sm:p-8">
@@ -891,6 +227,54 @@ export const ClientesSistema = ({ calculos, onAbrirCaso, onGerarDocumento, onRec
         );
     }
 
+    if (clienteIdRota) {
+        const novo = clienteIdRota === "novo";
+        const cliente = novo ? null : (clientes.find((c) => c.id === clienteIdRota) ?? null);
+        if (!novo && !cliente) {
+            return carregando ? (
+                <div className="flex items-center gap-2 border border-ink/15 bg-card p-6 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" /> Carregando cliente…
+                </div>
+            ) : (
+                <div className="border border-ink/15 bg-card p-8 text-center">
+                    <UserRound aria-hidden className="mx-auto size-8 text-ink/30" />
+                    <h2 className="sys-section mt-3 text-ink">Cliente não encontrado</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Ele pode ter sido excluído.</p>
+                    <button
+                        type="button"
+                        onClick={() => onNavegarCliente(null)}
+                        className="mt-4 inline-flex h-8 items-center gap-1.5 border border-ink/25 px-3 text-xs font-semibold text-ink hover:bg-ink/5"
+                    >
+                        Voltar para os clientes
+                    </button>
+                </div>
+            );
+        }
+        return (
+            <PaginaCliente
+                key={cliente?.id ?? "novo"}
+                cliente={cliente}
+                calculos={calculos}
+                onVoltar={() => onNavegarCliente(null)}
+                onSalvo={(salvo, criado) => {
+                    setClientes((prev) =>
+                        (criado ? [...prev, salvo] : prev.map((c) => (c.id === salvo.id ? salvo : c))).sort((a, b) =>
+                            a.nome.localeCompare(b.nome),
+                        ),
+                    );
+                    if (criado) onNavegarCliente(salvo.id, { substituir: true });
+                }}
+                onExcluido={(id) => {
+                    setClientes((prev) => prev.filter((c) => c.id !== id));
+                    onNavegarCliente(null, { substituir: true });
+                }}
+                onAbrirCaso={onAbrirCaso}
+                onGerarDocumento={onGerarDocumento}
+                onCasosAlterados={onRecarregarCasos}
+            />
+        );
+    }
+
     return (
         <div ref={listaRef} className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -909,7 +293,7 @@ export const ClientesSistema = ({ calculos, onAbrirCaso, onGerarDocumento, onRec
                 </div>
                 <button
                     type="button"
-                    onClick={() => setAlvo({ cliente: null })}
+                    onClick={() => onNavegarCliente("novo")}
                     className="inline-flex h-9 items-center gap-1.5 bg-gold px-3.5 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-gold-light"
                 >
                     <Plus className="size-3.5" />
@@ -917,31 +301,83 @@ export const ClientesSistema = ({ calculos, onAbrirCaso, onGerarDocumento, onRec
                 </button>
             </div>
 
-            <div role="group" aria-label="Filtro" className="sys-grupo inline-flex border border-ink/25 bg-card">
-                {(
-                    [
-                        { id: "todos", rotulo: "Todos", qtd: clientes.length },
-                        { id: "incompletos", rotulo: "Cadastro incompleto", qtd: incompletos },
-                    ] as const
-                ).map((f, i) => (
-                    <button
-                        key={f.id}
-                        type="button"
-                        aria-pressed={filtro === f.id}
-                        onClick={() => setFiltro(f.id)}
-                        className={cn(
-                            "inline-flex h-9 items-center gap-1.5 px-3.5 text-xs font-semibold transition-colors duration-150",
-                            i > 0 && "border-l border-ink/20",
-                            filtro === f.id ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
-                        )}
-                    >
-                        {f.rotulo}
-                        <span className={cn("tabular-nums", filtro === f.id ? "text-paper/70" : "text-muted-foreground")}>
-                            {f.qtd}
-                        </span>
-                    </button>
-                ))}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div role="group" aria-label="Filtro" className="sys-grupo inline-flex border border-ink/25 bg-card">
+                    {(
+                        [
+                            { id: "todos", rotulo: "Todos", qtd: clientes.length },
+                            { id: "incompletos", rotulo: "Cadastro incompleto", qtd: incompletos },
+                        ] as const
+                    ).map((f, i) => (
+                        <button
+                            key={f.id}
+                            type="button"
+                            aria-pressed={filtro === f.id}
+                            onClick={() => setFiltro(f.id)}
+                            className={cn(
+                                "inline-flex h-9 items-center gap-1.5 px-3.5 text-xs font-semibold transition-colors duration-150",
+                                i > 0 && "border-l border-ink/20",
+                                filtro === f.id ? "bg-ink text-paper" : "text-ink hover:bg-ink/5",
+                            )}
+                        >
+                            {f.rotulo}
+                            <span className={cn("tabular-nums", filtro === f.id ? "text-paper/70" : "text-muted-foreground")}>
+                                {f.qtd}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+                {!carregando && filtrados.length > 0 && (
+                    <label className="inline-flex h-9 cursor-pointer items-center gap-2 border border-ink/25 bg-card px-3.5 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-ink/5">
+                        <CaixaSelecao
+                            marcada={todosFiltradosMarcados}
+                            parcial={filtrados.some((c) => selecionados.has(c.id))}
+                            onChange={(m) => marcarVarios(filtrados.map((c) => c.id), m)}
+                            rotulo={`Selecionar todos os ${filtrados.length} clientes`}
+                        />
+                        Selecionar todos
+                        <span className="tabular-nums text-muted-foreground">{filtrados.length}</span>
+                    </label>
+                )}
             </div>
+
+            {selecionados.size > 0 && (
+                <div
+                    role="region"
+                    aria-label="Clientes selecionados"
+                    className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 bg-ink px-4 py-2.5 text-paper shadow-lg"
+                >
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                        <strong className="tabular-nums">
+                            {selecionados.size} {selecionados.size === 1 ? "selecionado" : "selecionados"}
+                        </strong>
+                        {!todosFiltradosMarcados && filtrados.length > selecionados.size && (
+                            <button
+                                type="button"
+                                onClick={() => marcarVarios(filtrados.map((c) => c.id), true)}
+                                className="text-xs font-semibold text-gold underline-offset-2 hover:underline"
+                            >
+                                Selecionar todos os {filtrados.length}
+                                {busca || filtro !== "todos" ? " encontrados" : ""}
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setSelecionados(new Set())}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-paper/70 hover:text-paper"
+                        >
+                            <X className="size-3.5" /> Limpar seleção
+                        </button>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setConfirmarLote(true)}
+                        className="inline-flex h-8 items-center gap-1.5 bg-destructive px-3 text-xs font-semibold text-white hover:bg-destructive/90"
+                    >
+                        <Trash2 className="size-3.5" /> Excluir {selecionados.size}
+                    </button>
+                </div>
+            )}
 
             {carregando ? (
                 <div className="flex items-center gap-2 border border-ink/15 bg-card p-6 text-sm text-muted-foreground">
@@ -956,24 +392,45 @@ export const ClientesSistema = ({ calculos, onAbrirCaso, onGerarDocumento, onRec
                 </div>
             ) : (
                 <div className="border border-ink/15 bg-card">
-                    <div className="hidden grid-cols-[minmax(0,2fr)_150px_140px_minmax(0,1fr)_60px_minmax(0,1.3fr)] gap-3 border-b border-ink/15 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground xl:grid">
-                        <span>Cliente</span>
-                        <span>CPF / CNPJ</span>
-                        <span>Telefone</span>
-                        <span>Cidade</span>
-                        <span className="text-right">Casos</span>
-                        <span>Cadastro</span>
+                    <div className="flex items-center border-b border-ink/15">
+                        <label className="flex shrink-0 cursor-pointer items-center gap-2 self-stretch py-2 pl-4 pr-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            <CaixaSelecao
+                                marcada={idsPagina.length > 0 && marcadosNaPagina === idsPagina.length}
+                                parcial={marcadosNaPagina > 0}
+                                onChange={(m) => marcarVarios(idsPagina, m)}
+                                rotulo="Selecionar todos desta página"
+                            />
+                            <span className="xl:hidden">Selecionar página</span>
+                        </label>
+                        <div className="hidden flex-1 grid-cols-[minmax(0,2fr)_150px_140px_minmax(0,1fr)_60px_minmax(0,1.3fr)] gap-3 py-2 pl-2 pr-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground xl:grid">
+                            <span>Cliente</span>
+                            <span>CPF / CNPJ</span>
+                            <span>Telefone</span>
+                            <span>Cidade</span>
+                            <span className="text-right">Casos</span>
+                            <span>Cadastro</span>
+                        </div>
                     </div>
                     <ul className="divide-y divide-ink/10">
                         {pag.itensPagina.map((c) => {
                             const faltando = pendenciasCadastro(c);
                             const qtd = casosPorCliente.get(c.id) ?? 0;
                             return (
-                                <li key={c.id}>
+                                <li
+                                    key={c.id}
+                                    className={cn("flex items-stretch", selecionados.has(c.id) && "bg-gold/10")}
+                                >
+                                    <label className="flex shrink-0 cursor-pointer items-center py-2.5 pl-4 pr-2">
+                                        <CaixaSelecao
+                                            marcada={selecionados.has(c.id)}
+                                            onChange={(m) => alternar(c.id, m)}
+                                            rotulo={`Selecionar ${c.nome}`}
+                                        />
+                                    </label>
                                     <button
                                         type="button"
-                                        onClick={() => setAlvo({ cliente: c })}
-                                        className="grid w-full gap-x-3 gap-y-0.5 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-ink/[0.03] xl:grid-cols-[minmax(0,2fr)_150px_140px_minmax(0,1fr)_60px_minmax(0,1.3fr)] xl:items-center"
+                                        onClick={() => onNavegarCliente(c.id)}
+                                        className="grid min-w-0 flex-1 gap-x-3 gap-y-0.5 py-2.5 pl-2 pr-4 text-left transition-colors duration-150 hover:bg-ink/[0.03] xl:grid-cols-[minmax(0,2fr)_150px_140px_minmax(0,1fr)_60px_minmax(0,1.3fr)] xl:items-center"
                                     >
                                         <span className="flex min-w-0 items-center gap-2">
                                             {c.tipo_pessoa === "pj" ? (
@@ -1032,33 +489,33 @@ export const ClientesSistema = ({ calculos, onAbrirCaso, onGerarDocumento, onRec
                 />
             )}
 
-            <FichaCliente
-                alvo={alvo}
-                calculos={calculos}
-                onFechar={() => setAlvo(null)}
-                onSalvo={(salvo, novo) => {
-                    setClientes((prev) =>
-                        (novo ? [...prev, salvo] : prev.map((c) => (c.id === salvo.id ? salvo : c))).sort((a, b) =>
-                            a.nome.localeCompare(b.nome),
-                        ),
-                    );
-                    // Mantém a ficha aberta com o registro atualizado (nome no topo, casos, próxima comparação).
-                    setAlvo({ cliente: salvo });
-                }}
-                onExcluido={(id) => {
-                    setClientes((prev) => prev.filter((c) => c.id !== id));
-                    setAlvo(null);
-                }}
-                onAbrirCaso={(c) => {
-                    setAlvo(null);
-                    onAbrirCaso(c);
-                }}
-                onGerarDocumento={(id) => {
-                    setAlvo(null);
-                    onGerarDocumento(id);
-                }}
-                onCasosAlterados={onRecarregarCasos}
-            />
+            <ModalConfirmarExclusao
+                aberto={confirmarLote}
+                titulo={selecionados.size === 1 ? "Excluir cliente" : `Excluir ${selecionados.size} clientes`}
+                fraseConfirmacao={fraseLote}
+                rotuloBotao={selecionados.size === 1 ? "Excluir este cliente" : `Excluir os ${selecionados.size} clientes`}
+                excluindo={excluindoLote}
+                onConfirmar={() => void excluirSelecionados()}
+                onCancelar={fecharConfirmacaoLote}
+            >
+                <p>{selecionados.size === 1 ? "Este cliente vai ser excluído:" : "Estes clientes vão ser excluídos:"}</p>
+                <ul className="max-h-40 space-y-0.5 overflow-y-auto border border-ink/10 bg-secondary/40 px-3 py-2 text-xs">
+                    {nomesSelecionados.slice(0, 8).map((nome, i) => (
+                        <li key={`${nome}-${i}`} className="truncate font-medium">
+                            {nome}
+                        </li>
+                    ))}
+                    {nomesSelecionados.length > 8 && (
+                        <li className="text-muted-foreground">e mais {nomesSelecionados.length - 8}</li>
+                    )}
+                </ul>
+                {casosSelecionados > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        {casosSelecionados === 1 ? "O caso ligado continua" : `Os ${casosSelecionados} casos ligados continuam`}{" "}
+                        na carteira, só sem o cliente.
+                    </p>
+                )}
+            </ModalConfirmarExclusao>
         </div>
     );
 };

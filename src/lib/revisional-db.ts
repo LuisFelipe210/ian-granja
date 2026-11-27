@@ -1759,6 +1759,15 @@ export async function excluirCliente(id: string): Promise<void> {
     await restRequest<void>(`revisional_clientes?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+/** Exclui vários clientes, em lotes de 100 para a URL não passar do limite. */
+export async function excluirClientes(ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i += 100) {
+        const lote = ids.slice(i, i + 100).map((id) => encodeURIComponent(`"${id}"`));
+        if (lote.length === 0) continue;
+        await restRequest<void>(`revisional_clientes?id=in.(${lote.join(",")})`, { method: "DELETE" });
+    }
+}
+
 /* ----------------------------------------------------- Base do atendimento por IA */
 
 export async function listarConhecimentoCliente(clienteId: string): Promise<ItemConhecimento[]> {
