@@ -172,9 +172,10 @@ const Privacidade = () => (
                                         "Vercel: hospedagem do site.",
                                         "Google: envio dos e-mails do formulário de contato (Gmail), mapa incorporado nas páginas Sobre e Contato (Google Maps) e, quando usado pela equipe, Google Drive.",
                                         "Supabase: banco de dados do sistema interno.",
-                                        "Anthropic: leitura automática de contratos (Claude).",
+                                        "Anthropic: leitura automática de contratos e documentos e preparação de rascunhos de resposta do atendimento por WhatsApp (Claude), sempre revisados pela equipe antes do envio.",
                                         "ViaCEP: preenchimento automático de endereço a partir do CEP no cadastro interno de clientes.",
                                         "Meta: WhatsApp e Instagram, quando você usa esses canais para falar com o escritório.",
+                                        "YCloud: parceira oficial da Meta que conecta o WhatsApp do escritório ao sistema de atendimento.",
                                     ]}
                                 />
                                 <p>
