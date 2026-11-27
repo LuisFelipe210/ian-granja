@@ -30,7 +30,7 @@ const faqs = [
     {
         question: "Como acompanho o andamento do meu processo?",
         answer:
-            "Você receberá atualizações regulares sobre seu caso por e-mail, telefone ou WhatsApp. Além disso, oferecemos acesso exclusivo ao sistema do escritório, onde você poderá acompanhar todas as movimentações processuais em tempo real utilizando seu login e senha.",
+            "Você receberá atualizações regulares sobre o seu caso por WhatsApp, e-mail ou telefone sempre que houver movimentação relevante, e pode falar diretamente com o escritório a qualquer momento para tirar dúvidas.",
     },
     {
         question: "Vocês atuam em todo o Brasil?",

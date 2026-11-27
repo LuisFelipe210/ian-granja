@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { FaWhatsapp } from "react-icons/fa";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { cn } from "@/lib/utils";
 import { whatsappUrl } from "@/lib/contact";
 
@@ -53,7 +53,7 @@ export const Cta = ({ children, variant = "gold", to, href, whatsapp, className 
             rel="noopener noreferrer"
             className={classes}
         >
-            {isWhatsapp && <FaWhatsapp aria-hidden className="size-5 shrink-0" />}
+            {isWhatsapp && <WhatsAppIcon aria-hidden className="size-5 shrink-0" />}
             {children}
         </a>
     );

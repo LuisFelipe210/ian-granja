@@ -80,9 +80,30 @@ describe("validar", () => {
         assert.ok(validar({ ...base, valor: 48000, parcela: 1000, parcelas: 48 }));
     });
 
-    it("rejeita parcelas pagas fora do intervalo [0, parcelas]", () => {
+    it("rejeita parcelas pagas fora do intervalo [0, parcelas] e NaN/não-inteiro", () => {
         assert.ok(validar({ ...base, pagas: -1 }));
         assert.ok(validar({ ...base, pagas: 49 }));
+        assert.ok(validar({ ...base, pagas: Number.NaN }));
+        assert.ok(validar({ ...base, parcelas: 1000 }));
+        assert.ok(validar({ ...base, parcelas: 12.5 }));
+    });
+
+    it("analisar e funções Price não produzem NaN nem Infinity em entradas inválidas ou extremas", () => {
+        assert.equal(taxaPelasParcelas(0, 0, 48), 0);
+        assert.equal(taxaPelasParcelas(50000, 500, 48), 0);
+        assert.equal(parcelaPrice(50000, 0, 0), 0);
+        assert.ok(Number.isFinite(saldoDevedor(10000, 0.15, 1600, 240)));
+        assert.equal(
+            analisar({
+                mod: mod("veiculo-pf"),
+                mes: "2024-06",
+                valor: 0,
+                parcela: 1000,
+                parcelas: 48,
+                pagas: 0,
+            }),
+            null,
+        );
     });
 
     it("rejeita mês no futuro", () => {
@@ -138,5 +159,17 @@ describe("analisar e séries BACEN", () => {
         assert.equal(mCom.serieAm, 25471);
         assert.equal(mCom.serieAa, 20749);
         assert.match(mCom.nota, /aquisição de veículos \(PF\)/i);
+    });
+
+    it("todas as 13 modalidades possuem fallback offline em bacen-series.json (incluindo mês futuro sem cair em jan/2012)", () => {
+        for (const m of MODALIDADES) {
+            const historico = taxaMedia(m, "2024-06");
+            assert.ok(historico, `Modalidade ${m.id} sem taxaMedia offline em 2024-06`);
+            assert.ok(historico.am > 0 && historico.aa > 0, `Taxa inválida em ${m.id}`);
+
+            const recente = taxaMedia(m, "2026-11");
+            assert.ok(recente, `Modalidade ${m.id} sem fallback recente em 2026-11`);
+            assert.notEqual(recente.mes, "2012-01", `Modalidade ${m.id} caiu no primeiro mês (2012-01) em vez do mais recente`);
+        }
     });
 });

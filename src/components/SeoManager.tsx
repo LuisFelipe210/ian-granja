@@ -5,12 +5,35 @@ import { practiceAreas } from "@/data/practiceAreas";
 
 const pages = seo.pages as Record<string, { title: string; description: string }>;
 
-/** Páginas de uso interno: título próprio, fora do Google e do sitemap. */
-const PRIVATE_PAGES: Record<string, { title: string; description: string }> = {
-    "/ferramentas/calculadora-revisional": {
-        title: `Calculadora revisional | ${seo.siteName}`,
+/** Páginas de uso interno (e suas sub-rotas): título próprio, fora do Google e do sitemap. */
+const BASE_SISTEMA = "/ferramentas/calculadora-revisional";
+
+/** Título da aba do navegador para cada tela do sistema interno (mesmos nomes do menu lateral). */
+const TITULOS_SISTEMA: Array<[prefixo: string, titulo: string]> = [
+    ["/agenda", "Agenda"],
+    ["/processos", "Processos DJEN"],
+    ["/historico", "Carteira"],
+    ["/crm", "CRM"],
+    ["/painel", "Painel analítico"],
+    ["/clientes", "Clientes"],
+    ["/documentos", "Documentos"],
+    ["/configuracoes", "Configurações"],
+    ["/categorias", "Configurações"],
+    ["/caso/", "Ficha do cliente"],
+    ["/calculo", "Calculadora"],
+];
+
+const resolvePrivatePage = (path: string): { title: string; description: string } | null => {
+    if (path !== BASE_SISTEMA && !path.startsWith(`${BASE_SISTEMA}/`)) return null;
+    const subRota = path.slice(BASE_SISTEMA.length);
+    const tela =
+        subRota === "" || subRota === "/"
+            ? "Início"
+            : TITULOS_SISTEMA.find(([prefixo]) => subRota.startsWith(prefixo))?.[1];
+    return {
+        title: `${tela ?? "Sistema"} | Calculadora revisional`,
         description: "Ferramenta interna.",
-    },
+    };
 };
 
 const NOT_FOUND = {
@@ -51,14 +74,26 @@ export const SeoManager = () => {
     useEffect(() => {
         const path = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
         const page = pages[path];
-        const privatePage = PRIVATE_PAGES[path];
+        const privatePage = resolvePrivatePage(path);
         const { title, description } = page ?? privatePage ?? NOT_FOUND;
         const url = `${seo.siteUrl}${path === "/" ? "/" : path}`;
 
         document.title = title;
         setAttr('meta[name="description"]', "content", description);
         setAttr('meta[name="robots"]', "content", page ? "index, follow" : privatePage ? "noindex, nofollow" : "noindex, follow");
-        setAttr('link[rel="canonical"]', "href", url);
+        const canonicalEl = document.head.querySelector('link[rel="canonical"]');
+        if (page) {
+            if (canonicalEl) {
+                canonicalEl.setAttribute("href", url);
+            } else {
+                const link = document.createElement("link");
+                link.rel = "canonical";
+                link.href = url;
+                document.head.appendChild(link);
+            }
+        } else {
+            canonicalEl?.remove();
+        }
         setAttr('meta[property="og:title"]', "content", title);
         setAttr('meta[property="og:description"]', "content", description);
         setAttr('meta[property="og:url"]', "content", url);

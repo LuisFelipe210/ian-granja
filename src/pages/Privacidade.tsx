@@ -145,8 +145,10 @@ const Privacidade = () => (
                                 <p>
                                     Para isso ele usa só a permissão restrita do Google (<code>drive.file</code>): acessa
                                     apenas os arquivos e pastas que a pessoa escolhe no seletor do Drive ou que o
-                                    próprio sistema cria. Ele não lista nem lê o restante do Drive. O acesso fica só na
-                                    sessão aberta do navegador, expira em cerca de uma hora e não é gravado no sistema.
+                                    próprio sistema cria. Ele não lista nem lê o restante do Drive. O token de acesso
+                                    fica só em memória na aba aberta, expira em cerca de uma hora e não é gravado no
+                                    servidor; no navegador ficam lembrados apenas o e-mail da conta Google conectada e a
+                                    última pasta escolhida para facilitar os próximos envios (removíveis ao desconectar).
                                 </p>
                                 <p>
                                     O uso e a transferência, para qualquer outro aplicativo, de informações recebidas
@@ -168,10 +170,12 @@ const Privacidade = () => (
                                 <Lista
                                     itens={[
                                         "Vercel: hospedagem do site.",
-                                        "Google: envio dos e-mails do formulário de contato (Gmail) e, quando usado, Google Drive.",
+                                        "Google: envio dos e-mails do formulário de contato (Gmail), mapa incorporado nas páginas Sobre e Contato (Google Maps) e, quando usado pela equipe, Google Drive.",
                                         "Supabase: banco de dados do sistema interno.",
-                                        "Anthropic: leitura automática de contratos (Claude).",
+                                        "Anthropic: leitura automática de contratos e documentos e preparação de rascunhos de resposta do atendimento por WhatsApp (Claude), sempre revisados pela equipe antes do envio.",
+                                        "ViaCEP: preenchimento automático de endereço a partir do CEP no cadastro interno de clientes.",
                                         "Meta: WhatsApp e Instagram, quando você usa esses canais para falar com o escritório.",
+                                        "YCloud: parceira oficial da Meta que conecta o WhatsApp do escritório ao sistema de atendimento.",
                                     ]}
                                 />
                                 <p>

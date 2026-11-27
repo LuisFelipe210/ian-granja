@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-18T18:30:00-03:00",
+  "title": "Design System: Ian Granja Advogados — Sistema Revisional & Site",
+  "extensions": {
+    "colorMeta": {
+      "ink-navy": {
+        "role": "primary",
+        "displayName": "Ink Navy",
+        "canonical": "hsl(226 79% 12%)",
+        "tonalRamp": ["#040b25", "#061237", "#12204e", "#24356b", "#37446c", "#6c789c", "#a0a9c5", "#eff1f6"]
+      },
+      "gold-pen": {
+        "role": "secondary",
+        "displayName": "Gold Pen",
+        "canonical": "hsl(41 26% 50%)",
+        "tonalRamp": ["#463a21", "#746139", "#a18c5e", "#b5a071", "#c9b587", "#d9c89b", "#ebe1c6", "#f7f3e6"]
+      },
+      "cool-paper": {
+        "role": "neutral",
+        "displayName": "Cool Paper",
+        "canonical": "hsl(224 26% 95%)",
+        "tonalRamp": ["#37446c", "#646f91", "#8d96b3", "#b2b9cf", "#c6cbdc", "#e0e3eb", "#eff1f6", "#fcfcfd"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display (Site Público)", "purpose": "Títulos largos em Archivo 800 exclusivos das páginas institucionais." },
+      "headline": { "displayName": "Topbar Title (.sys-title)", "purpose": "Título de página e breadcrumb na barra superior do dashboard." },
+      "title": { "displayName": "Section Title (.sys-section)", "purpose": "Cabeçalhos de blocos e painéis operacionais." },
+      "body": { "displayName": "Body / Tabela", "purpose": "Texto corrente e células tabulares densas." },
+      "label": { "displayName": "Label (.sys-label)", "purpose": "Rótulos de campos, métricas e cabeçalhos de coluna." }
+    },
+    "shadows": [
+      {
+        "name": "overlay-portal",
+        "value": "0 20px 25px -5px rgba(4, 11, 37, 0.15), 0 8px 10px -6px rgba(4, 11, 37, 0.1)",
+        "purpose": "Apenas para dropdowns em portal, gaveta mobile e sheet lateral."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "150ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Transição rápida de estado em botões, itens de sidebar e checkboxes."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão Primário Dourado (Novo)",
+      "kind": "button",
+      "refersTo": "button-primary-gold",
+      "description": "Ação primária única na topbar do sistema.",
+      "html": "<button class=\"ds-btn-gold\" type=\"button\">Novo</button>",
+      "css": ".ds-btn-gold { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; background: #a18c5e; color: #061237; border: 0; border-radius: 5px; font-family: Archivo, sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: background-color 150ms ease; } .ds-btn-gold:hover { background: #d9c89b; } .ds-btn-gold:focus-visible { outline: 2px solid #a18c5e; outline-offset: 3px; }"
+    },
+    {
+      "name": "Botão Secundário (Atalho / Toolbar)",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Atalhos de ação secundária e controles de barra.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">Nova tarefa</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; background: #fcfcfd; color: #061237; border: 1px solid rgba(6, 18, 55, 0.25); border-radius: 5px; font-family: Archivo, sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: background-color 150ms ease; } .ds-btn-secondary:hover { background: rgba(6, 18, 55, 0.05); }"
+    },
+    {
+      "name": "Item Ativo da Barra Lateral",
+      "kind": "nav",
+      "refersTo": "sidebar-item-active",
+      "description": "Navegação no menu lateral retrátil em azul-marinho com ícones de 20px e indicador dourado de 3px.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\"><span>Carteira</span><span class=\"ds-nav-count\">28</span></a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; justify-content: space-between; width: 264px; min-height: 42px; padding: 10px 16px; background: #12204e; color: #eff1f6; border-left: 3px solid #d9c89b; text-decoration: none; font-family: Archivo, sans-serif; font-size: 13.5px; font-weight: 500; } .ds-nav-count { font-size: 11px; font-variant-numeric: tabular-nums; color: rgba(239, 241, 246, 0.8); }"
+    },
+    {
+      "name": "Faixa de KPI Dividida",
+      "kind": "card",
+      "refersTo": "kpi-strip-cell",
+      "description": "Célula clicável da régua contábil de KPIs de 2 linhas separada por divisórias de 1px.",
+      "html": "<div class=\"ds-kpi-strip\"><button class=\"ds-kpi-cell\" type=\"button\"><span class=\"ds-kpi-label\">Indício de abuso</span><span class=\"ds-kpi-value\">11</span></button></div>",
+      "css": ".ds-kpi-strip { border-top: 1px solid rgba(6, 18, 55, 0.2); border-bottom: 1px solid rgba(6, 18, 55, 0.2); display: inline-flex; } .ds-kpi-cell { display: flex; flex-direction: column; padding: 12px 16px; background: transparent; border: 0; text-align: left; cursor: pointer; font-family: Archivo, sans-serif; transition: background-color 150ms ease; } .ds-kpi-cell:hover { background: rgba(252, 252, 253, 0.7); } .ds-kpi-label { font-size: 13px; font-weight: 500; color: #37446c; } .ds-kpi-value { margin-top: 4px; font-size: 24px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; color: #061237; }"
+    },
+    {
+      "name": "Campo Sublinhado (.field)",
+      "kind": "input",
+      "refersTo": "input-underline",
+      "description": "Campo de formulário sem caixa, com traço inferior de ficha impressa.",
+      "html": "<input class=\"ds-field\" type=\"text\" placeholder=\"Ex.: Rafael Augusto Moura\" />",
+      "css": ".ds-field { width: 260px; background: transparent; border: 0; border-bottom: 1.5px solid #a0a9c5; border-radius: 0; padding: 8px 0; font-family: Archivo, sans-serif; font-size: 14px; color: #061237; } .ds-field:focus { outline: none; border-bottom-color: #061237; box-shadow: 0 2px 0 #a18c5e; }"
+    },
+    {
+      "name": "Selo de Categoria",
+      "kind": "chip",
+      "description": "Etiqueta de fase processual com contraste controlado e ponto indicador.",
+      "html": "<span class=\"ds-chip\"><span class=\"ds-chip-dot\"></span>Revisional</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid rgba(6, 18, 55, 0.3); background: rgba(6, 18, 55, 0.1); color: #061237; border-radius: 3px; font-family: Archivo, sans-serif; font-size: 12px; font-weight: 600; } .ds-chip-dot { width: 6px; height: 6px; background: #061237; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "A Mesa do Advogado",
+    "overview": "O sistema visual une duas superfícies com o mesmo DNA material de escritório bancário: o site institucional público (modo Persuade) e o sistema interno revisional em formato dashboard (modo Operate). No sistema interno, a navegação veste a mesa em azul-marinho escuro com o logotipo dourado fixo à esquerda, enquanto o trabalho diário acontece sobre folhas claras de papel branco-frio com linhas finas de 1px, densidade tabular e zero ornamento.",
+    "keyCharacteristics": [
+      "Barra lateral retrátil em azul-marinho profundo (264px expandida / 68px recolhida, atalho Ctrl+B), com grupos sanfonados e ícones de 20px, contrastando com canvas operacional claro e barra superior fixa (56px).",
+      "Cantos de 5px em botões, campos com caixa, cartões, menus e modais (3px em selos e checkboxes); campos sublinhados e linhas da sidebar seguem retos, e o único círculo é o marcador do dia de hoje no calendário mensal.",
+      "Tela Início estruturada com cabeçalho operacional do dia (sem faixa de KPI no topo) e mesa em 2 colunas (Pauta de Prazos com atalho para Google Agenda + Intimações DJEN; Pipeline da Carteira por Fase + Cálculos Recentes).",
+      "Tabelas densas (40–44px por linha), cabeçalho fixo (sticky top-0) e valores financeiros alinhados à direita em tabular-nums."
+    ],
+    "rules": [
+      { "name": "The Restrained Gold Rule", "body": "No dashboard interno, o dourado aparece apenas na ação primária (Novo), na indicação de item ativo na sidebar (3px à esquerda), no ponto de publicação nova e em alertas de prazo/audiência — nunca em fundos decorativos ou bordas ornamentais.", "section": "colors" },
+      { "name": "The Normal-Width Rule", "body": "Dentro do sistema interno, .display, .subdisplay e .rubric em caixa-alta não são usados para títulos operacionais; utiliza-se Archivo em largura padrão (100%) e capitalização normal (sentence case).", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Cards, faixas de KPI analíticas e tabelas no sistema interno são planos (border 1px) sem box-shadow em repouso nem ao passar o mouse.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do manter a barra lateral retrátil (264px <-> 68px) com grupos expansíveis e ícones legíveis de 20px.",
+      "Do manter min-w-0 em todas as colunas de CSS Grid que contenham tabelas ou grades roláveis.",
+      "Do renderizar dropdowns da barra superior (busca global e menu Novo) via Portal com position: fixed.",
+      "Do usar skeleton com a geometria real da página durante o carregamento inicial do Início (InicioSkeleton).",
+      "Do manter transições rápidas (150–250ms) apenas para comunicar estado (hover, foco, conclusão de tarefa, abertura de gaveta e recolhimento da sidebar)."
+    ],
+    "donts": [
+      "Don't colocar saudações com emoji, banners em gradiente ou cards individuais com ícone colorido para KPIs no sistema.",
+      "Don't usar .display, .subdisplay, .rubric em caixa-alta nem HeroArt nas telas operacionais do dashboard.",
+      "Don't usar bordas arredondadas em pílula (rounded-full), exceto no círculo do dia atual na grade mensal da Agenda.",
+      "Don't aplicar border-left espessa (3px+) em linhas de tabela ou cartões de caso para sinalizar status; prefira selos de contraste leve com ponto indicador.",
+      "Don't aplicar backdrop-blur, glassmorphism ou sombras pesadas sobre superfícies estáticas."
+    ]
+  }
+}

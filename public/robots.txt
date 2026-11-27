@@ -1,16 +1,21 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /ferramentas/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /ferramentas/
 
 User-agent: Twitterbot
 Allow: /
+Disallow: /ferramentas/
 
 User-agent: facebookexternalhit
 Allow: /
+Disallow: /ferramentas/
 
 User-agent: *
 Allow: /
+Disallow: /ferramentas/
 
 Sitemap: https://www.iangranja.adv.br/sitemap.xml

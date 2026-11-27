@@ -1,4 +1,4 @@
-import { useParams, Navigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { ArrowRight, Check } from "lucide-react";
 import { practiceAreas } from "@/data/practiceAreas";
 import { areaDocuments, areaPhrases } from "@/data/documents";
@@ -10,6 +10,7 @@ import { FaqList } from "@/components/FaqList";
 import { Cta, TextLink } from "@/components/Cta";
 import { Fecho } from "@/components/Fecho";
 import { HOURS } from "@/lib/contact";
+import NotFound from "@/pages/NotFound";
 
 const commonDoubts = [
     {
@@ -45,7 +46,7 @@ const AtuacaoDetalhes = () => {
     const area = practiceAreas.find((item) => item.slug === slug);
 
     if (!area) {
-        return <Navigate to="/atuacao" replace />;
+        return <NotFound />;
     }
 
     const doc = areaDocuments[area.slug];

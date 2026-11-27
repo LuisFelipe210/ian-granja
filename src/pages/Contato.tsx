@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
@@ -19,16 +20,37 @@ interface FormData {
 
 const emptyForm: FormData = { name: "", email: "", phone: "", message: "", website: "" };
 
-const sendEmail = async (data: FormData): Promise<boolean> => {
+const sendEmail = async (data: FormData): Promise<{ ok: boolean; message?: string }> => {
     try {
         const response = await fetch("/api/send-contact", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...data, subject: "Contato pelo site" }),
+            body: JSON.stringify({
+                name: data.name.trim(),
+                email: data.email.trim(),
+                phone: data.phone.trim(),
+                message: data.message.trim(),
+                website: data.website,
+                subject: "Contato pelo site",
+            }),
         });
-        return response.ok;
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+            return { ok: false };
+        }
+        const json = (await response.json().catch(() => null)) as { message?: string } | null;
+        if (!response.ok) {
+            if (response.status === 429) {
+                return { ok: false, message: "Muitas tentativas seguidas. Aguarde alguns minutos ou fale pelo WhatsApp." };
+            }
+            if (response.status === 400 && json?.message) {
+                return { ok: false, message: json.message };
+            }
+            return { ok: false };
+        }
+        return { ok: true };
     } catch {
-        return false;
+        return { ok: false };
     }
 };
 
@@ -40,15 +62,19 @@ const Contato = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isLoading) return;
         setIsLoading(true);
-        const success = await sendEmail(formData);
+        const result = await sendEmail(formData);
         setIsLoading(false);
 
-        if (success) {
+        if (result.ok) {
             toast.success("Mensagem enviada. Entraremos em contato.");
             setFormData(emptyForm);
         } else {
-            toast.error("Não foi possível enviar agora. Sua mensagem continua no formulário: tente de novo ou fale pelo WhatsApp.");
+            toast.error(
+                result.message ??
+                    "Não foi possível enviar agora. Sua mensagem continua no formulário: tente de novo ou fale pelo WhatsApp.",
+            );
         }
     };
 
@@ -94,6 +120,7 @@ const Contato = () => {
                                                 id="name"
                                                 name="name"
                                                 autoComplete="name"
+                                                maxLength={120}
                                                 value={formData.name}
                                                 onChange={handleChange}
                                                 required
@@ -108,6 +135,7 @@ const Contato = () => {
                                                 type="tel"
                                                 autoComplete="tel"
                                                 inputMode="tel"
+                                                maxLength={40}
                                                 value={formData.phone}
                                                 onChange={handleChange}
                                                 required
@@ -124,6 +152,7 @@ const Contato = () => {
                                             name="email"
                                             type="email"
                                             autoComplete="email"
+                                            maxLength={160}
                                             value={formData.email}
                                             onChange={handleChange}
                                             required
@@ -137,6 +166,7 @@ const Contato = () => {
                                         <textarea
                                             id="message"
                                             name="message"
+                                            maxLength={5000}
                                             value={formData.message}
                                             onChange={handleChange}
                                             rows={5}
@@ -145,6 +175,17 @@ const Contato = () => {
                                             className="field resize-y"
                                         />
                                     </div>
+
+                                    <p className="text-xs leading-relaxed text-muted-foreground">
+                                        Seus dados serão utilizados apenas para responder ao seu atendimento, conforme nossa{" "}
+                                        <Link
+                                            to="/privacidade"
+                                            className="font-medium text-ink underline decoration-ink/35 underline-offset-4 hover:decoration-gold-deep"
+                                        >
+                                            Política de Privacidade
+                                        </Link>
+                                        .
+                                    </p>
 
                                     <button
                                         type="submit"

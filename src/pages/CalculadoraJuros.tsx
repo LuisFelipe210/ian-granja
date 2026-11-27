@@ -91,6 +91,14 @@ const Resultado = ({ a, onRefazer }: { a: Analise; onRefazer: () => void }) => {
                 </div>
             </dl>
 
+            {a.custosEmbutidos && (
+                <p className="mt-4 border-l-2 border-gold bg-gold/10 px-3.5 py-2.5 font-sans text-sm leading-relaxed text-ink">
+                    Atenção: pelas parcelas informadas, a taxa efetiva ({num(a.taxaEfetiva)}% a.m.) é maior que a taxa
+                    escrita no contrato ({num(a.contratoAm)}% a.m.). Isso costuma indicar seguros, tarifas ou encargos
+                    embutidos no financiamento.
+                </p>
+            )}
+
             {a.media.nota && (
                 <p className="mt-4 font-sans text-sm text-muted-foreground">{a.media.nota}</p>
             )}
@@ -189,9 +197,13 @@ const CalculadoraJuros = () => {
 
         setErro(null);
         setCarregando(true);
-        await consultarBacen(entrada.mod!, entrada.mes);
-        const a = analisar({ ...entrada, mod: entrada.mod! });
-        setCarregando(false);
+        let a: Analise | null = null;
+        try {
+            await consultarBacen(entrada.mod!, entrada.mes);
+            a = analisar({ ...entrada, mod: entrada.mod! });
+        } finally {
+            setCarregando(false);
+        }
         if (!a) return setErro("Não conseguimos a taxa média do Banco Central agora. Tente de novo em alguns minutos.");
 
         setResultado(a);

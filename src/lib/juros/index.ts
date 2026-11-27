@@ -32,6 +32,9 @@ export interface Modalidade extends Fonte {
     alt?: Fonte & { nome: string };
     /** Aviso fixo sobre a série escolhida. */
     obs?: string;
+    /** Metadados para consulta por instituição na API Olinda do BCB. */
+    olindaSegmento?: "PESSOA FÍSICA" | "PESSOA JURÍDICA";
+    olindaModalidade?: string;
 }
 
 const VEICULOS_PF: Fonte = { am: 25471, aa: 20749 };
@@ -39,7 +42,15 @@ const VEICULOS_PJ: Fonte = { am: 25447, aa: 20728 };
 const NAO_CONSIGNADO: Fonte = { am: 25464, aa: 20742 };
 
 export const MODALIDADES: Modalidade[] = [
-    { id: "veiculo-pf", pessoa: "pf", nome: "Financiamento de veículo", resumo: "Carro ou moto financiado", ...VEICULOS_PF },
+    {
+        id: "veiculo-pf",
+        pessoa: "pf",
+        nome: "Financiamento de veículo",
+        resumo: "Carro ou moto financiado",
+        ...VEICULOS_PF,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Aquisição de veículos - Prefixado",
+    },
     {
         id: "sem-garantia",
         pessoa: "pf",
@@ -48,6 +59,8 @@ export const MODALIDADES: Modalidade[] = [
         am: 29977,
         aa: 29974,
         alt: { ...NAO_CONSIGNADO, nome: "crédito pessoal não consignado (total)" },
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal não consignado - Prefixado",
     },
     {
         id: "garantia-pf",
@@ -57,10 +70,69 @@ export const MODALIDADES: Modalidade[] = [
         am: 29976,
         aa: 29973,
         alt: { ...VEICULOS_PF, nome: "aquisição de veículos (PF)" },
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Aquisição de veículos - Prefixado",
     },
-    { id: "consig-publico", pessoa: "pf", nome: "Consignado de servidor", resumo: "Desconto na folha, setor público", am: 25467, aa: 20745 },
-    { id: "consig-privado", pessoa: "pf", nome: "Consignado CLT", resumo: "Desconto na folha, setor privado", am: 25466, aa: 20744 },
-    { id: "consig-inss", pessoa: "pf", nome: "Consignado do INSS", resumo: "Aposentados e pensionistas", am: 25468, aa: 20746 },
+    {
+        id: "consig-publico",
+        pessoa: "pf",
+        nome: "Consignado de servidor",
+        resumo: "Desconto na folha, setor público",
+        am: 25467,
+        aa: 20745,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal consignado público - Prefixado",
+    },
+    {
+        id: "consig-privado",
+        pessoa: "pf",
+        nome: "Consignado CLT",
+        resumo: "Desconto na folha, setor privado",
+        am: 25466,
+        aa: 20744,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal consignado privado - Prefixado",
+    },
+    {
+        id: "consig-inss",
+        pessoa: "pf",
+        nome: "Consignado do INSS",
+        resumo: "Aposentados e pensionistas",
+        am: 25468,
+        aa: 20746,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Crédito pessoal consignado INSS - Prefixado",
+    },
+    {
+        id: "cartao-parcelado",
+        pessoa: "pf",
+        nome: "Cartão de crédito parcelado",
+        resumo: "Parcelamento de fatura ou compra com juros",
+        am: 25478,
+        aa: 22023,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Cartão de crédito - parcelado - Prefixado",
+    },
+    {
+        id: "cartao-rotativo",
+        pessoa: "pf",
+        nome: "Cartão de crédito rotativo",
+        resumo: "Saldo rotativo da fatura do cartão",
+        am: 25477,
+        aa: 22022,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Cartão de crédito - rotativo total - Prefixado",
+    },
+    {
+        id: "cheque-especial-pf",
+        pessoa: "pf",
+        nome: "Cheque especial",
+        resumo: "Limite da conta corrente (PF)",
+        am: 25463,
+        aa: 20741,
+        olindaSegmento: "PESSOA FÍSICA",
+        olindaModalidade: "Cheque especial - Prefixado",
+    },
     { id: "veiculo-pj", pessoa: "pj", nome: "Financiamento de veículo", resumo: "Veículo da empresa", ...VEICULOS_PJ },
     {
         id: "garantia-pj",
@@ -69,6 +141,26 @@ export const MODALIDADES: Modalidade[] = [
         resumo: "Veículo da empresa dado em garantia",
         ...VEICULOS_PJ,
         obs: "O BACEN não divulga série de empréstimo com garantia real para PJ; usamos a série de aquisição de veículos (PJ).",
+    },
+    {
+        id: "capital-giro-pj",
+        pessoa: "pj",
+        nome: "Capital de giro",
+        resumo: "Empréstimo empresarial (prazo acima de 1 ano)",
+        am: 25442,
+        aa: 20723,
+        olindaSegmento: "PESSOA JURÍDICA",
+        olindaModalidade: "Capital de giro com prazo superior a 365 dias - Prefixado",
+    },
+    {
+        id: "cheque-especial-pj",
+        pessoa: "pj",
+        nome: "Cheque especial empresarial",
+        resumo: "Limite da conta empresarial (PJ)",
+        am: 25446,
+        aa: 20727,
+        olindaSegmento: "PESSOA JURÍDICA",
+        olindaModalidade: "Cheque especial - Prefixado",
     },
 ];
 
@@ -100,12 +192,29 @@ export const valor = (c: number, k: string): number | null => {
 
 export const ultimoMes = (c: number): string | null => {
     const s = SERIES[c];
-    return s ? mKey(mIdx(s.i) + s.v.length - 1) : null;
+    if (!s || s.v.length === 0) return null;
+    for (let i = s.v.length - 1; i >= 0; i--) {
+        if (s.v[i] != null) return mKey(mIdx(s.i) + i);
+    }
+    return null;
 };
 
-export const primeiroMes = (c: number): string | null => SERIES[c]?.i ?? null;
+export const primeiroMes = (c: number): string | null => {
+    const s = SERIES[c];
+    if (!s || s.v.length === 0) return null;
+    for (let i = 0; i < s.v.length; i++) {
+        if (s.v[i] != null) return mKey(mIdx(s.i) + i);
+    }
+    return null;
+};
+
+const ANO_MIN_VALIDO = 1980;
+const ANO_MIN_SERIES_ECO = 1994;
 
 const gravar = (c: number, k: string, v: number) => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(k) || !Number.isFinite(v)) return;
+    const ano = Number(k.slice(0, 4));
+    if (ano < ANO_MIN_VALIDO || ano > new Date().getFullYear() + 1) return;
     let s = SERIES[c];
     if (!s) s = SERIES[c] = { i: k, v: [] };
     let ix = mIdx(k) - mIdx(s.i);
@@ -118,42 +227,62 @@ const gravar = (c: number, k: string, v: number) => {
     s.v[ix] = v;
 };
 
-const SERIES_CONSULTADAS = new Set<string>();
+const SERIES_CONSULTADAS = new Map<string, number>();
+const SERIES_EM_VOO = new Map<string, Promise<boolean>>();
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+function cacheValido(mapa: Map<string, number>, chave: string, incluiAnoAtual: boolean): boolean {
+    const ts = mapa.get(chave);
+    if (ts === undefined) return false;
+    if (!incluiAnoAtual) return true;
+    return Date.now() - ts < CACHE_TTL_MS;
+}
 
 /** Consulta a série no BACEN em janela máxima de 10 anos a partir de 3 anos antes do contrato. */
-const consultarSerie = async (c: number, k: string): Promise<boolean> => {
+const consultarSerie = (c: number, k: string): Promise<boolean> => {
     const [a] = k.split("-");
     const anoContrato = Number(a);
     const iniAno = Math.max(PRIMEIRO_ANO, anoContrato - 3);
     const anoAtual = new Date().getFullYear();
     const fimAno = Math.min(anoAtual, iniAno + 9);
     const cacheKey = `${c}:${iniAno}:${fimAno}`;
-    if (SERIES_CONSULTADAS.has(cacheKey)) return true;
+    if (cacheValido(SERIES_CONSULTADAS, cacheKey, fimAno >= anoAtual)) return Promise.resolve(true);
 
-    const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${c}/dados?formato=json&dataInicial=01/01/${iniAno}&dataFinal=31/12/${fimAno}`;
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 8000);
-    try {
-        const r = await fetch(url, { signal: ctl.signal });
-        if (!r.ok) return false;
-        const raw: unknown = await r.json();
-        if (!Array.isArray(raw)) return false;
-        const dados = raw as { data: string; valor: string }[];
-        for (const d of dados) {
-            const [, mm, aa] = d.data.split("/");
-            const v = parseFloat(d.valor);
-            if (!Number.isNaN(v)) gravar(c, `${aa}-${mm}`, v);
+    const emVoo = SERIES_EM_VOO.get(cacheKey);
+    if (emVoo) return emVoo;
+
+    const req = (async () => {
+        const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${c}/dados?formato=json&dataInicial=01/01/${iniAno}&dataFinal=31/12/${fimAno}`;
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 8000);
+        try {
+            const r = await fetch(url, { signal: ctl.signal });
+            if (!r.ok) return false;
+            const raw: unknown = await r.json();
+            if (!Array.isArray(raw)) return false;
+            const dados = raw as { data?: unknown; valor?: unknown }[];
+            for (const d of dados) {
+                if (typeof d?.data !== "string" || typeof d?.valor !== "string") continue;
+                const m = d.data.match(/^\d{2}\/(0[1-9]|1[0-2])\/(\d{4})$/);
+                if (!m) continue;
+                const v = parseFloat(d.valor);
+                if (Number.isFinite(v)) gravar(c, `${m[2]}-${m[1]}`, v);
+            }
+            if (dados.length > 0) {
+                SERIES_CONSULTADAS.set(cacheKey, Date.now());
+                return true;
+            }
+            return false;
+        } catch {
+            return false;
+        } finally {
+            clearTimeout(timer);
+            SERIES_EM_VOO.delete(cacheKey);
         }
-        if (dados.length > 0) {
-            SERIES_CONSULTADAS.add(cacheKey);
-            return true;
-        }
-        return false;
-    } catch {
-        return false;
-    } finally {
-        clearTimeout(timer);
-    }
+    })();
+
+    SERIES_EM_VOO.set(cacheKey, req);
+    return req;
 };
 
 /** Atualiza as séries de uma modalidade com o BACEN. Devolve true se ao menos uma respondeu. */
@@ -161,6 +290,90 @@ export const consultarBacen = async (mod: Modalidade, k: string) => {
     const cods = [mod.am, mod.aa, ...(mod.alt ? [mod.alt.am, mod.alt.aa] : [])];
     const ok = await Promise.all(cods.map((c) => consultarSerie(c, k)));
     return ok.some(Boolean);
+};
+
+const SGS_MESES_CACHE = new Map<number, Record<string, number>>();
+const SGS_JANELAS_CONSULTADAS = new Map<string, number>();
+const SGS_JANELAS_EM_VOO = new Map<string, Promise<void>>();
+
+/** Limpa caches em memória das consultas SGS/BACEN (útil para testes isolados ou refresh forçado). */
+export const limparCachesBacen = () => {
+    SERIES_CONSULTADAS.clear();
+    SERIES_EM_VOO.clear();
+    SGS_MESES_CACHE.clear();
+    SGS_JANELAS_CONSULTADAS.clear();
+    SGS_JANELAS_EM_VOO.clear();
+};
+
+/**
+ * Busca valores mensais ("AAAA-MM" -> %) de qualquer série do BACEN/SGS (ex.: 188 INPC, 433 IPCA, 189 IGP-M, 4390 SELIC),
+ * dividindo automaticamente em janelas de até 10 anos conforme exigido pela API do Banco Central.
+ */
+export const consultarSerieSgsMeses = async (
+    codigo: number,
+    iniAno: number,
+    fimAno: number,
+): Promise<Record<string, number>> => {
+    let mapa = SGS_MESES_CACHE.get(codigo);
+    if (!mapa) {
+        mapa = {};
+        SGS_MESES_CACHE.set(codigo, mapa);
+    }
+
+    const anoAtual = new Date().getFullYear();
+    const inicio = Math.max(ANO_MIN_SERIES_ECO, iniAno);
+    const fim = Math.min(anoAtual, Math.max(inicio, fimAno));
+
+    const janelas: [number, number][] = [];
+    for (let y = inicio; y <= fim; y += 10) {
+        const yFim = Math.min(fim, y + 9);
+        const key = `${codigo}:${y}:${yFim}`;
+        if (!cacheValido(SGS_JANELAS_CONSULTADAS, key, yFim >= anoAtual)) {
+            janelas.push([y, yFim]);
+        }
+    }
+
+    await Promise.all(
+        janelas.map(([yIni, yFim]) => {
+            const key = `${codigo}:${yIni}:${yFim}`;
+            const emVoo = SGS_JANELAS_EM_VOO.get(key);
+            if (emVoo) return emVoo;
+
+            const req = (async () => {
+                const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados?formato=json&dataInicial=01/01/${yIni}&dataFinal=31/12/${yFim}`;
+                const ctl = new AbortController();
+                const timer = setTimeout(() => ctl.abort(), 8000);
+                try {
+                    const r = await fetch(url, { signal: ctl.signal });
+                    if (!r.ok) return;
+                    const raw: unknown = await r.json();
+                    if (!Array.isArray(raw)) return;
+                    for (const d of raw as { data?: unknown; valor?: unknown }[]) {
+                        if (typeof d?.data !== "string" || typeof d?.valor !== "string") continue;
+                        const m = d.data.match(/^\d{2}\/(0[1-9]|1[0-2])\/(\d{4})$/);
+                        if (!m) continue;
+                        const v = parseFloat(d.valor);
+                        if (Number.isFinite(v)) {
+                            mapa![`${m[2]}-${m[1]}`] = v;
+                        }
+                    }
+                    if (raw.length > 0) {
+                        SGS_JANELAS_CONSULTADAS.set(key, Date.now());
+                    }
+                } catch {
+                    /* fallback silencioso */
+                } finally {
+                    clearTimeout(timer);
+                    SGS_JANELAS_EM_VOO.delete(key);
+                }
+            })();
+
+            SGS_JANELAS_EM_VOO.set(key, req);
+            return req;
+        }),
+    );
+
+    return { ...mapa };
 };
 
 /* ------------------------------------------------------------------ taxas */
@@ -198,10 +411,12 @@ export const taxaMedia = (mod: Modalidade, k: string): Media | null => {
         }
     }
 
-    const u = ultimoMes(mod.am);
+    const u = ultimoMes(mod.am) ?? ultimoMes(mod.aa);
     if (u && mIdx(k) > mIdx(u)) {
-        const vm = valor(mod.am, u);
-        const va = valor(mod.aa, u);
+        let vm = valor(mod.am, u);
+        let va = valor(mod.aa, u);
+        if (vm == null && va != null) vm = arred2(aaParaAm(va));
+        if (va == null && vm != null) va = arred2(amParaAa(vm));
         if (vm != null && va != null)
             return {
                 am: vm,
@@ -214,10 +429,12 @@ export const taxaMedia = (mod: Modalidade, k: string): Media | null => {
     }
 
     const s = mod.alt ?? mod;
-    const f = primeiroMes(s.am);
+    const f = primeiroMes(s.am) ?? primeiroMes(s.aa);
     if (f) {
-        const vm = valor(s.am, f);
-        const va = valor(s.aa, f);
+        let vm = valor(s.am, f);
+        let va = valor(s.aa, f);
+        if (vm == null && va != null) vm = arred2(aaParaAm(va));
+        if (va == null && vm != null) va = arred2(amParaAa(vm));
         if (vm != null && va != null)
             return {
                 am: vm,
@@ -249,10 +466,18 @@ export const historico = (c: number, k: string) => {
 /* ------------------------------------------------------- Tabela Price */
 
 /** Parcela pela Tabela Price. i em fração (0,02 = 2%). */
-export const parcelaPrice = (pv: number, i: number, n: number) => (i === 0 ? pv / n : (pv * i) / (1 - Math.pow(1 + i, -n)));
+export const parcelaPrice = (pv: number, i: number, n: number) => {
+    if (!Number.isFinite(pv) || !Number.isFinite(i) || !Number.isFinite(n) || n <= 0) return 0;
+    if (Math.abs(i) < 1e-12) return pv / n;
+    const denom = -Math.expm1(-n * Math.log1p(i));
+    if (!(denom > 0) || !Number.isFinite(denom)) return pv / n;
+    return (pv * i) / denom;
+};
 
 /** Taxa mensal (%) que faz pv virar n parcelas de p. */
 export const taxaPelasParcelas = (pv: number, p: number, n: number) => {
+    if (!Number.isFinite(pv) || !Number.isFinite(p) || !Number.isFinite(n) || pv <= 0 || p <= 0 || n <= 0) return 0;
+    if (p * n <= pv) return 0;
     let lo = 0;
     let hi = 1;
     while (parcelaPrice(pv, hi, n) < p && hi < 1e3) hi *= 2;
@@ -264,9 +489,20 @@ export const taxaPelasParcelas = (pv: number, p: number, n: number) => {
     return ((lo + hi) / 2) * 100;
 };
 
-/** Saldo devedor depois de k parcelas. */
-export const saldoDevedor = (pv: number, i: number, p: number, k: number) =>
-    i === 0 ? pv - p * k : pv * Math.pow(1 + i, k) - (p * (Math.pow(1 + i, k) - 1)) / i;
+/** Saldo devedor depois de k parcelas (recorrência numericamente estável). */
+export const saldoDevedor = (pv: number, i: number, p: number, k: number) => {
+    if (!Number.isFinite(pv) || !Number.isFinite(i) || !Number.isFinite(p) || !Number.isFinite(k) || k <= 0) {
+        return Number.isFinite(pv) ? pv : 0;
+    }
+    const passos = Math.min(Math.round(k), 1200);
+    if (Math.abs(i) < 1e-12) return pv - p * passos;
+    let saldo = pv;
+    for (let t = 0; t < passos; t++) {
+        saldo = saldo * (1 + i) - p;
+        if (!Number.isFinite(saldo)) return 0;
+    }
+    return saldo;
+};
 
 /* ------------------------------------------------------------- análise */
 
@@ -324,6 +560,18 @@ export interface Analise {
 const valido = (x?: number) => typeof x === "number" && x > 0 && Number.isFinite(x);
 
 export const analisar = (e: Entrada): Analise | null => {
+    if (
+        !valido(e.valor) ||
+        !valido(e.parcela) ||
+        !Number.isInteger(e.parcelas) ||
+        e.parcelas < 1 ||
+        e.parcelas > 999 ||
+        !Number.isFinite(e.pagas) ||
+        e.pagas < 0 ||
+        e.pagas > e.parcelas
+    ) {
+        return null;
+    }
     let media = taxaMedia(e.mod, e.mes);
     let manual = false;
     if (valido(e.mediaMensal) || valido(e.mediaAnual)) {
@@ -332,7 +580,7 @@ export const analisar = (e: Entrada): Analise | null => {
         media = { am, aa, serieAm: null, serieAa: null, mes: e.mes, nota: "Taxa média informada manualmente." };
         manual = true;
     }
-    if (!media) return null;
+    if (!media || !(media.am > 0) || !(media.aa > 0)) return null;
 
     const taxaEfetiva = taxaPelasParcelas(e.valor, e.parcela, e.parcelas);
     const tm = valido(e.taxaMensal) ? e.taxaMensal! : undefined;
@@ -360,7 +608,7 @@ export const analisar = (e: Entrada): Analise | null => {
         razaoAa,
         razao,
         nivel: nivel(razaoAm),
-        custosEmbutidos: tm !== undefined && taxaEfetiva - tm > 0.05,
+        custosEmbutidos: (tm !== undefined || ta !== undefined) && taxaEfetiva - contratoAm > 0.05,
         parcelaNaMedia,
         total,
         totalNaMedia,
@@ -381,10 +629,19 @@ export const validar = (e: Partial<Entrada>): string | null => {
     const hoje = new Date();
     const maxIdx = hoje.getFullYear() * 12 + hoje.getMonth();
     if (mIdx(e.mes) > maxIdx) return "A data do contrato não pode estar no futuro.";
-    if (!valido(e.valor) || !valido(e.parcela) || !e.parcelas || e.parcelas < 1)
-        return "Preencha o valor financiado, o valor da parcela e a quantidade de parcelas.";
-    if (e.parcela! * e.parcelas! <= e.valor!) return "A soma das parcelas precisa ser maior que o valor financiado. Confira os números.";
-    if ((e.pagas ?? 0) < 0 || (e.pagas ?? 0) > e.parcelas!) return `As parcelas pagas precisam estar entre 0 e ${e.parcelas}.`;
+    if (
+        !valido(e.valor) ||
+        !valido(e.parcela) ||
+        typeof e.parcelas !== "number" ||
+        !Number.isInteger(e.parcelas) ||
+        e.parcelas < 1 ||
+        e.parcelas > 999
+    )
+        return "Preencha o valor financiado, o valor da parcela e a quantidade de parcelas (entre 1 e 999).";
+    if (e.parcela! * e.parcelas <= e.valor!) return "A soma das parcelas precisa ser maior que o valor financiado. Confira os números.";
+    const pagas = e.pagas ?? 0;
+    if (typeof pagas !== "number" || !Number.isInteger(pagas) || pagas < 0 || pagas > e.parcelas)
+        return `As parcelas pagas precisam estar entre 0 e ${e.parcelas}.`;
     return null;
 };
 
@@ -411,7 +668,13 @@ export const mascaraMoeda = (s: string) => {
     const d = s.replace(/\D/g, "").replace(/^0+/, "");
     return d ? num(parseInt(d, 10) / 100) : "";
 };
-export const lerMoeda = (s: string) => parseFloat(s.replace(/\./g, "").replace(",", ".")) || 0;
+export const lerMoeda = (s: string) => {
+    const limpo = s.replace(/^\s*R\$\s*/i, "").trim();
+    if (!limpo) return 0;
+    const n = lerDecimal(limpo);
+    if (Number.isFinite(n)) return n;
+    return parseFloat(limpo.replace(/\./g, "").replace(",", ".")) || 0;
+};
 
 /** Resumo em texto para petição / WhatsApp. */
 export const resumo = (a: Analise) => {

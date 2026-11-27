@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createTransport, type SendMailOptions } from "nodemailer";
+import { getHeader, origemPermitida } from "./_http.ts";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]{2,}$/;
 const LINE_BREAK_RE = /[\r\n]/;
 
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 5;
+const RATE_MAX_BUCKETS = 1_000;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 export interface ContactData {
@@ -95,11 +97,17 @@ export function parseAndValidateContact(rawBody: unknown): ParseContactResult {
 }
 
 export function checkRateLimit(ip: string, now = Date.now()): boolean {
-    if (rateBuckets.size > 500) {
+    if (rateBuckets.size >= RATE_MAX_BUCKETS) {
         for (const [key, entry] of rateBuckets.entries()) {
             if (entry.resetAt <= now) {
                 rateBuckets.delete(key);
             }
+        }
+        // Evicção FIFO caso todas as entradas ainda estejam dentro da janela (proteção contra DoS de memória).
+        while (rateBuckets.size >= RATE_MAX_BUCKETS) {
+            const oldestKey = rateBuckets.keys().next().value;
+            if (oldestKey === undefined) break;
+            rateBuckets.delete(oldestKey);
         }
     }
 
@@ -122,10 +130,14 @@ export function resetRateLimit(): void {
 }
 
 function extractClientIp(request: ContactRequest): string {
-    const forwarded = request.headers["x-forwarded-for"];
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-    if (typeof first === "string" && first.trim().length > 0) {
-        return first.split(",")[0].trim();
+    // Na Vercel, x-vercel-forwarded-for e x-real-ip são definidos pelo edge e não forjáveis pelo cliente.
+    const vercelIp = getHeader(request.headers, "x-vercel-forwarded-for").split(",")[0].trim();
+    if (vercelIp) return vercelIp;
+    const realIp = getHeader(request.headers, "x-real-ip").trim();
+    if (realIp) return realIp;
+    const forwarded = getHeader(request.headers, "x-forwarded-for");
+    if (forwarded.trim().length > 0) {
+        return forwarded.split(",")[0].trim();
     }
     return request.socket?.remoteAddress || "unknown";
 }
@@ -137,6 +149,11 @@ export async function handleContactRequest(
 ) {
     if (request.method !== "POST") {
         return response.status(405).json({ message: "Method not allowed" });
+    }
+
+    const origin = getHeader(request.headers, "origin").trim();
+    if (origin && !origemPermitida(origin)) {
+        return response.status(403).json({ message: "Origin not allowed" });
     }
 
     const ip = extractClientIp(request);
@@ -195,12 +212,19 @@ export async function handleContactRequest(
         } else {
             const transporter = createTransport({
                 service: "gmail",
+                connectionTimeout: 8_000,
+                greetingTimeout: 8_000,
+                socketTimeout: 10_000,
                 auth: {
                     user: emailUser,
                     pass: emailPass,
                 },
             });
-            await transporter.sendMail(mailOptions);
+            try {
+                await transporter.sendMail(mailOptions);
+            } finally {
+                transporter.close();
+            }
         }
 
         return response.status(200).json({ message: "Email sent successfully" });
